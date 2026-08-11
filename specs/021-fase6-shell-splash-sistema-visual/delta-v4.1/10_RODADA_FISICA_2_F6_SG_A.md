@@ -670,6 +670,10 @@ discriminável. A variante `v1` do Caso 14 fica classificada como
 > Esta seção **acrescenta**; não reescreve §10. Protocolo completo em
 > [`11_PREP_LEGADO_02.md`](11_PREP_LEGADO_02.md); decisões canônicas em
 > [`docs/DECISIONS.md`](../../../docs/DECISIONS.md) §`PREP-LEGADO-02-ESCOPO`.
+>
+> 📌 **Superada por fato posterior — leia §12.** Esta seção foi escrita **antes** da execução física.
+> A `PREP-LEGADO-02` **foi executada em 2026-08-11 e fechou `STOP`**. O texto abaixo permanece como
+> foi congelado, inclusive onde a realidade o contrariou.
 
 **A `PREP-LEGADO-01` fechou `ALLOWLIST_RESULT=STOP` e assim permanece.** Não há ampliação retroativa
 de allowlist, não há admissão retroativa do artefato produzido lá, e **`R2 · SESSÃO 2` continua NÃO
@@ -712,3 +716,32 @@ que a `PREP-02` constrói. **Autenticidade e admissibilidade são eixos distinto
 - Evidências da `PREP-02` vão para `C:\tmp\ptf_evidencias\PREP-LEGADO-02\`. **Nenhum artefato da
   `PREP-01` é sobrescrito** (`D-PREP02-04`).
 - `F6-SG-A` continua **NÃO CONCEDIDO**; `R1-PEND-1..5` continuam **ABERTAS**.
+
+---
+
+## 12. `PREP-LEGADO-02` — execução, `STOP` e auditoria causal (2026-08-11)
+
+> Esta seção **acrescenta**; não reescreve §11. Auditoria completa em
+> [`12_AUDITORIA_PREP02_STOP.md`](12_AUDITORIA_PREP02_STOP.md); decisões canônicas em
+> [`docs/DECISIONS.md`](../../../docs/DECISIONS.md) §`AUDITORIA-PREP02-STOP-01`
+> (`D-PREP02-09`, `D-PREP02-10`, `D-PREP02-11`).
+
+A `PREP-LEGADO-02` foi executada e **parou no *checkpoint* do Colorir 60**: `PRE_KEYS=16 →
+POST_KEYS=23`, `ADDED=7 CHANGED=0 DELETED=0`, `C60_ALLOWLIST_RESULT=STOP`. As **quatro** chaves de
+§7.1 apareceram exatamente como previstas, acompanhadas de **três** fora da allowlist. **O Ateliê não
+foi iniciado. Nenhuma chave foi apagada. Nenhum `TAR` foi refeito.**
+
+**Causa determinada** (perícia de `rowid` do `RKStorage` + canal de entrada do `InputDispatcher` +
+grafo de *writers*): a **rota congelada `B1..B4` não foi a rota executada**. O editor foi aberto por
+um botão **dentro de um `<Modal>`** — o convite do marco da `NarrationScreen` —, depois de **duas
+cenas concluídas** e de um toque acidental (`ON`→`OFF`) no *switch* Modo Criador. Foi percorrida a
+rota narrativa `cena 1 → cena 2 → marco`, a mesma da `PREP-01`.
+
+**Veredito `A*`:** a rota é **correta por análise** (grava só as quatro chaves; pós-conclusão inerte),
+mas **continua não validada empiricamente**, e o problema material maior **não** foi o *switch* — foi o
+desvio de rota. §10 do protocolo tem **três defeitos materiais** (`D-PREP02-10`). A
+`PREP-LEGADO-03` — **desenhada, não executada** — reutiliza a rota com *checkpoints* somente leitura
+`G0..G5`.
+
+> ⛔ **`PREP-LEGADO-02` = `STOP`.** ⛔ **`R2 · SESSÃO 2` = NÃO INICIADA.** ⛔ **`F6-SG-A` = NÃO
+> CONCEDIDO**; `R1-PEND-1..5` **ABERTAS**. Nenhum caso do **Bloco A** foi executado.

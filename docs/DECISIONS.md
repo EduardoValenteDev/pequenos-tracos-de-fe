@@ -3278,6 +3278,118 @@ Development Build** (§2.4 e ordem operacional congelada do §3.4). **Não gerar
 aberto**, para ser lido junto de `P-139` e do `T090`/`F-PERF` na rodada `R7` e nas fases de
 performance. **Não corrigir dentro de `SG-A`.**
 
+## `AUDITORIA-PREP02-STOP-01` — causa do `STOP` da `PREP-LEGADO-02` (2026-08-11)
+
+**Auditoria completa:**
+[`specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/12_AUDITORIA_PREP02_STOP.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/12_AUDITORIA_PREP02_STOP.md).
+Somente leitura: **nenhum aparelho, `adb`, Metro, `logcat`, restauração de `TAR`, alteração de
+*storage*, de evidência ou de código.** Esta entrada **registra**; ela **não executa**.
+
+### Fato auditado
+
+O *checkpoint* `C60` trouxe `ADDED=7 CHANGED=0 DELETED=0` — as **quatro** chaves previstas por §7.1 do
+protocolo **mais três** fora da allowlist: `@ptf_creator_qa_mode='false'`,
+`@ptf_progress_creation='{"1":true,"2":true}'` e
+`@ptf_coloring60_milestone_invite_seen_creation_light='1'`.
+
+### `D-PREP02-09` — a rota congelada **não foi executada**; foi percorrida a rota narrativa
+
+Provado por **três linhas independentes e convergentes**:
+
+1. **Forense de `rowid` do `RKStorage`** (técnica nova). O `AsyncStorage` legado grava com
+   `INSERT OR REPLACE`, que realoca o `rowid` da chave reescrita e deixa o antigo vago ⇒ a ordem de
+   `rowid` **é** a ordem de gravação, e um vago antes de uma chave prova **dupla gravação**. Baseline
+   máx. `42`; *checkpoint*: `43` vago → `44` `creator='false'`; `45` vago → `46` `progress`; `47`
+   marco; `48` ponteiro; `49/50/51` `done/snap/ever` — nesta ordem exata do `multiSet` de
+   `coloring60ActivityService.js:129-133`. Logo: *switch* tocado **duas** vezes (`ON`→`OFF`), **duas**
+   cenas concluídas, **e as três chaves inesperadas nasceram ANTES do *save* do C60**.
+2. **Canal de entrada do `InputDispatcher`.** O toque que precedeu a montagem do `ColoringScreen` em
+   **366 ms** foi entregue ao canal de um **`Dialog` nativo** (`ReactModalHostView.showOrUpdate`), não
+   ao canal da janela principal onde vive o `SoundButton` "Abrir Luz" (`ParentAreaScreen.js:1186`).
+   **O editor foi aberto por um botão dentro de um modal.**
+3. **Grafo de *writers*.** O único modal que abre o editor e é compatível com as chaves observadas é o
+   **convite do marco** (`Coloring60MilestoneInvite` ← `NarrationScreen.js:217`; aceite em `:244`).
+   O convite da `StoryDetail` está **duplamente excluído** (exige `storyScenesComplete === true` e
+   gravaria `@ptf_creation_colorir_invite_shown_v1`, ausente do `ADDED`).
+
+**Portanto:** foi percorrida a rota `cena 1 → cena 2 → marco` — a mesma da `PREP-01` —, que
+`D-PREP02-06` declarava não utilizada. **Na `PREP-02` houve desvio de rota**, e ele é maior que o
+toque acidental no *switch*. Isto **não** contradiz o diagnóstico da `PREP-01`, cujo protocolo
+**mandava** percorrer a narrativa: lá não houve desvio; aqui houve.
+
+> ⚠️ `modo=activity` no log de conclusão **não** identifica a porta: `COLORING60_MODE.FIRST = 'activity'`
+> (`coloring60Journey.js:64`) e `completionMode` deriva **só** do mapa de conclusões. Armadilha de
+> leitura, registrada para não se repetir.
+
+### `D-PREP02-10` — o protocolo de §10 tem **três defeitos materiais**
+
+- **`P-1` coabitação:** o *switch* Modo Criador é o **1º** card do acordeão e "Abrir Luz" é o **3º**;
+  chegar ao alvo exige rolar por cima do *switch*. Única barreira: uma frase numa célula de tabela.
+- **`P-2` zero *checkpoints* intermediários** entre os blocos `B` e `A`. Como escrito, o desvio só
+  seria visto **depois** de o Ateliê existir, contaminando os dois insumos. O que salvou a sessão
+  (`CHECKPOINT-C60.tar` + `CHECKPOINT_C60_ASYNC_DIFF.txt`) é **improvisação do executor**, ausente de
+  §10 e de §13.
+- **`P-3` proibições fora da lista de passos:** a proibição de entrar na `NarrationScreen` só existe
+  em §7.3 e na nota de rodapé de §10 — textos para o auditor, não para o operador. §14.12 é
+  **inauditável**: nenhum artefato exigido registra a rota percorrida.
+
+**O que funcionou:** a allowlist de §7.1 estava **materialmente correta**, a de §8 foi respeitada e a
+**disciplina de `STOP` funcionou** (nada apagado, nada remediado, Ateliê não iniciado). Falhou a
+disciplina de **rota**, não a de parada.
+
+**Achado de processo:** o *commit* que corrigiu a rota (`c71e8b6`) é de **15:28:57**; a sessão física
+começou às **15:34:28** — **~5,5 min** de margem, sem rebriefing.
+
+### `D-PREP02-11` — veredito e reuso da rota na `PREP-LEGADO-03`
+
+**Veredito `A*`:** a **rota** `B1..B4` é **correta** — por análise de *writers* grava exatamente as
+quatro chaves da allowlist, e o pós-conclusão é **inerte** (o `RKStorage` do `TAR-STOP-C60` é idêntico
+ao do *checkpoint*: **zero escritas** entre o *save* e o `force-stop`). Isso exclui `B` e `C`. **Mas a
+segunda asserção do enunciado `A` — "o único problema material foi o toque acidental" — é REJEITADA**
+(ver `D-PREP02-09`), e `D` seria desonesto porque a causa **está** determinada. **A correção da rota é
+afirmada por análise estática, não por teste físico bem-sucedido: a rota continua NÃO VALIDADA
+empiricamente.**
+
+**Consequência:** a `PREP-LEGADO-03` **reutiliza a rota** e **corrige o protocolo**, com *checkpoints*
+somente leitura **`G0..G5`** (`G0` pós-*boot*; `G1` na entrada da Área dos Pais; **`G2` prova positiva
+de que `@ptf_creator_qa_mode` continua AUSENTE** antes de abrir o editor; `G3` com o editor montado e
+antes de pintar; **`G4` imediatamente após o *save*, antes de qualquer navegação**; `G5` após ligar o
+Modo Criador, antes do Ateliê). *Baseline* = **`TAR-PRE02.tar`**
+(`SHA256 8486DEC6…FF1BA7`, conferido). **C60 com o Modo Criador AUSENTE/`OFF`; só depois o Ateliê.**
+**`PREP-01` e `PREP-02` preservadas integralmente**; nenhuma allowlist ampliada retroativamente.
+
+**Rejeitados explicitamente:** (a) **reordenar os controles do `ParentAreaScreen`** — seria a
+mitigação mais eficaz, mas alterar `src/` do *runtime* histórico **invalidaria a proveniência** do
+*bundle* `7de7085`; (b) **automação de UI por coordenada** (`adb shell input tap`) — sintetiza evento
+na camada do `InputDispatcher` e produziria interação **indistinguível da real** no `raw.log`,
+destruindo a própria forense de canal que fechou esta auditoria. **A interação continua humana e
+real.** Mitigações adotadas: roteiro **toque a toque** com as proibições **dentro** da lista de
+passos, instrução visual explícita para o bloco `B2`, `G2` como trava dura, *checkpoint* promovido a
+artefato obrigatório, **rebriefing com ≥30 min** entre um *commit* que altere a rota e a sessão
+física, e gerador de `BUNDLE_PROVENANCE` com **veredito explícito** e caminhos normalizados.
+
+### Proveniência do *bundle* (revalidação **documental**)
+
+`shellLifecycleTrace` e `useSurfaceLifecycle` **AUSENTES** do *bundle* (existem em 6 arquivos de
+`c71e8b6` e em 0 de `7de7085`); marcador **positivo** de época presente (a *copy* obsoleta de
+`ParentAreaScreen.js:1182`). Os `1137` módulos "desconhecidos" **não são anomalia**: ~800 são caminhos
+internos de `node_modules` e ~337 sofrem falha de normalização (barra dupla) — normalizados,
+**nenhum módulo `.js` do app está ausente**. **Ressalva:** `BUNDLE_PROVENANCE_PRE_C60.txt` **não emite
+veredito** e, lido sem análise, **induz a erro**; o gate positivo de §9 item 9 é cumprido por esta
+auditoria, não pelo arquivo. **O *bundle* é consistente com `7de7085` e incompatível com `c71e8b6`.**
+
+### Não determinados (registrados como tais)
+
+Identidade nominal de dois `Dialog` intermediários (certo é que **nenhum dos dois gravou chave
+alguma** — não há `rowid` que os acomode) · se o operador chegou a **ver** o cartão "Colorir 60" da
+Área dos Pais · horário absoluto de cada escrita (o `AsyncStorage` não emite `logcat`; as horas são
+**intervalos inferidos** ancorados na ordem física dos `rowid`) · a contagem de "conhecidos" do
+*bundle*.
+
+> ⛔ **`PREP-LEGADO-01` = `STOP`. `PREP-LEGADO-02` = `STOP`. `R2 · Sessão 2` = NÃO INICIADA.
+> `F6-SG-A` = NÃO CONCEDIDO** (`R1-PEND-1..5` ABERTAS). **`PREP-LEGADO-03` = DESENHADA, NÃO
+> EXECUTADA.** Nenhuma história foi apagada ou reescrita.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:

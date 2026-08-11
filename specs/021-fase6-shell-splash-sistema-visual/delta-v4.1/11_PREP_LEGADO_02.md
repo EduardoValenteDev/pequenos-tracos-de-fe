@@ -531,3 +531,36 @@ o aparelho; não se executou `adb`, Metro, Expo ou `logcat`; não se executou `l
 app; não se instalou, desinstalou nem limpou dados; não se alterou `src/`, `scripts/`, `package.json`,
 `app.json` nem `eas.json`; não se tocou o *worktree* histórico além de leitura; nenhum artefato da
 `PREP-01` foi alterado. **Este documento registra e congela. Ele não executa.**
+
+## 17. Execução de 2026-08-11 — `STOP` e auditoria causal (**posterior a este congelamento**)
+
+> Esta seção é **anexo de fato**, escrito depois da execução física. Ela **não** reescreve nada acima:
+> §1–§16 permanecem como foram congelados, inclusive onde a realidade os contrariou.
+
+A `PREP-LEGADO-02` foi executada em 2026-08-11 e **parou no *checkpoint* do Colorir 60**:
+`PRE_KEYS=16 → POST_KEYS=23`, `ADDED=7 CHANGED=0 DELETED=0`, `C60_ALLOWLIST_RESULT=STOP`. As quatro
+chaves previstas por §7.1 apareceram **exatamente** como previstas; vieram acompanhadas de três
+chaves fora da allowlist (`@ptf_creator_qa_mode='false'`,
+`@ptf_coloring60_milestone_invite_seen_creation_light='1'`, `@ptf_progress_creation='{"1":true,"2":true}'`).
+**Nenhuma continuação ao Ateliê foi autorizada. Nenhuma chave foi apagada.**
+
+A auditoria causal somente leitura está em
+[`12_AUDITORIA_PREP02_STOP.md`](12_AUDITORIA_PREP02_STOP.md). Em resumo, e sem eufemismo:
+
+- **A rota congelada de §10 (`B1..B4`) NÃO foi a rota executada.** Perícia de `rowid` do `RKStorage` +
+  canal de entrada do `InputDispatcher` provam que o editor foi aberto por um botão **dentro de um
+  `<Modal>`** — o **convite do marco** da `NarrationScreen` —, depois de **duas cenas concluídas**.
+  Foi percorrida a rota narrativa `cena 1 → cena 2 → marco`, a mesma da `PREP-01`, que
+  `D-PREP02-06` (§10, nota de rodapé) declarava não utilizada.
+- **A allowlist de §7.1 estava correta** e a de §8 foi respeitada. **A disciplina de `STOP` funcionou.**
+- **§10 tem três defeitos materiais**, registrados em `D-PREP02-10`: coabitação do *switch* Modo
+  Criador com o botão "Abrir Luz" no mesmo acordeão, **zero *checkpoints* intermediários** entre os
+  blocos `B` e `A`, e proibições escritas fora da lista de passos do operador (§14.12 fica
+  inauditável por falta de artefato que registre a rota).
+- O que salvou a sessão — `CHECKPOINT-C60.tar` e `CHECKPOINT_C60_ASYNC_DIFF.txt` — **não consta** de
+  §10 nem da lista de evidências de §13: foi improvisação do executor, e vira item obrigatório na
+  `PREP-LEGADO-03`.
+
+> ⛔ **A `PREP-LEGADO-02` permanece `STOP`.** Nenhuma allowlist é ampliada retroativamente; nenhum
+> artefato é descartado; nenhum `TAR` é refeito. **`R2 · Sessão 2` continua NÃO INICIADA** e
+> **`F6-SG-A` continua NÃO CONCEDIDO.**
