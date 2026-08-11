@@ -2915,6 +2915,110 @@ Esta entrada **registra e autoriza. Ela NÃO executa.** Até este commit: não s
 *worktree* histórico além de leitura. **Nenhum caso da `R2` foi executado. `F6-SG-A` continua NÃO
 CONCEDIDO e `R1-PEND-1..5` continuam ABERTAS.**
 
+## `PREP-LEGADO-02-ESCOPO` — matriz de insumos e protocolo corrigido (2026-08-11)
+
+**Protocolo completo:**
+[`specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/11_PREP_LEGADO_02.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/11_PREP_LEGADO_02.md).
+Esta entrada **congela as decisões**; ela **não executa nada**.
+
+### Causa-raiz da `PREP-LEGADO-01`
+
+A allowlist da `PREP-01` foi derivada dos *writers* do **artefato**, não dos *writers* da **rota
+física**. Ficaram de fora (a) o **portão de gravação do Ateliê** — `ATELIER_FREE_SAVE_LIMIT = 0`, que
+exigia o **Modo Criador** e portanto gravava `@ptf_creator_qa_mode` — e (b) a **rota narrativa de
+chegada ao Colorir 60**, que grava `@ptf_progress_creation` (`useProgress.js:29` ← `NarrationScreen.js:186`)
+e `@ptf_coloring60_milestone_invite_seen_*` (`coloring60MilestoneInviteSeen.js:61` ← `NarrationScreen.js:216`).
+**Não houve desvio do operador:** as três escritas são consequência determinística da rota prescrita.
+
+### Decisões congeladas do fundador
+
+| ID | Decisão |
+|---|---|
+| **`D-PREP02-01`** | A `PREP-LEGADO-01` **permanece `STOP`**. Sem ampliação retroativa de allowlist, sem admissão retroativa do artefato, sem apagar chave, sem refazer `TAR`, sem descartar artefato. |
+| **`D-PREP02-02`** | A **`PREP-LEGADO-02` será executada** — em sessão futura, após Portão Humano. |
+| **`D-PREP02-03`** | *Baseline* = **`TAR-PRE-LEGADO.tar`**, **não** "aparelho limpo" — é o *baseline* já lacrado e byte a byte igual ao `TAR-SUSPENSAO`. |
+| **`D-PREP02-04`** | A `PREP-01` é **imutável**. As evidências da `PREP-02` vão para `C:\tmp\ptf_evidencias\PREP-LEGADO-02\`. **Nenhum arquivo antigo pode ser sobrescrito.** |
+| **`D-PREP02-05`** | O **Modo Criador** é pré-requisito técnico **legítimo** para salvar obra do Ateliê no *runtime* `7de7085` em plano grátis. Altera **permissão**, não *payload* — `performSave` não ramifica em `unlimited`. |
+| **`D-PREP02-06`** | A rota narrativa **cena 1 → cena 2 → marco** **não** será usada, salvo se algum caso a exigir. Nenhum exige. |
+| **`D-PREP02-07`** | **Nenhuma execução física** na etapa de congelamento. |
+
+### Escopo mínimo: **OPÇÃO B — Ateliê + Colorir 60**
+
+O Ateliê **sozinho não basta**. Prova por caso:
+
+- **Caso 16** (`TK-A-078`) exige **ponteiro `v:3`**. `atelierStorage.js:114-125` grava
+  `{ …, schema: 2, stateJson, previewUri }` — **sem envelope `v:3`**. `drawingStorage.js` está
+  **aposentado** (`saveDrawingState:130` sem chamadores em `7de7085` **e** no `HEAD`). O único
+  *writer* acionável de `v:3` é `coloring60DrawingStorage.js:421`. ⇒ **C60 obrigatório.**
+- **Caso 1** (`TK-A-063`) exige pintura **alinhada ao *lineart*** e nomeia `ColoringCanvas.js`
+  (`loadPaint`) — símbolo **inexistente** em `AtelierCanvas.js`, que tem `loadState`. ⇒ **C60 obrigatório.**
+- **Caso 10** (`TK-A-072:1209`) nomeia **`ColoringScreen.js` E `AtelierCanvasScreen.js`**. ⇒ **ambos.**
+- **Casos 14 (`v2`) e 15** — **Ateliê é suficiente e é o veículo de grau probatório**: grava
+  `stateJson` **inline e literal**, tornando a ausência de `paintSchemaVersion`/`layoutVersion`/
+  `logicalW`/`logicalH` verificável byte a byte.
+
+**Compatibilidade com o congelamento anterior:** continua verdadeiro que o C60 **não discrimina**
+*runtime* histórico de atual na **variante estrutural do Caso 14**. Os Casos 1, 10 e 16 **não pedem
+discriminação estrutural** — pedem geometria, igualdade de bytes e envelope, estabelecíveis pela
+**cadeia de custódia**. A variante **`v1` do Caso 14 permanece `INEXECUTÁVEL`**
+(`CASO14-V1-INEXECUTAVEL-01`).
+
+### Allowlist lógica corrigida
+
+**Rota B — Colorir 60, com o Modo Criador DESLIGADO** (executada **primeiro**, para isolar o *flag*):
+`@ptf_drawing60_screation_a<activityId>` · `@ptf_coloring60_snap_*` · `@ptf_coloring60_done_*` ·
+`@ptf_coloring60_ever_*` (`ADDED`) · `@ptf_achievements_seen` (`CHANGED`). O C60 grava **em qualquer
+plano** e **nunca consulta plano/rede** (`coloring60DrawingStorage.js:18,507`); o piloto aparece por
+`__DEV__` (`internalTools.js:25-26`), sem depender do Modo Criador.
+
+**Rota A — Ateliê, com o Modo Criador LIGADO:** `@ptf_creator_qa_mode` ·
+`ptf_atelier_arts_v1_index` · `ptf_atelier_arts_v1_<artId>` (`ADDED`) · `@ptf_achievements_seen`
+(`CHANGED`) · **`@ptf_criar_livre_orientation_seen_v1:star` — reescrita com valor idêntico `'1'`
+permitida; qualquer outro valor ⇒ `STOP`**. Esta última é a lacuna que faltava na `PREP-01`:
+`AtelierCanvasScreen.js:173` chama `hideOrientation()` no **primeiro traço**,
+**incondicionalmente**, e a chave **já existe** no `TAR-PRE` com `'1'`.
+
+**Excluídas por construção — presença ⇒ `STOP`:** `@ptf_progress_creation` ·
+`@ptf_coloring60_milestone_invite_seen_*` (nenhum dos dois *writers* é alcançado fora de
+`NarrationScreen`) · **`@ptf_creation_colorir_invite_shown_v1`** (`coloring60JourneyInvite.js:41` ←
+`StoryDetailScreen.js:274`, barrada por `coloring60Journey.js:731` — `storyScenesComplete !== true`
+com o *baseline* restaurado) · `@ptf_coloring60_finale_seen_*`.
+
+### Allowlist física corrigida
+
+`databases/RKStorage` (`CHANGED`) · `databases/RKStorage-journal` (efeito do motor SQLite) ·
+`files/DevLauncherApp-BridgelessReactNativeDevBundle.js` (`CHANGED` — **gate positivo de
+proveniência**) · `files/ptf_blobs/atelier/<id>_preview.jpg` e `_thumb.jpg` (`ADDED`) ·
+`files/ptf_blobs/drawings60/_ptf_drawing60_screation_a<id>.a.png` (`ADDED`; *slot* `.b.png`
+pré-declarado) · `shared_prefs/WebViewChromiumPrefs.xml` e
+`shared_prefs/expo.modules.devlauncher.recentyopenedapps.xml` (`CHANGED`) · infraestrutura tolerada
+(`files/profileInstalled`, `phenotype_storage_info/…`, demais `shared_prefs/*.xml` do *baseline*).
+**`files/ptf_blobs/drawings/` não pode ser criado** — não há *writer* acionável.
+
+### Restauração do *baseline* e `logcat`
+
+A identidade do *baseline* restaurado é provada **semanticamente** — conjunto de caminhos + `length` +
+`SHA256` do **conteúdo** de cada arquivo + diff lógico do `AsyncStorage` — **nunca** por `SHA256` de
+`TAR` reempacotado (ordem e metadados variam). **`UNEXPECTED_COUNT` deve ser `0` antes de qualquer
+Metro.** Procedimento: `am force-stop` → captura de `TAR-ROLLBACK-PRE-RESTORE.tar` → esvaziamento das
+três subárvores capturadas → extração do `TAR-PRE` por `stdin` sob `run-as` → verificação. **Sem
+`adb install`, sem *uninstall*, sem `pm clear`, sem *root*.** `cmd.exe` é obrigatório em qualquer
+transporte binário.
+
+**`adb logcat -c`** fica **autorizado uma única vez** na `PREP-02`, **depois** da verificação do
+*baseline* e **antes** da captura. Não altera o armazenamento do app, não altera evidência antiga, e
+é regra **exclusiva** daquela sessão.
+
+### `PREP-LEGADO-02-NAO-FEZ`
+
+Até este commit: **nada foi executado.** Não se restaurou `TAR`; não se tocou o aparelho; não se
+executou `adb`, Metro, Expo nem `logcat`; não se executou `logcat -c`; não se criou
+`C:\tmp\ptf_evidencias\PREP-LEGADO-02\`; não se modificou `AsyncStorage` nem o *filesystem* do app;
+não se alterou `src/`, `scripts/`, `package.json`, `app.json` nem `eas.json`; nenhum artefato da
+`PREP-01` foi alterado. **A `PREP-LEGADO-02` não executa caso algum da `R2` e não concede `PASS` a
+nada. `R2 · Sessão 2` continua NÃO INICIADA. `F6-SG-A` continua NÃO CONCEDIDO e `R1-PEND-1..5`
+continuam ABERTAS.**
+
 ## `COPY-RESPONSAVEIS-01` — "Área dos Pais" → "Área dos Responsáveis" (2026-08-11)
 
 **Decisão do fundador, aprovada.** O texto **visível** "Área dos Pais" passa a ser **"Área dos

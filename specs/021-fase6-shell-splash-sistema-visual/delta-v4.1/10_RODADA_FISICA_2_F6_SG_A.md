@@ -662,3 +662,48 @@ ao **mesmo *dev client* já instalado** — **sem instalar, desinstalar ou subst
 fabricar obra**. O **Ateliê** é o veículo de grau probatório; o **Colorir 60 não** produz artefato
 discriminável. A variante `v1` do Caso 14 fica classificada como
 **`INEXECUTÁVEL_POR_AUSÊNCIA_DE_WRITER_REPRODUZÍVEL`** — ver `CASO14-V1-INEXECUTAVEL-01`.
+
+---
+
+## 11. `PREP-LEGADO-02` — escopo do insumo congelado (2026-08-11)
+
+> Esta seção **acrescenta**; não reescreve §10. Protocolo completo em
+> [`11_PREP_LEGADO_02.md`](11_PREP_LEGADO_02.md); decisões canônicas em
+> [`docs/DECISIONS.md`](../../../docs/DECISIONS.md) §`PREP-LEGADO-02-ESCOPO`.
+
+**A `PREP-LEGADO-01` fechou `ALLOWLIST_RESULT=STOP` e assim permanece.** Não há ampliação retroativa
+de allowlist, não há admissão retroativa do artefato produzido lá, e **`R2 · SESSÃO 2` continua NÃO
+INICIADA**. A `PREP-LEGADO-02` foi autorizada; **ainda não foi executada**.
+
+### 11.1 Insumo mínimo por caso — o Ateliê **sozinho não basta**
+
+Auditoria dos Casos 1, 10, 14, 15 e 16 contra `05_TASKS_DELTA_F6.md` e `04_PLAN_DELTA_F6.md` §28.1:
+
+| Caso | Insumo mínimo | Por quê |
+|---|---|---|
+| **1** (`TK-A-063`) | **Colorir 60** | `PASS` exige pintura **alinhada ao *lineart***, e o Ateliê é papel branco; `TK-A-063` nomeia `ColoringCanvas.js` (`loadPaint`), símbolo inexistente no canvas do Ateliê |
+| **10** (`TK-A-072`) | **Ateliê + Colorir 60** | `TK-A-072:1209` nomeia **`ColoringScreen.js` E `AtelierCanvasScreen.js`** |
+| **14** (`TK-A-076`) | **Ateliê** (variante `v2`) | O Ateliê grava `stateJson` **inline e literal** ⇒ ausência dos quatro eixos é verificável byte a byte. Variante `v1` **continua inexecutável** |
+| **15** (`TK-A-077`) | **Ateliê** | `TK-A-002:348` cobre `loadPaint` **e** `loadState`; o C60 seria redundante |
+| **16** (`TK-A-078`) | **Colorir 60** | Exige **ponteiro `v:3`**. `atelierStorage.js:114-125` grava `{ …, schema: 2, stateJson, previewUri }` — **não existe envelope `v:3`**. `drawingStorage.js` está aposentado (`saveDrawingState` sem chamadores em `7de7085` e no `HEAD`). O único *writer* acionável é `coloring60DrawingStorage.js:421` |
+
+**Escopo congelado: OPÇÃO B — uma obra do Ateliê + uma obra do Colorir 60.**
+
+### 11.2 Precisão sobre "o Colorir 60 não produz artefato discriminável" (§10)
+
+A frase de §10 **permanece correta no seu escopo**: para a **variante estrutural do Caso 14**, o C60
+**não** discrimina *runtime* histórico de atual, porque **ambos** descartam os eixos no momento da
+gravação. Isso **não** o exclui dos Casos **1, 10 e 16**, que **não pedem discriminação estrutural** —
+pedem *lineart*, igualdade de bytes e envelope `v:3`, tudo estabelecível pela **cadeia de custódia**
+que a `PREP-02` constrói. **Autenticidade e admissibilidade são eixos distintos.**
+
+### 11.3 Efeito sobre este pacote operacional
+
+- O **Bloco A** (Casos 1 · 15 · 14 · 16 · 10) continua **NÃO EXECUTADO**. A `PREP-02` produz **insumo**;
+  **não concede `PASS` a nenhum caso**.
+- A rota física da `PREP-02` **não** usa a rota narrativa cena 1 → cena 2 → marco (`D-PREP02-06`): o
+  editor do Colorir 60 é alcançado direto de `StoryDetailScreen.js:376`, o que exclui **por
+  construção** `@ptf_progress_creation` e `@ptf_coloring60_milestone_invite_seen_*`.
+- Evidências da `PREP-02` vão para `C:\tmp\ptf_evidencias\PREP-LEGADO-02\`. **Nenhum artefato da
+  `PREP-01` é sobrescrito** (`D-PREP02-04`).
+- `F6-SG-A` continua **NÃO CONCEDIDO**; `R1-PEND-1..5` continuam **ABERTAS**.
