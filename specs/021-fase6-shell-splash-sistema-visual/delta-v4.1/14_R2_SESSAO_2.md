@@ -669,3 +669,237 @@ anterior. Custo: alguns segundos por caso. Benefício: **atribuição de qualque
 | ⛔ | **Achado visual de `13_PREP_LEGADO_03.md` §8 NÃO corrigido** — registro, não trabalho autorizado |
 
 > 🚦 **A execução da `R2 · Sessão 2` depende de `HUMAN GATE` explícito.**
+
+---
+
+## 13. `EMENDA 1` — incidente do `CASO 1` e redesenho do pré-condicionamento
+
+> Emenda escrita em **2026-08-11**, **depois** do `BLOCO 0` fechado (`G-00..G-14` todos `PASS`) e
+> **depois** da primeira tentativa física do `CASO 1`. Ela **não** reescreve o histórico acima: o
+> corpo do documento permanece como foi aprovado, e esta seção registra o que a execução real
+> revelou. Nada aqui autoriza código, *push* ou *merge*.
+
+### 13.1 O incidente — o que aconteceu
+
+O fundador percorreu a **única rota de produção disponível** — `Início → Aventuras → A Criação →
+cena 1 → concluir → cena 2 → concluir`. O **convite do marco não apareceu**, e o fluxo nunca chegou
+ao Colorir. O `CASO 1` **não pôde ser executado**.
+
+### 13.2 Veredito formal do incidente — `CLASSIFICAÇÃO D (A + B)`
+
+| Hipótese | Veredito | Prova |
+|---|---|---|
+| **A** — pré-condição incompatível criada pelo próprio acervo | **SIM** — causa raiz | `@ptf_coloring60_done_creation_light='true'` no `TAR-1` |
+| **B** — defeito do protocolo da `R2` | **SIM** | a ficha do `CASO 1` nunca especificou rota (campo 7 = *"não especificado"*); o auditor preencheu a lacuna **por suposição** e preencheu **errado** |
+| **C** — comportamento incorreto do *runtime* | **NÃO — REFUTADO** | `src/data/coloring60StoryMilestones.js:164-172` |
+| **D** — combinação | ✅ **É ESTE** | |
+
+O contrato provado no `HEAD`:
+
+```js
+if (milestone && !activityAlreadyComplete && !inviteAlreadySeen) return COLORING_MILESTONE_INVITE;
+return GENERIC_CELEBRATION;   // CAMINHO B
+```
+
+`NarrationScreen.js:201-219` alimenta essa decisão com `loadColoring60Done(story.id,'light')`. Como
+a atividade **já estava concluída**, `derivePostSceneExperience` desceu pelo `CAMINHO B`. A ausência
+do convite é o comportamento **correto e documentado** — o *fail-safe* declarado no próprio módulo.
+**Não é bug de produto e não se registra como achado da `R2`.**
+
+> 🔴 **DECLARAÇÃO EXPLÍCITA.** A `PREP-LEGADO-03` produziu um artefato **AUTÊNTICO** porém
+> **INCOMPATÍVEL** com a pré-condição de entrada planejada para esta variante do `CASO 1`. A
+> incompatibilidade é **estrutural**: salvar uma obra do `C60` grava obrigatoriamente
+> `@ptf_coloring60_done_<story>_<activity>`, que por contrato fecha o convite de primeira vez.
+> **Obra legada autêntica e convite de primeira vez não coexistem em nenhum estado do mundo.**
+
+### 13.3 `CASO 1` na primeira tentativa = `NÃO EXECUTADO`
+
+| | |
+|---|---|
+| ⛔ | **`CASO 1` · 1ª tentativa = `NÃO EXECUTADO`** — **não** é `PASS` e **não** é `FAIL` |
+| — | A pré-condição não foi satisfeita; o critério do campo 11 (*"a pintura aparece e está alinhada ao lineart"*) **nunca chegou a ser observável** |
+| — | Nenhum invariante `ZERO` foi exercitado. Nada a reportar como defeito |
+
+### 13.4 Evidência imutável — **não se apaga, não se renomeia, não se sobrescreve**
+
+| Artefato | Papel | Estado |
+|---|---|---|
+| `TAR-1.tar` | **baseline original e IMUTÁVEL** da entrada do `BLOCO A` | `17139712 B` · `6650AC4B…26B19439` |
+| `CK-C1-ROUTE-BLOCKED.tar` | checkpoint do **incidente**, progresso `3/10` | `17139712 B` · `98B8A194…A2638BBA` |
+
+> ⛔ **PROIBIDO** substituir, renomear, sobrescrever ou remover da cadeia de custódia qualquer um dos
+> dois. O *rebaseline* dos itens abaixo **acrescenta** artefatos; **não** aposenta estes.
+
+Comparação `TAR-1 × CK-C1-ROUTE-BLOCKED` (`compare_state.py`, `ESCOPO_OK=SIM`):
+
+```
+FILES_CHANGED=1 (databases/RKStorage)   FILES_ADDED=0   FILES_DELETED=0
+KEYS_ADDED=1 (@ptf_progress_creation)   KEYS_CHANGED=0  KEYS_DELETED=0  KEYS_ROWID_MOVED=0
+```
+
+Legado **byte a byte intacto**: as 4 chaves `C60` (*rowids* 43/44/45/46, **sem migração**), o `PNG`
+`200565 B` `6814dee7…e1c83f81`, e os dois *blobs* do Ateliê (`89593 B` `fdc55296…d9e1e248` e
+`14730 B` `a5fb5908…a48910de`).
+
+`@ptf_progress_creation` = `{"1":true,"2":true,"3":true}` (*rowid* 53) — **três** cenas.
+`@ptf_coloring60_milestone_invite_seen_creation_light` = **AUSENTE nos dois lados** ⇒ prova positiva
+**por escrita ausente** de que o convite jamais foi apresentado (`NarrationScreen.js:214` marca no
+**instante** da apresentação).
+
+### 13.5 Rota de revisita — enumeração exaustiva
+
+Todas as entradas em `ROUTES.COLORING` (editor `C60`) em `src/`:
+
+| # | Ponto | Situação |
+|---|---|---|
+| 1 | `NarrationScreen.js:246` | **fechada** — `CAMINHO B`, provado |
+| 2 | `StoryDetailScreen.js:375` | **viável** — exige `unlocked={isCompleted}` (`:131`, `:571-578`) ⇒ `10/10` |
+| 3 | `Coloring60CollectionScreen.js:354` | exige chegar à coleção ⇒ `unlocked===true` **ou** `3/3` |
+| 4 | `CongratsScreen.js:170` | exige `10/10` **e abre a atividade ERRADA**: `coloring60Journey.js:629-640` com `1/3` devolve `OPEN_NEXT → living_world`, **jamais** `light` |
+
+Bancada `Coloring60LabScreen.js:122` e `__devResetCreationColoring60()`: **EXCLUÍDAS** por decisão do
+fundador (fabricariam estado).
+
+> ✅ **A rota `2` é de PRODUÇÃO, não `dev`/`admin`:** o portão `creationColoringVisible`
+> (`StoryDetailScreen.js:138-141`) é o **mesmo** `isColoring60PilotAllowed()` que habilita o convite
+> do marco. Num *build* `c60-pilot` as duas superfícies aparecem juntas.
+>
+> ⛔ **Não existe rota de produção com menos mutação.** O custo mínimo é **7 cenas** (`4..10`) mais a
+> passagem **obrigatória** pela `CongratsScreen`.
+
+### 13.6 `ALLOWLIST PRE-STORY-COMPLETE` — provada por código
+
+Mutações **autorizadas** entre `CK-C1-ROUTE-BLOCKED` e `CK-STORY-COMPLETE`:
+
+| Chave | *Writer* | Ocorrências |
+|---|---|---|
+| `@ptf_progress_creation` | `useProgress.js:29` | **7** (`INSERT OR REPLACE` ⇒ *rowid* migra a cada uma) |
+| `@ptf_achievements_seen` | `achievementsStorage.js:27` via `dismissAchievement` | **8** (§13.7) |
+
+**Qualquer outra chave = `STOP`.** Prova de ausência de outros *writers* automáticos no caminho
+`cenas 4..10 → Congrats`:
+
+| Candidato | Veredito | Prova |
+|---|---|---|
+| `@ptf_bonus_stars` | **não escreve** | `addBonusStars` só em `CadêAOvelhinha` / `LumiMoment` / `Palavrinhas` / `Pares` — nenhum no caminho |
+| `@ptf_audio_prefs_v1` | **não escreve** | `persistPrefs` só via `setMusicEnabled`, chamado **apenas** por `ParentAreaScreen.js:366` |
+| `@ptf_beni_guide_*` | **não escreve** | `NarrationScreen`/`CongratsScreen` não importam `beniTourService`; as duas chaves ainda não gravadas (`atelier`, `parentArea`) estão fora do caminho |
+| progresso via *context* | **não escreve** | `ProgressContext.js` só faz `multiGet` (leitura) |
+| quiz / reflexão / Livrinho / baú / certificado / *share card* / relatório | **não escrevem** | todos atrás de `onPress` na `CongratsScreen` |
+| ponte `C60` do `Congrats` | **não escreve** | `useFocusEffect` (`CongratsScreen.js:141-158`) apenas **lê** |
+| Ateliê / `drawingStorage` / `coloring60*` | **não escrevem** | nenhum toque no *canvas* |
+| `brincar*` / `monteACena` / `churchMode` / `packStorage` / perfil / *onboarding* | **não escrevem** | fora do caminho |
+
+> ⚠️ **`WATCH` — único *writer* condicional restante: `@ptf_entitlement_v1`.**
+> `entitlementService.js:126-135` registra ouvinte de `AppState` e revalida quando o app volta a
+> **`active`** ⇒ `refreshEntitlement()` → `saveEntitlement()`. A chave **não existe** hoje (fonte
+> `RevenueCat`, *fail-closed*), mas o gatilho é real.
+> **GUARDA OPERACIONAL: NÃO colocar o app em segundo plano durante toda a sequência.**
+> Se a chave aparecer, é mutação **explicável** — registra-se e reporta-se; **não** se silencia.
+>
+> ⚠️ `@ptf_schema_version` / `@ptf_migration_status_v1`: só gravam em *boot* com migração pendente
+> (já em `v3`). **Não relançar o app** durante a sequência.
+
+### 13.7 Modais de conquista — lista **exata** e falseável
+
+`CongratsScreen.js:194` dispara `checkForNewAchievements()` **automaticamente**, 1800 ms após montar.
+Como `@ptf_achievements_seen` **não** está vazia (`["brincar_poucos_erros","brincar_first_game"]`), o
+ramo silencioso `silentlyMarkAllCurrentAsSeen` **não** roda (`useAchievementCelebration.js:47`
+exige `seenIds.length === 0`). Os modais entram em **fila**, na ordem do *array* `ACHIEVEMENTS`, e
+**cada dispensa grava uma vez**.
+
+| # | Emoji | Título | Origem | Predicado |
+|---|---|---|---|---|
+| 1 | ⭐ | Primeira cena | novo | `totalScenes >= 1` |
+| 2 | 🌟 | Cinco cenas | novo | `totalScenes >= 5` |
+| 3 | 💛 | Dez cenas | novo | `totalScenes >= 10` |
+| 4 | 🏆 | Primeira aventura | novo | `anyStoryComplete` |
+| 5 | 🌍 | Guardião da Criação | novo | `creationComplete` |
+| 6 | 🌈 | Primeira história grátis | novo | `creationComplete` |
+| 7 | 🎨 | Primeiro traço | **atrasado** | `hasAnyDrawing` — já verdadeiro pela obra `C60` (`achievementService.js:104-110`), nunca dispensado |
+| 8 | ✨ | Primeira conquista | **atrasado** | `savedDrawingCount >= 1` — 1 arte no Ateliê |
+
+> 🎯 **SÃO EXATAMENTE 8 MODAIS.** Estado final esperado: `@ptf_achievements_seen` com **10** entradas.
+> **Um 9.º modal = `STOP`** — e é um `STOP` informativo, não catastrófico: significa que o modelo de
+> conquistas divergiu do previsto e precisa ser reconciliado antes de prosseguir.
+
+**Não** acendem (verificado): `fifteen_stars`/`thirty`/`fifty` (`totalScenes` = 10),
+`three_stories`, `noah_done`, `comece_aqui_complete`, `first_premium_story_done`, `david_*`,
+`jesus_*`, `all_stories_complete`, `artist_ark` (sem desenho da arca), `gallery_started` (≥2 artes) e
+`little_artist_faith` (≥3 artes) — há **1** arte —, `first_quiz`, `first_book_opened`,
+`first_reflection`, `lumi_moment`, `first_family_worship`, `brincar_three_games` (`paresPlays` = 1),
+`brincar_pares_medio`, `brincar_pares_dificil`.
+
+### 13.8 `REPOUSO` — critério **objetivo**, não aparência
+
+`CK-STORY-COMPLETE` só é capturado quando **os quatro** forem verdadeiros:
+
+| # | Critério | Como se mede |
+|---|---|---|
+| `R-1` | **8 modais dispensados**, contados um a um; nenhum modal na tela | observação física, contagem explícita |
+| `R-2` | **Quiescência de armazenamento medida** | `SHA256` de `databases/RKStorage` capturado **duas vezes com ≥ 60 s de intervalo**; os dois **idênticos** |
+| `R-3` | App **em primeiro plano**, na `CongratsScreen`, sem toque por ≥ 60 s | não voltar ao `Início`, não ir a segundo plano, não matar |
+| `R-4` | `PS3` contínuo e `PS1` servindo | `LOGCAT_PROCESS_COUNT=1` e `raw.log` crescendo |
+
+> 🔴 **`R-2` é o critério que substitui "parece parado".** As escritas do `AsyncStorage` **não emitem
+> nenhuma linha de `logcat`** (§5.1) — silêncio no log **não** é prova de repouso. Só a igualdade de
+> dois `SHA256` do próprio banco, separados no tempo, prova que nada mais está gravando.
+> A leitura é **lado-PC** (`adb exec-out run-as … cat`): **não** toca o aparelho.
+>
+> ⚠️ **A armadilha que `R-1` fecha:** um `TAR` tirado com modal pendente faz a gravação posterior de
+> `@ptf_achievements_seen` cair **dentro** da janela do caso seguinte — mutação real, atribuição
+> errada, **`FAIL` falso**.
+
+### 13.9 Cadeia de artefatos redesenhada
+
+| Ordem | Artefato | Momento | Comparação que autoriza |
+|---|---|---|---|
+| 1 | `TAR-1.tar` | **imutável** — entrada do `BLOCO A` | histórico; **não** se aposenta |
+| 2 | `CK-C1-ROUTE-BLOCKED.tar` | **imutável** — incidente, `3/10` | `TAR-1 × CK-C1` ✅ feita |
+| 3 | `CK-STORY-COMPLETE.tar` | após `10/10` **e** `R-1..R-4` | `CK-C1 × CK-STORY-COMPLETE` sob a *allowlist* §13.6 |
+| 4 | `TAR-1B-C1.tar` | **imediatamente antes** do `CASO 1` | `CK-STORY-COMPLETE × TAR-1B-C1` ⇒ exigido **`0` mutações** |
+| — | *(execução)* | `CASO 1 → CASO 15 → CASO 14 → CASO 16` | — |
+| 5 | `TAR-C10-PRE.tar` | **imediatamente antes** do `CASO 10` | *baseline* **próprio** do caso 10 |
+| — | *(execução)* | `CASO 10` — abrir e fechar **sem desenhar** | — |
+| 6 | `TAR-C10-POST.tar` (= `TAR-2`) | imediatamente depois | `TAR-C10-PRE × TAR-C10-POST` ⇒ **único** julgamento do `CASO 10` |
+
+> 🔴 **`TAR-1B-C1` NÃO é reutilizável como "imediatamente antes" do `CASO 10`.** Os casos `1`, `15`,
+> `14` e `16` ocorrem **entre** os dois; usar o mesmo *baseline* atribuiria ao `CASO 10` mutações de
+> quatro casos anteriores. O canônico exige `TAR-1` **imediatamente antes** (`TK-A-072`, campo 4) —
+> e "imediatamente" é literal.
+>
+> 🔴 **Entre `CK-STORY-COMPLETE` e `TAR-1B-C1`: `0` mutações.** Qualquer chave alterada nesse
+> intervalo é `STOP`, porque nesse trecho **nada deveria estar escrevendo**.
+
+### 13.10 Impacto nos demais casos — auditoria de interferência
+
+| Caso | Depende de progresso narrativo? | Veredito |
+|---|---|---|
+| `CASO 15` (`TK-A-077`) | não — depende do **conteúdo do ponteiro** | **discriminável**, sem impacto |
+| `CASO 14` (`TK-A-076`) | não | **sem impacto** — já travado por outro motivo: o único ponteiro do acervo é `v:3` com geometria completa; a ficha manda **PARAR e reportar** e **proíbe fabricar** |
+| `CASO 16` (`TK-A-078`) | não — depende do **par de inventários** | **discriminável**, sem impacto |
+| `CASO 10` (`TK-A-072`) | **SIM** — *baseline* "imediatamente antes" | resolvido por `TAR-C10-PRE` (§13.9) |
+
+`CASO 6` (`BLOCO C`) exige que *"os blocos A e B não gravaram de propósito"*: o pré-condicionamento
+acontece **antes** do `BLOCO A`, portanto **fora** da janela daquele caso.
+
+### 13.11 `STOP` adicionais desta emenda
+
+| # | Condição |
+|---|---|
+| `S-18` | Chave **fora** da *allowlist* §13.6 mutada entre `CK-C1` e `CK-STORY-COMPLETE` |
+| `S-19` | Qualquer mutação entre `CK-STORY-COMPLETE` e `TAR-1B-C1` |
+| `S-20` | Mais de **8** modais de conquista, ou modal fora da lista §13.7 |
+| `S-21` | `R-2` não converge (dois `SHA256` de `RKStorage` diferentes) após 3 tentativas |
+| `S-22` | Qualquer *rowid* das 4 chaves `C60` migrar, ou qualquer *blob* mudar de `SHA256` |
+| `S-23` | App em segundo plano / relançado durante o pré-condicionamento (`@ptf_entitlement_v1`, migração) |
+
+### 13.12 O que esta emenda **NÃO** concede
+
+| | |
+|---|---|
+| ⛔ | **Nenhum `PASS`** de caso |
+| ⛔ | **Nenhuma** autorização de código, `push` ou `merge` |
+| ⛔ | **Nenhuma** rota `dev`/`admin`, *reset*, escrita manual ou fabricação de estado |
+| ⛔ | `TAR-1` e `CK-C1-ROUTE-BLOCKED` **não** deixam a cadeia de custódia |
+| ⛔ | `CASO 14 · v1` permanece `INEXECUTÁVEL_POR_AUSÊNCIA_DE_WRITER_REPRODUZÍVEL` |
