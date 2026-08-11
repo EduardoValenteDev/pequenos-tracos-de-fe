@@ -701,9 +701,14 @@ que a `PREP-02` constrói. **Autenticidade e admissibilidade são eixos distinto
 
 - O **Bloco A** (Casos 1 · 15 · 14 · 16 · 10) continua **NÃO EXECUTADO**. A `PREP-02` produz **insumo**;
   **não concede `PASS` a nenhum caso**.
-- A rota física da `PREP-02` **não** usa a rota narrativa cena 1 → cena 2 → marco (`D-PREP02-06`): o
-  editor do Colorir 60 é alcançado direto de `StoryDetailScreen.js:376`, o que exclui **por
-  construção** `@ptf_progress_creation` e `@ptf_coloring60_milestone_invite_seen_*`.
+- A rota física da `PREP-02` **não** usa a rota narrativa cena 1 → cena 2 → marco (`D-PREP02-06`), o
+  que exclui **por construção** `@ptf_progress_creation` e `@ptf_coloring60_milestone_invite_seen_*`.
+  **Correção `PREP02-ROTA-C60-CHECK-01` (`D-PREP02-08`):** o editor **não** é alcançado pelo cartão do
+  `StoryDetail` — com o *baseline* restaurado esse cartão fica **visível porém travado**
+  (`unlocked={isCompleted}`, `StoryDetailScreen.js:573`; `coloring60Journey.js:363`). A porta é
+  **Perfil → Área dos Pais → 🛠️ Administração (dev) → "Abrir Luz"** (`ParentAreaScreen.js:1186`), que
+  despacha os **mesmos** parâmetros de `planC60OpenEditorFromStory` (`coloring60Navigation.js:135`) e
+  usa o *writer* real, **sem** semear estado. A **bancada** (`Coloring60Lab`) continua **proibida**.
 - Evidências da `PREP-02` vão para `C:\tmp\ptf_evidencias\PREP-LEGADO-02\`. **Nenhum artefato da
   `PREP-01` é sobrescrito** (`D-PREP02-04`).
 - `F6-SG-A` continua **NÃO CONCEDIDO**; `R1-PEND-1..5` continuam **ABERTAS**.

@@ -246,17 +246,40 @@ Derivada **da rota física mínima**, não do artefato. Rota congelada em §10.
 | Chave | Efeito | *Writer* (`7de7085`) |
 |---|---|---|
 | `@ptf_drawing60_screation_a<activityId>` | **ADDED** — ponteiro `v:3` | `coloring60DrawingStorage.js:421,581` |
-| `@ptf_coloring60_snap_creation_<activityId>` | **ADDED** | `coloring60ActivityService.js:53` (`SNAP_PREFIX`) |
-| `@ptf_coloring60_done_creation_<activityId>` | **ADDED** — se a cobertura de conclusão for atingida | `coloring60ActivityService.js:39` (`DONE_PREFIX`) |
-| `@ptf_coloring60_ever_creation_<activityId>` | **ADDED** — idem | `coloring60ActivityService.js:43` (`EVER_PREFIX`) |
-| `@ptf_achievements_seen` | **CHANGED** — permitida | `achievementsStorage.js:10` |
+| `@ptf_coloring60_done_creation_<activityId>` | **ADDED** | `coloring60ActivityService.js:39` (`DONE_PREFIX`) · `:129-133` (`multiSet` único) |
+| `@ptf_coloring60_snap_creation_<activityId>` | **ADDED** — valor `ready` | `coloring60ActivityService.js:53` (`SNAP_PREFIX`) · `:129-133` |
+| `@ptf_coloring60_ever_creation_<activityId>` | **ADDED** | `coloring60ActivityService.js:43` (`EVER_PREFIX`) · `:129-133` |
+
+**Exatamente quatro chaves — e `@ptf_achievements_seen` NÃO pertence a esta rota.** O único *writer*
+é `achievementsStorage.js:27`, alcançável apenas por `useAchievementCelebration`, que está montado
+somente em `AtelierCanvasScreen.js:63`, `CongratsScreen.js:123`, `QuizScreen.js:33` e
+`StoryBookScreen.js:204`. `ColoringScreen`, `ParentAreaScreen`, `ProfileScreen` e `HomeScreen` **não**
+usam o *hook*. A chave continua prevista em **7.2** (Rota A), onde o Ateliê realmente a toca.
 
 **O C60 grava em qualquer plano e não consulta o Modo Criador:** `coloring60DrawingStorage.js:18`
 (*"em QUALQUER plano. Grátis em história gratuita acessível salva"*) e `:507` (*"NUNCA consulta
-plano/rede"*). "A Criação" é gratuita (`src/data/planConfig.js:83` — `FREE_STORY_IDS = ['creation', 'noah']`).
-A seção do piloto na tela da história aparece por `StoryDetailScreen.js:139-142`
-(`__DEV__ && isInternalToolsEnabled()`), e `internalTools.js:25-26` já devolve `true` só por `__DEV__`
-no *dev client* — **sem** depender de `@ptf_creator_qa_mode`.
+plano/rede"*). "A Criação" é gratuita (`src/data/planConfig.js:83` — `FREE_STORY_IDS = ['creation', 'noah']`),
+logo `deriveStoryContentAuthorization` devolve `ALLOWED` e o *writer* persiste os pixels.
+
+#### 7.1.1 `VISIBLE` ≠ `ENABLED` — por que a rota **não** pode partir do `StoryDetailScreen`
+
+A seção do piloto na tela da história é **visível** por `StoryDetailScreen.js:139-142`
+(`__DEV__ && isInternalToolsEnabled()`), e `internalTools.js:24-26` devolve `true` só por `__DEV__`
+no *dev client* — **sem** depender de `@ptf_creator_qa_mode`. Mas **visibilidade não é acionabilidade**:
+
+- `StoryDetailScreen.js:571-573` passa `unlocked={isCompleted}`, e `isCompleted` é
+  `progressCount >= totalScenes && totalScenes > 0` (`:132`).
+- Com o *baseline* restaurado, `@ptf_progress_creation` **não existe** ⇒ `progressCount = 0` ⇒
+  `unlocked = false`.
+- `coloring60Journey.js:363` — `if (unlocked !== true) state = COLORING60_STEP_STATE.LOCKED;` ⇒ as
+  **três** fichas ficam `LOCKED`; `:378-379` — `let primaryAction = null; if (unlocked === true) {…}`
+  ⇒ o CTA **nem é renderizado** (`CreationColoringJourneySection.js:254`).
+- `CreationColoringJourneySection.js:141-142` — `onPress={locked ? undefined : onPress}` e
+  `disabled={locked}` ⇒ o toque é **inerte**.
+
+Portanto o editor **é** alcançável, mas **não por essa porta** com o *baseline* restaurado. A porta
+correta está em **§10, bloco B** — e a `AUDITORIA-PREP-STOP-01` estava certa ao concluir que o
+cartão do `StoryDetail` exige `10/10`.
 
 ### 7.2 `ALLOWLIST_ATELIER` — Rota A (executada **depois**, com o Modo Criador ligado)
 
@@ -266,7 +289,7 @@ no *dev client* — **sem** depender de `@ptf_creator_qa_mode`.
 | `ptf_atelier_arts_v1_index` | **ADDED** | `atelierStorage.js:146` |
 | `ptf_atelier_arts_v1_art_<epochMs>_<4d>` | **ADDED** | `atelierStorage.js:137` |
 | `@ptf_criar_livre_orientation_seen_v1:star` | **REESCRITA COM VALOR IDÊNTICO `'1'`** — permitida; **qualquer outro valor ⇒ `STOP`** | `criarLivreOrientation.js:31`, acionado por `AtelierCanvasScreen.js:155` |
-| `@ptf_achievements_seen` | **CHANGED** — permitida | `achievementsStorage.js:10` |
+| `@ptf_achievements_seen` | **CHANGED** — permitida | `achievementsStorage.js:10` (`KEY`) · `:27` (`setItem`), via `useAchievementCelebration` em `AtelierCanvasScreen.js:63` |
 
 > **A quarta linha é o achado que a `PREP-01` não tinha.** `AtelierCanvasScreen.js:173` chama
 > `hideOrientation()` no **primeiro traço**, **incondicionalmente** — inclusive quando o cartaz de
@@ -282,7 +305,10 @@ no *dev client* — **sem** depender de `@ptf_creator_qa_mode`.
 | `@ptf_progress_creation` | Único *writer*: `useProgress.js:29`, acionado por `NarrationScreen.js:186` (`salvarCena`). **A rota congelada não entra em `NarrationScreen`.** |
 | `@ptf_coloring60_milestone_invite_seen_*` | Único *writer*: `coloring60MilestoneInviteSeen.js:61`, acionado por `NarrationScreen.js:216`. Mesma razão. |
 | `@ptf_creation_colorir_invite_shown_v1` | *Writer*: `coloring60JourneyInvite.js:41`, acionado por `StoryDetailScreen.js:274` **somente se** o convite for visível. `coloring60Journey.js:731` reprova antes: `storyScenesComplete !== true ⇒ STORY_INCOMPLETE`. Com o baseline restaurado não há progresso de cena ⇒ convite invisível ⇒ chave não escrita. **Se aparecer, o baseline estava errado.** |
-| `@ptf_coloring60_finale_seen_*` | A "grande conclusão" é por história inteira; com uma só atividade não deve ocorrer. |
+| `@ptf_coloring60_finale_seen_*` | *Writer*: `coloring60ActivityService.js:284`, acionado por `ColoringScreen.js:1019` **somente** quando `journey.allActivitiesComplete` (3/3). A rota conclui **uma** atividade. |
+| `@ptf_creator_qa_mode` **durante o Bloco B** | Único *writer*: `creatorQaMode.js:90`, acionado pelo *switch* de `ParentAreaScreen.js:1127-1134`. O Bloco B **não** toca o *switch*. Se aparecer antes do Bloco A, a ordem foi violada ⇒ `STOP`. |
+| `@ptf_beni_guide_parent_v1` | `ParentAreaScreen.js:304` instancia `useScreenGuide('parentArea', **false**)` — desabilitado. A chave **não tem gatilho**. |
+| `@ptf_beni_guide_profile_v1` · `_home_v1` · `_adventures_v1` · `_stars_v1` · `@ptf_beni_app_tour_seen_v1` | Já valem `'true'` no *baseline* ⇒ `hasSeenGuide` recusa exibir ⇒ `markGuideSeen` (`beniTourService.js:63`) nunca é chamado. `ColoringScreen` não usa `useScreenGuide`. |
 | Qualquer uma das **16 chaves do baseline** não listada em 7.1/7.2 | Alteração não prevista de registro preexistente. |
 
 **Nada além do que está em 7.1 e 7.2 pode ser ADDED ou CHANGED. `DELETED` deve ser sempre 0.**
@@ -343,10 +369,10 @@ Nenhum item isolado prova qual Metro serviu o *bundle*. A prova é a **convergê
 | P2 | Iniciar `logcat` contínuo → `raw.log` da `PREP-02` | Arquivo próprio, em diretório próprio |
 | P3 | Iniciar Metro **único** do *worktree* histórico + `adb reverse` | §9 itens 3–6 |
 | P4 | *Cold start* do *dev client*; registrar pedido e resposta | §9 itens 7–8 |
-| **B1** | Home → **Aventuras** → **"A Criação"** (`StoryDetailScreen`) | **NÃO entrar em `NarrationScreen`** |
-| **B2** | Abrir a atividade de colorir pela seção do piloto | `StoryDetailScreen.js:576` → `openCreationColoring` → `c60OpenEditorFromStory` (`:376`) |
-| **B3** | Pintar até a conclusão da atividade | Produz ponteiro `v:3` + *blob* |
-| **B4** | Sair da tela de colorir | Sem passar pela narrativa |
+| **B1** | Home → **Perfil** → **Área dos Pais** (`ParentalGate`, `number-pad`) | `ProfileScreen.js:323`. O `ParentalGate` é **de sessão** e **não grava nada** (`ParentalGate.js` não importa `AsyncStorage`) |
+| **B2** | Abrir **🛠️ Administração (dev)** → cartão **"Colorir 60, A Criação"** → **"Abrir Luz"** | `ParentAreaScreen.js:1118` (`SHOW_TEST_TOOLS = isInternalToolsEnabled()`, `:66`) → `:1186` `navigate('Coloring', { storyId: 'creation', activityId: 'light' })`. **NÃO tocar no *switch* Modo Criador (`:1127-1134`) nem em "Abrir bancada" (`:1216`)** |
+| **B3** | Pintar até a conclusão (**"Pronto!"**) | `ColoringScreen.js:1116` → `beginC60Attempt` → `:352` `saveColoring60DrawingState` → `:435` `markColoring60ActivityDone`. Produz ponteiro `v:3` + *blob* |
+| **B4** | Fechar a celebração e sair pelo **Voltar** do editor | **NÃO tocar na ação principal** (abriria a 2ª atividade). `planC60Exit` (`coloring60Navigation.js:78-84`) cai em `popToTop()` quando o `StoryDetail` **não** está na pilha — que é exatamente o caso desta entrada |
 | **A1** | Home → **Perfil** → **Área dos Pais** (`ParentalGate`, `number-pad`) | `ProfileScreen.js:323` |
 | **A2** | Ligar o **Modo Criador** | `ParentAreaScreen.js:475` → `creatorQaMode.js:90` |
 | **A3** | Sair da Área dos Pais → **Criar livre** | |
@@ -359,10 +385,30 @@ Nenhum item isolado prova qual Metro serviu o *bundle*. A prova é a **convergê
 | F5 | Avaliar as allowlists de §7 e §8 | `STOP` ou `CONFORME` |
 
 **`D-PREP02-06` observado:** a rota narrativa **cena 1 → cena 2 → marco** **não** é usada. Nenhum dos
-cinco casos a exige — o Caso 1 pede *lineart*, não narrativa, e a rota direta de `StoryDetailScreen`
-alcança o **mesmo** editor com o **mesmo** *writer* (`planC60OpenEditorFromStory`,
-`coloring60Navigation.js:135`, contra `planC60OpenEditorFromMilestone`, `:155` — divergem apenas nos
-parâmetros de retomada da navegação, nunca no *writer*).
+cinco casos a exige — o Caso 1 pede *lineart*, não narrativa.
+
+**Por que a porta é a Área dos Pais e não o `StoryDetail` (correção de rota, `PREP02-ROTA-C60-CHECK-01`):**
+com o *baseline* restaurado o cartão do piloto na tela da história fica **visível porém travado**
+(§7.1.1). A entrada de `ParentAreaScreen.js:1186` despacha
+`navigate('Coloring', { storyId: 'creation', activityId: 'light' })` — **os mesmos dois parâmetros, na
+mesma rota**, que `planC60OpenEditorFromStory` (`coloring60Navigation.js:135`) produziria. O
+`ColoringScreen` não tem como distinguir as duas origens: `resolveC60StoryId(route.params)` (`:598`) e
+`route.params?.activityId` (`:599`) são a **fonte única** de identidade, e `origin`/`resumeCenaIndex`
+— os únicos campos que `planC60OpenEditorFromMilestone` (`:155`) acrescenta — ficam ausentes nas duas.
+Logo: **mesmo editor, mesmo *writer*, mesmo *payload*, nenhuma semeadura.** O próprio *runtime*
+reconhece essa porta como entrada legítima de desenvolvimento em `coloring60Navigation.js:74`
+(*"entradas de dev: bancada Colorir 60 / Área dos Pais"*).
+
+> **A bancada (`Coloring60Lab`, `ParentAreaScreen.js:1216`) permanece PROIBIDA na `PREP-02`:** ela
+> navega com `COLORING60_LAB_STORY_ID` (`Coloring60LabScreen.js:115`) — identidade **diferente** de
+> `creation` — e **semeia e limpa** estado. Artefato produzido por ela seria inadmissível.
+
+> **Divergência de *copy* registrada, não corrigida (é código):** o cartão em `ParentAreaScreen.js:1182`
+> ainda diz *"Temporário: nada é salvo — não altera progresso, desenhos,
+> plano nem conquistas"*. O texto
+> é **obsoleto** desde que o *writer* do C60 passou a existir: `saveColoring60DrawingState` não consulta
+> plano nem origem (`coloring60DrawingStorage.js:507`) e grava normalmente. O texto é *dev-only*, não
+> altera comportamento e **não** é tocado aqui — `PREP02-ROTA-C60-CHECK-01` proíbe alterar código.
 
 ## 11. Procedimento de restauração do baseline (**desenhado, não executado**)
 

@@ -2966,10 +2966,17 @@ discriminação estrutural** — pedem geometria, igualdade de bytes e envelope,
 ### Allowlist lógica corrigida
 
 **Rota B — Colorir 60, com o Modo Criador DESLIGADO** (executada **primeiro**, para isolar o *flag*):
-`@ptf_drawing60_screation_a<activityId>` · `@ptf_coloring60_snap_*` · `@ptf_coloring60_done_*` ·
-`@ptf_coloring60_ever_*` (`ADDED`) · `@ptf_achievements_seen` (`CHANGED`). O C60 grava **em qualquer
-plano** e **nunca consulta plano/rede** (`coloring60DrawingStorage.js:18,507`); o piloto aparece por
-`__DEV__` (`internalTools.js:25-26`), sem depender do Modo Criador.
+**exatamente quatro chaves `ADDED`** — `@ptf_drawing60_screation_a<activityId>` ·
+`@ptf_coloring60_done_*` · `@ptf_coloring60_snap_*` · `@ptf_coloring60_ever_*`. **Zero `CHANGED`, zero
+`DELETED`.** O C60 grava **em qualquer plano** e **nunca consulta plano/rede**
+(`coloring60DrawingStorage.js:18,507`); o piloto aparece por `__DEV__` (`internalTools.js:24-26`), sem
+depender do Modo Criador.
+
+> **Correção de `PREP02-ROTA-C60-CHECK-01` (2026-08-11):** a versão anterior desta lista incluía
+> `@ptf_achievements_seen` (`CHANGED`) na Rota B. **Está errado.** O único *writer* é
+> `achievementsStorage.js:27`, alcançável apenas por `useAchievementCelebration` — montado somente em
+> `AtelierCanvasScreen.js:63`, `CongratsScreen.js:123`, `QuizScreen.js:33` e `StoryBookScreen.js:204`.
+> Nenhuma tela da Rota B usa o *hook*. A chave permanece prevista **só** na Rota A.
 
 **Rota A — Ateliê, com o Modo Criador LIGADO:** `@ptf_creator_qa_mode` ·
 `ptf_atelier_arts_v1_index` · `ptf_atelier_arts_v1_<artId>` (`ADDED`) · `@ptf_achievements_seen`
@@ -2983,6 +2990,39 @@ permitida; qualquer outro valor ⇒ `STOP`**. Esta última é a lacuna que falta
 `NarrationScreen`) · **`@ptf_creation_colorir_invite_shown_v1`** (`coloring60JourneyInvite.js:41` ←
 `StoryDetailScreen.js:274`, barrada por `coloring60Journey.js:731` — `storyScenesComplete !== true`
 com o *baseline* restaurado) · `@ptf_coloring60_finale_seen_*`.
+
+### `D-PREP02-08` — a porta do Colorir 60 é a **Área dos Pais**, não o `StoryDetail`
+
+**Microauditoria `PREP02-ROTA-C60-CHECK-01` (somente leitura, `7de7085`).** A `AUDITORIA-PREP-STOP-01`
+e o protocolo da `PREP-02` pareciam contraditórios. **Não são** — a contradição era da rota escrita, e
+ela estava errada.
+
+**O que a auditoria provou.** `StoryDetailScreen.js:571-573` renderiza a seção do piloto com
+`unlocked={isCompleted}`, e `isCompleted` (`:132`) é `progressCount >= totalScenes && totalScenes > 0`.
+Com o *baseline* restaurado não há `@ptf_progress_creation` ⇒ `progressCount = 0` ⇒ `unlocked = false`
+⇒ `coloring60Journey.js:363` marca as três fichas como `LOCKED` e `:378-379` deixa `primaryAction`
+**nulo** (o CTA nem é renderizado, `CreationColoringJourneySection.js:254`); as fichas ficam
+`disabled` e com `onPress` indefinido (`:141-142`). **`VISIBLE` ≠ `ENABLED`:** a seção aparece
+(`StoryDetailScreen.js:139-142`, por `__DEV__`), mas **nada nela é acionável**. A conclusão anterior —
+"o cartão do `StoryDetail` exigiria `10/10`" — **está correta**.
+
+**A rota executável.** `ProfileScreen.js:323` → **Área dos Pais** → seção **🛠️ Administração (dev)**
+(`ParentAreaScreen.js:1118`, gate `isInternalToolsEnabled()` em `:66`, que `internalTools.js:24-26`
+satisfaz **só com `__DEV__`**, sem Modo Criador) → cartão **"Colorir 60, A Criação"** → **"Abrir Luz"**
+(`:1186`). Os parâmetros despachados — `{ storyId: 'creation', activityId: 'light' }` — são **os
+mesmos** que `planC60OpenEditorFromStory` (`coloring60Navigation.js:135`) produziria; `origin` e
+`resumeCenaIndex` (exclusivos de `planC60OpenEditorFromMilestone`, `:155`) ficam ausentes nas duas.
+**Mesmo editor, mesmo *writer* (`ColoringScreen.js:352,435`), mesmo *payload*, nenhuma semeadura.** O
+*runtime* já reconhece essa porta como entrada de desenvolvimento legítima
+(`coloring60Navigation.js:74`).
+
+**Bancada permanece proibida.** `ParentAreaScreen.js:1216` → `Coloring60LabScreen.js:115` navega com
+`COLORING60_LAB_STORY_ID` (identidade **≠** `creation`) e a ferramenta **semeia e limpa** estado.
+Artefato vindo dela é **inadmissível**.
+
+**Divergência de *copy* registrada, não corrigida.** `ParentAreaScreen.js:1182` ainda diz *"Temporário:
+nada é salvo"*. O texto é **obsoleto** — `saveColoring60DrawingState` não consulta plano nem origem
+(`coloring60DrawingStorage.js:507`). É *dev-only*, não altera comportamento, e **`src/` não foi tocado**.
 
 ### Allowlist física corrigida
 
