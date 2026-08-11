@@ -18,7 +18,9 @@ import { log } from '../utils/logger';
 import { isAdventureTourActive, getAdventureTabCalloutActive, subscribeAdventureTabCalloutActive } from '../services/beniTourService';
 // [F6-R3.x · A-05/D-10/F-C5/F-08/B-11] Registro de instâncias VIVAS do shell: separa
 // remontagem normal de duas árvores de `MainTabs` simultâneas. Só conta e descreve.
-import { notarMontagem, notarDesmontagem, descreverShellLifecycle } from '../services/shellLifecycleTrace';
+import {
+  notarMontagem, notarDesmontagem, descreverShellLifecycle, shellLifecycleSnapshot,
+} from '../services/shellLifecycleTrace';
 
 import SplashScreen from '../screens/SplashScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
@@ -255,10 +257,14 @@ function MainTabs() {
     log(descreverShellLifecycle('MONTADO', notarMontagem('MainTabs')));
     return () => { log(descreverShellLifecycle('DESMONTADO', notarDesmontagem('MainTabs'))); };
   }, []);
+  /* [R1-BLOCK-01] O número de montagem ao lado da faixa é o que prova a travessia de
+     600dp SEM remontagem: se a faixa muda e o número NÃO muda, foi re-render. O número
+     vem por LEITURA do registro acima — `shellLifecycleSnapshot` só olha, não conta.
+     Nada de contador local aqui: `shellLifecycleTrace` é a única autoridade da contagem. */
   useEffect(() => {
     log(
       `[AppNavigator] faixa = ${isTablet ? 'tablet (sidebar à esquerda)' : 'celular (barra inferior)'}`
-      + ` · largura=${Math.round(width)}dp · ainda na montagem #${montagensRef.current}`,
+      + ` · largura=${Math.round(width)}dp · ainda na montagem #${shellLifecycleSnapshot('MainTabs').montagens}`,
     );
     // `width` fora das dependências de propósito: o interesse é a TRAVESSIA da faixa,
     // não cada pixel arrastado — uma linha por pixel afogaria a evidência.

@@ -52341,6 +52341,141 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     }
   }
 
+  /* ────────────────────────────────────────────────────────────────────────────
+   * R1-BLOCK-01 — LACRE DE IDENTIFICADOR ÓRFÃO NO CAMINHO DE RUNTIME.
+   *
+   * Defeito de campo, RODADA 1 da campanha física de F6-SG-A (Samsung SM-X510,
+   * Android 16, Development Build): `MainTabs` montou, imprimiu o lifecycle e caiu
+   * logo depois com `ReferenceError: Property 'montagensRef' doesn't exist`.
+   *
+   * Causa: F6-R3.x migrou a contagem de montagens para `shellLifecycleTrace` e apagou
+   * a declaração `const montagensRef = useRef(0)`. O CONSUMIDOR dela no efeito de
+   * faixa — escrito ANTES da migração — ficou de pé sem declaração nenhuma.
+   *
+   * Por que nenhum portão pegou: o pacote é SINTATICAMENTE VÁLIDO. Identificador livre
+   * só explode quando o caminho é AVALIADO. `expo export:embed` (bundle:check) compila
+   * sem executar; este smoke não avaliava a árvore de `MainTabs`; `expo-doctor` audita
+   * configuração de projeto, não escopo de código; e o projeto não tem ESLint, logo não
+   * há `no-undef` em lugar algum. O buraco era de ANÁLISE DE ESCOPO — é ele que o lacre
+   * abaixo fecha, SEM dependência nova: `@babel/parser` e `@babel/core` já são exigidos
+   * por outros blocos deste mesmo arquivo.
+   *
+   * O lacre é análise de escopo de verdade (`scope.hasBinding`), não busca textual: não
+   * depende do nome `montagensRef` nem de qualquer palavra específica, e por isso vigia
+   * a CLASSE do defeito, não o exemplar que já conhecemos.
+   * ──────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── R1-BLOCK-01 · identificador sem declaração no caminho de runtime ──');
+  {
+    const parserR1B = require('@babel/parser');
+    const traverseR1B = require('@babel/core').traverse;
+
+    /* O AMBIENTE DECLARADO do runtime RN/Hermes. Babel já reconhece sozinho os builtins
+       de ECMAScript (`Math`, `JSON`, `Promise`…); o que ele NÃO conhece são os globais
+       que a plataforma injeta. Esta lista é a fronteira explícita entre "global legítimo
+       do runtime" e "referência órfã". Crescer esta lista é ato DELIBERADO: só entra aqui
+       o que o runtime realmente fornece — nunca para calar uma falha do lacre. */
+    const AMBIENTE_R1B = new Set([
+      '__DEV__', 'global', 'globalThis', 'require', 'module', 'exports', 'process', 'console',
+      'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate',
+      'requestAnimationFrame', 'cancelAnimationFrame', 'queueMicrotask',
+      'fetch', 'Headers', 'Request', 'Response', 'AbortController', 'AbortSignal',
+      'FileReader', 'Blob', 'FormData', 'URL', 'URLSearchParams', 'XMLHttpRequest', 'WebSocket',
+      'performance', 'atob', 'btoa', 'TextEncoder', 'TextDecoder', 'structuredClone',
+      'alert', 'navigator', 'HermesInternal',
+    ]);
+
+    /* Devolve os identificadores REFERENCIADOS que não têm declaração alcançável.
+       `dentroDe` restringe a varredura ao corpo de uma função nomeada (o caso `MainTabs`);
+       omitido, varre o módulo inteiro. */
+    const orfaosR1B = (code, dentroDe) => {
+      let ast;
+      try {
+        ast = parserR1B.parse(code, { sourceType: 'module', plugins: ['jsx'] });
+      } catch (e) {
+        return [{ nome: '(falha de parse)', linha: 0, detalhe: e.message }];
+      }
+      const achados = [];
+      const visitante = {
+        ReferencedIdentifier(ip) {
+          const nome = ip.node.name;
+          if (AMBIENTE_R1B.has(nome)) return;
+          if (ip.scope.hasBinding(nome)) return;
+          achados.push({ nome, linha: ip.node.loc ? ip.node.loc.start.line : 0 });
+        },
+      };
+      if (!dentroDe) {
+        traverseR1B(ast, visitante);
+        return achados;
+      }
+      let achou = false;
+      traverseR1B(ast, {
+        'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ClassMethod'(p) {
+          const id = p.node.id || (p.parent && p.parent.type === 'VariableDeclarator' ? p.parent.id : null);
+          if (!id || id.name !== dentroDe) return;
+          achou = true;
+          p.traverse(visitante);
+        },
+      });
+      if (!achou) achados.push({ nome: `(função \`${dentroDe}\` não encontrada)`, linha: 0 });
+      return achados;
+    };
+
+    const mostrarR1B = (lista) => lista
+      .map((o) => `${o.nome}@${o.linha}${o.detalhe ? ` (${o.detalhe})` : ''}`).join(', ');
+
+    // ── T-e1 — a condição literal do defeito de campo ────────────────────────
+    const fonteNavR1B = readSrc('src/navigation/AppNavigator.js');
+    const orfaosMainTabs = orfaosR1B(fonteNavR1B, 'MainTabs');
+    check('R1-BLOCK-01 T-e1: `MainTabs` não referencia identificador sem declaração/autoridade',
+      orfaosMainTabs.length === 0,
+      `referência órfã no caminho de runtime do shell: ${mostrarR1B(orfaosMainTabs)}`
+      + ' — o app monta e cai com ReferenceError no aparelho');
+
+    // ── T-e2 — a CLASSE inteira do defeito, não só o exemplar conhecido ──────
+    const varrerJsR1B = (dir, out) => {
+      for (const e of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) varrerJsR1B(rel, out);
+        else if (e.name.endsWith('.js')) out.push(rel);
+      }
+      return out;
+    };
+    const modulosR1B = varrerJsR1B('src', ['App.js']);
+    const sujosR1B = modulosR1B
+      .map((rel) => ({ rel, orfaos: orfaosR1B(readSrc(rel)) }))
+      .filter((r) => r.orfaos.length > 0);
+    check(`R1-BLOCK-01 T-e2: nenhum dos ${modulosR1B.length} módulos de \`src/\` (+ App.js) referencia identificador sem declaração`,
+      sujosR1B.length === 0,
+      sujosR1B.map((r) => `${r.rel}: ${mostrarR1B(r.orfaos)}`).join(' | '));
+
+    // ── M9 — mutante negativo: devolve a referência órfã EXATA do defeito ────
+    const mutarNavR1B = (fonte, de, para) => {
+      const mutada = fonte.replace(de, para);
+      if (mutada === fonte) throw new Error('mutarNavR1B: a mutação não alterou o fonte (âncora não encontrada)');
+      return mutada;
+    };
+    const limpoMainTabs = orfaosR1B(fonteNavR1B, 'MainTabs').length === 0;
+    check('R1-BLOCK-01 M9 (mutante morto): reinjetar a referência legada órfã em `MainTabs` derruba T-e1',
+      limpoMainTabs === true
+      && orfaosR1B(
+        mutarNavR1B(fonteNavR1B, 'ainda na montagem #${', 'ainda na montagem #${montagensRef.current}${'),
+        'MainTabs',
+      ).length > 0,
+      'a referência órfã voltou ao caminho de `MainTabs` e T-e1 continuou verde — o lacre não vigia o defeito');
+
+    // ── M10 — mutante negativo: órfão em QUALQUER módulo tem de derrubar T-e2 ─
+    const alvoM10 = 'src/services/shellLifecycleTrace.js';
+    const fonteM10 = readSrc(alvoM10);
+    check('R1-BLOCK-01 M10 (mutante morto): identificador órfão em outro módulo do shell derruba T-e2',
+      sujosR1B.length === 0
+      && orfaosR1B(mutarNavR1B(
+        fonteM10,
+        'return instantaneo(registroDe(nome));',
+        'return instantaneo(registroDeLegado(nome));',
+      )).length > 0,
+      'a varredura de `src/` não enxergou um identificador órfão introduzido de propósito');
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
