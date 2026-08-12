@@ -2658,3 +2658,148 @@ revogá-la.
 | ⛔ | **Nenhuma** alteração de `compare_state.py` — o selo `G-03` permanece |
 | ⛔ | **Nenhuma** allowlist genérica de *relaunch* |
 | ⛔ | **Nenhum** `push`, `merge` ou alteração de código executável |
+
+---
+
+## 20. `EMENDA 8` — saídas canônicas para o *cold start* legítimo
+
+> **Rodada 100% documental.** Zero `ADB`, `Metro`, tablet, *runtime*, evidência física nova,
+> `CASO 15` ou `ACHADO-V1`. `compare_state.py` **não** é tocado.
+
+### 20.0 Alcance
+
+Corrige **exatamente dois falsos `STOP`** apontados pela auditoria Verde da `EMENDA 7`. `B1`, `B3`,
+`B4` e `B5` da `EMENDA 7` estão auditados como **RESOLVIDOS** e **não são reabertos**. `WARM` e
+`INDETERMINADO` seguem inalterados, salvo a referência mínima exigida pelas regras abaixo.
+
+---
+
+### 20.1 **`A`** — `ALLOWLIST-COLD`, fechada e exclusiva
+
+**[FATO]** A `EMENDA 7` (§19.2.4) declarou três *writers* "sem sustentação falsificável". Reconferido
+o corpus, **a declaração estava errada**: os quatro caminhos têm sustentação positiva **pré-declarada
+e observada**, e um *cold start* legítimo do *Development Build* os produz. Mantê-los intolerados
+gera **falso `STOP`** na janela `ACTIVE`.
+
+**[FATO]** `COMPL_PRE_x_TAR1.txt` (l. 11-14) registra os **quatro juntos**, como conjunto realmente
+observado num *cold start*, e `G-10_A_G-14_REGISTRO.txt` apura cada um:
+
+| Caminho | Sustentação positiva no corpus | Natureza do delta |
+|---|---|---|
+| `files/DevLauncherApp-BridgelessReactNativeDevBundle.js` | `11_PREP_LEGADO_02.md:324` (*"gravado pelo dev client ao carregar do Metro… **gate positivo de proveniência***"); `G-10_A_G-14_REGISTRO.txt:56-57` (*"Cache do bundle do dev-launcher, substituído pelo cold start"*) | Tamanho **variável** — sem hash determinístico |
+| `shared_prefs/expo.modules.devlauncher.recentyopenedapps.xml` | `11_PREP_LEGADO_02.md:330` (*"O dev launcher registra a última URL aberta. **Consequência inevitável** de carregar do Metro"*); `G-10_A_G-14_REGISTRO.txt:78-85` (`684 → 684 B`, mudou **um** campo: *timestamp*; as três URLs intactas) | *Timestamp* **variável** |
+| `files/profileInstalled` | `11_PREP_LEGADO_02.md:332` (*"**CHANGED — tolerado**. Perfil ART e Play Services. Infraestrutura do sistema"*); `G-10_A_G-14_REGISTRO.txt:69-71` (`24 → 24 B`, só os 4 últimos bytes — *"contador do ART baseline profile, **incrementado a cada instalação de perfil no boot**"*) | Contador **variável** |
+| `shared_prefs/WebViewChromiumPrefs.xml` | §17.3 e §18.4 — tratamento **já separado**, com os **dois** estados de hash determinístico (§20.3) | Determinístico |
+
+**[NORMA NOVA] — `ALLOWLIST-COLD`.** Os quatro caminhos acima, e **somente** eles, formam um conjunto
+**fechado e exclusivo**, válido **apenas** na janela `CK-RESUME-01.tar × CK-RESUME-02-ACTIVE.tar` e
+**apenas** quando `PROCESS_IDENTITY=COLD` tiver sido determinado **antes** da reativação (§19.2.5).
+Esta norma **`SUPERSEDE`** a lista de "não tolerados" de §19.2.4.
+
+**[NORMA NOVA]** A `ALLOWLIST-COLD` **não existe** em `WARM`. **Não se aplica** à janela da pausa.
+**Não se aplica** ao `CASO 15`.
+
+**[NORMA NOVA] — falsificabilidade sem hash futuro.** Como três dos quatro têm conteúdo naturalmente
+variável (*bundle*, *timestamp*, contador) e o corpus **não** fornece hash determinístico para eles,
+é **vedado** exigir hash futuro exato desses três. A falsificabilidade vem da **conjunção** de:
+
+| # | Condição |
+|---|---|
+| 1 | Antecedente `COLD` **provado antes** da reativação, por evidência independente (§19.2.5) |
+| 2 | Janela causal **isolada** — `ACTIVE`, jamais a da pausa |
+| 3 | Propriedade do arquivo atribuída à **infraestrutura de desenvolvimento/sistema**, nunca ao produto |
+| 4 | Conjunto **fechado** de caminhos — os quatro da tabela |
+| 5 | **Zero** arquivo de produto adicional · **zero** chave de produto adicional |
+| 6 | Invariantes de `databases/RKStorage` e `files/ptf_blobs/**` **preservadas**, exceto `W-1` quando admitida sob §19.1 |
+| 7 | **Nenhum** `FILES_ADDED` ou `FILES_DELETED` inesperado |
+
+**[FATO]** A condição 6 tem precedente observado: no *cold start* de `PRE × TAR-1`, com os quatro
+*writers* mutados, `G-10_A_G-14_REGISTRO.txt:87-92` registra `databases/RKStorage`, os três *blobs* do
+produto e `storage-info.pb` **IDÊNTICOS** por `SHA256`. *Cold start* mexe em infraestrutura e **não**
+toca dado de produto — isso é medido, não suposto.
+
+**[NORMA NOVA] — subconjunto, não obrigatoriedade.** É permitido **somente o subconjunto que
+efetivamente ocorrer**. O corpus **não** prova obrigatoriedade individual de nenhum dos quatro, logo
+**não** se exige que todos mudem, e a ausência de qualquer um **não** é `STOP`.
+
+**[NORMA NOVA]** Qualquer caminho **fora** da lista ⇒ **`STOP`**. Qualquer alteração de dado de
+produto fora das regras já existentes ⇒ **`STOP`**.
+
+---
+
+### 20.2 **`A`** — saída canônica de `ACTIVE_DELTA_RESULT` no ramo `COLD`
+
+**[NORMA NOVA]** **`COLD` não é falha de produto.** Se `PAUSE_DELTA_RESULT=PASS` **e** a janela
+`ACTIVE` contiver **exclusivamente** *writers* da `ALLOWLIST-COLD` (§20.1), mais `W-1` válida quando
+aplicável sob §19.1, então **`ACTIVE_DELTA_RESULT=PASS`** — **mesmo que** `compare_state.py` devolva
+`ENTRY_STATE_RESULT=STOP` por `FILES_CHANGED`.
+
+**[NORMA NOVA]** Os dois resultados são **reportados lado a lado**, sempre. **Nenhuma** saída do
+comparador é escondida, reescrita, normalizada ou reinterpretada; o token de adjudicação é
+**acréscimo**, nunca substituição. Precedente do método: `CASO1_LAUDO.txt:42-45` — *"O `STOP` é
+literal e correto… O veredito não é o rótulo do instrumento: é a **natureza** da única divergência."*
+
+**[NORMA NOVA]** `RESUME_DELTA_RESULT` continua exigindo `PAUSE_DELTA_RESULT=PASS` **e**
+`ACTIVE_DELTA_RESULT=PASS` (§19.2.1, preservada). O ramo `COLD` deixa de ser um beco sem saída e
+passa a ter **desfecho canônico útil**.
+
+---
+
+### 20.3 **`B`** — `C15-WEBVIEW`: adjudicação condicional pelo estado do baseline
+
+**[FATO]** Em processo novo, o **primeiro** `WebView` pode ser o próprio `AtelierCanvas` — dentro da
+janela do `CASO 15`. `AC-2` (§18.8.2, l. 2181) exige `FILES_CHANGED=1` exclusivamente
+`databases/RKStorage` e reprova *"qualquer outro caminho"*, produzindo **falso `STOP`**.
+
+**[FATO]** Os **dois** estados históricos estão confirmados no corpus, com hashes **integrais**
+(`CASO1_LAUDO.txt:48-51`, que registra a transição direta observada `127 → 377` com *mtime* casando
+ao segundo com a inicialização do `WebView`):
+
+| Estado | Tamanho | `SHA256` |
+|---|---|---|
+| **`WVP-INI`** — inicial de processo | `127 B` | `72CACA87AC548DBF1C6DA29FD04F6246FDE1840091F4D9223F3F24CCF6776999` |
+| **`WVP-POP`** — populado | `377 B` | `4DDC93412DF13B854DBBFCD8582A2B7E71CEDF5EFA1EE1A0519CFC679DB37282` |
+
+**[FATO]** A diferença entre os dois é **exclusivamente** o cache de *feature flags* do `Chromium`:
+`<int name="lastVersionCodeUsed" value="787118103" />` permanece **inalterado** nos dois; `WVP-POP`
+acrescenta `<set name="CachedFlagsEnabled">` e `<set name="CachedFlagsDisabled" />`. Infraestrutura do
+`Chromium`, **não** escrita de produto.
+
+**[NORMA NOVA] — registro obrigatório no baseline.** Antes do primeiro toque do `CASO 15`, junto de
+`BASE_C15_MAX_ROWID` e demais (§19.3), registrar:
+
+```
+BASE_C15_WEBVIEW_PREFS_LENGTH
+BASE_C15_WEBVIEW_PREFS_SHA256
+```
+
+**[NORMA NOVA] — regra `C15-WEBVIEW`.** A condição é o **estado do próprio baseline**, e por isso a
+regra vale igualmente com o processo classificado `COLD` ou `INDETERMINADO`:
+
+| Baseline observado | Pós admitido | `STOP` |
+|---|---|---|
+| **`WVP-POP`** (`377 B` / `4DDC9341…`) | **Byte-idêntico** — o arquivo **não** muda | **Qualquer** mudança ⇒ `STOP` |
+| **`WVP-INI`** (`127 B` / `72CACA87…`) | `WVP-INI` inalterado **ou** exatamente `WVP-POP` — a transição conhecida `INI → POP` | Qualquer outro estado ou transição ⇒ `STOP` |
+| **Terceiro estado** | — | **`STOP` antes de iniciar o caso**, salvo norma canônica já existente |
+
+**[NORMA NOVA] — `AC-3`, adjudicada separadamente de `AC-1`.** A transição `WVP-INI → WVP-POP` é
+infraestrutura do `Chromium` e recebe entrada própria na tabela de tolerâncias do `CASO 15`; ela
+**não** é `AC-1`, **não** é contada como escrita de produto e **não** interfere nas invariantes de
+*rowid* de §19.3. Em consequência, `AC-2` é **`SUPERSEDE`**-ida:
+
+> `FILES_CHANGED` pode ser `1` **ou** `2`. O primeiro caminho é `databases/RKStorage`, sob `AC-1` e
+> §19.3. O segundo, **quando existir**, só pode ser `shared_prefs/WebViewChromiumPrefs.xml` sob
+> `AC-3`. `FILES_ADDED=0` e `FILES_DELETED=0` permanecem. **Qualquer terceiro caminho ⇒ `STOP`.**
+
+**[NORMA NOVA]** `shared_prefs/WebViewChromiumPrefs.xml` **não** pode ser usado como prova de
+identidade de processo, em nenhum estado. §18.4 (desfechos `D1`/`D2`/`D3`) e §17.10 permanecem
+**integralmente** válidas e não são afetadas por esta regra.
+
+---
+
+### 20.4 `PARKING LOT` — registrado, **não** corrigido nesta rodada
+
+Sem alteração de corpus: mecanismo físico exato da reativação · rolagem eventualmente necessária na
+galeria · possibilidade **não provada** de `WebViewChromiumPrefs.xml` mudar no momento da morte do
+processo · demais observações não bloqueantes do Verde. Serão tratados **operacionalmente** quando
+relevantes.
