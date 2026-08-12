@@ -3018,3 +3018,128 @@ causal**, não por formalidade.
 qualquer outra quebra de continuidade, **não** herdar automaticamente `TAR-2B-C16` como *baseline*
 do `CASO 10`: capturar `TAR-C10-PRE` próprio. §13.9 e o veto a reutilizar `TAR-1B-C1` seguem
 válidos e inalterados.
+
+---
+
+## 25. `FECHAMENTO FORMAL` · R2 SESSÃO 2 · BLOCO A
+
+Esta seção é um **fecho**, não uma nova auditoria. Congela o resultado e libera o avanço do
+roadmap. Nada aqui reabre, reescreve ou renumera as seções anteriores.
+
+### 25.1 Gate final
+
+**[ANCORAGEM]** Auditoria Verde final: **`CASO10_AND_BLOCO_A_FINAL_GATE_PASS`**.
+
+- O `CASO 10` está **definitivamente promovido a `PASS`**.
+- O **`BLOCO A` está encerrado**.
+- **Não existe `FAIL` aberto** no `BLOCO A`.
+- **Nenhuma nova execução física** é necessária para este fechamento.
+
+### 25.2 Matriz final dos casos
+
+| Caso | Estado final |
+| --- | --- |
+| `CASO 1` | **`PASS`** |
+| `CASO 15` | **`PASS` canônico na tentativa 2** |
+| `CASO 15` — tentativa 1 | **`STOP_INFRA_UNREGISTERED`** — preservado historicamente |
+| `CASO 14 v1` | **`INEXECUTÁVEL_POR_AUSÊNCIA_DE_WRITER_REPRODUZÍVEL`** |
+| `CASO 14 v2` | **`PASS`** |
+| `CASO 16` | **`PASS`** |
+| `CASO 10` | **`PASS`** |
+
+**[ANCORAGEM]** A tentativa 1 do `CASO 15` **não** é apagada e **não** é convertida em `PASS`: ela
+permanece como registro histórico de `STOP_INFRA_UNREGISTERED`.
+
+**[ANCORAGEM]** `CASO 14 v1` **não** é `PASS` e **não** é `FAIL` — é **inexecutável por ausência de
+*writer* reproduzível** — e **não** foi reaberto. A distinção entre `v1` e `v2` é **histórica e
+material**: colapsar as duas em um rótulo único **destruiria** a informação de que o eixo só se
+tornou mensurável depois que o *writer* passou a ser reproduzível.
+
+### 25.3 `CASO 10` — registro de fecho
+
+**METADE `C60`** — **`PASS`**. Os **sete** contadores em **zero**; `TAR-C10-PRE` × `CK-C10-C60`
+**byte-idênticos**; `AC-1` e `AC-2` **ausentes**, como §24.1 exige; ponteiro e *blob* **intactos**.
+
+**FRONTEIRA** — **`PASS`**. `CK-C10-C60` × `CK-C10-FRONTEIRA` **byte-idênticos**: a navegação até
+`Minhas artes` é **causalmente inerte**. Por isso o ato probatório do Ateliê ficou **isolado**.
+
+**METADE `ATELIÊ`** — **`PASS`**, por adjudicação **prospectiva** `AC-1` + `AC-2`.
+
+- Única mudança: `@ptf_criar_livre_orientation_seen_v1:star`, *rowid* **70 → 71**, valor `'1'`
+  **idêntico**.
+- `databases/RKStorage`: **único** `FILE_CHANGED`, consequência física **exclusiva** de `AC-1`.
+- `AC-3`: **estrita e byte-idêntica**.
+- `AC-4`: **não invocada** na janela do `CASO 10`.
+- `AC-5`: **inexistente** — não foi criada.
+- Produto e acervo funcional: **intactos**. `STATE_EXPORT=0`.
+
+### 25.4 `TAR-2` e reconciliação agregada
+
+**[ANCORAGEM]** `TAR-C10-POST` = `CK-C10` = `TAR-2` — **uma única captura física** com **três
+papéis documentais**, conforme §24.4.
+
+**[ANCORAGEM]** O par `TAR-1 × TAR-2` é **`INVENTÁRIO DE ENCERRAMENTO`** e **não** é gate agregado
+de sete zeros (§24.3). Resultado agregado reportado:
+
+```
+FILES_CHANGED=5
+KEYS_ADDED=4
+KEYS_CHANGED=1
+KEYS_ROWID_MOVED=2
+```
+
+**[ANCORAGEM]** `TAR-1` e `TAR-2` **não** são byte-idênticos — e **não deveriam** ser: entre eles
+está a execução inteira do `BLOCO A`.
+
+Do inventário, fica registrado que:
+
+- **cada** diferença possui **pouso causal medido** — localizado por medição na cadeia de tars, não
+  apenas declarado plausível;
+- **nenhuma diferença órfã** existe;
+- **nenhuma atribuição retrospectiva** foi criada;
+- os **bytes funcionais protegidos das obras** permaneceram **íntegros**;
+- a cadeia de `MAX_ROWID` permaneceu **monotônica** (`50 → 53 → 66 → 67 → 68 → 69 → 70 → 71`), sem
+  um único retrocesso — o que valida a própria ordenação usada no inventário;
+- os *writers* de *cold start* ficaram **confinados à janela autorizada** de §20 (`EMENDA 8`) e
+  permaneceram congelados em **todas** as janelas de caso;
+- os *writers* de orientação ficaram **confinados às janelas adjudicadas** (`AC-1`), em degraus
+  unitários, um por caso.
+
+### 25.5 Evidências do `CASO 10`
+
+Fora do repositório, em `C:\tmp\ptf_evidencias\R2S2\`:
+
+| Arquivo | Local |
+| --- | --- |
+| `TAR-C10-PRE.tar` | `acervo/` |
+| `CK-C10-C60.tar` | `acervo/` |
+| `CK-C10-FRONTEIRA.tar` | `acervo/` |
+| `TAR-C10-POST.tar` | `acervo/` |
+| `BASE_C10_REGISTRO.txt` | raiz |
+| `C10_PREFLIGHT_TELA.png` | raiz |
+| `C10_LAUDO.txt` | raiz |
+| `DIFF_C10_C60.txt` | raiz |
+| `DIFF_C10_FRONTEIRA.txt` | raiz |
+| `DIFF_C10_ATELIE.txt` | raiz |
+| `DIFF_C10_ATELIE_ATO.txt` | raiz |
+
+### 25.6 `ACHADO-V1`
+
+**[ANCORAGEM]** `ACHADO-V1` permanece **`CONGELADO` / `NÃO INVESTIGADO`** nesta sessão. O
+fechamento do `BLOCO A` **não** autoriza sua investigação.
+
+### 25.7 `PARKING_LOT`
+
+`PARKING_LOT` do gate final permanece **não bloqueante** e **não exige emenda** nesta sessão.
+
+### 25.8 Estado do repositório
+
+- `HEAD` de entrada: **`92781ea`**.
+- *Runtime* **não alterado**; **nenhum** arquivo de `src/**` tocado.
+- Evidências **externas ao repositório**.
+- **Sem *push***; **sem *merge***.
+
+---
+
+**[ANCORAGEM]** Com esta seção, a **R2 · SESSÃO 2** e o **`BLOCO A`** estão **formalmente
+encerrados**.
