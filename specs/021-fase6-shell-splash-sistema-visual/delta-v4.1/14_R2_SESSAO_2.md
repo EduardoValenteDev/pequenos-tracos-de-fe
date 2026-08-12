@@ -2933,3 +2933,88 @@ de `AC-3`/`AC-4` ⇒ **`ALERTA_LOOP_INFRA`** e **`STOP`**, por §21.3. **`AC-5` 
 
 **[ANCORAGEM]** As âncoras dos casos `14` e `15` **não** são herdadas, e o `PASS` do `CASO 1` **não**
 é prova sobre o eixo do `CASO 16`. A evidência é colhida **nesta execução**.
+
+---
+
+## 24. `RATIFICAÇÃO C10` — duas metades causais e reconciliação do par `TAR-1 × TAR-2`
+
+> **Ratificação documental prospectiva.** Zero regra nova, zero tolerância nova.
+> `compare_state.py` **não** é tocado. Os `CASOS 14`, `15` e `16` **não** são reabertos.
+> O `CASO 10` **não** foi iniciado.
+
+### 24.1 `BLOQUEIO 1` — `G-CMP-2` e *allowlist* **por metade**
+
+**[ANCORAGEM]** O `CASO 10` (`TK-A-072`, §9 l. 603 — *"ambas as metades"*) tem **duas metades
+causalmente separadas**. Elas **não** compartilham janela nem *allowlist*. Três *checkpoints* as
+delimitam:
+
+```
+TAR-C10-PRE  →  CK-C10-C60  →  TAR-C10-POST (= CK-C10 = TAR-2)
+```
+
+**[ANCORAGEM] Metade `C60`** — janela `TAR-C10-PRE × CK-C10-C60`. Expectativa: **zero** escrita de
+produto. `G-CMP-2` **literal**: os **sete** contadores em **zero**. **Nenhum `AC-1`/`AC-2` é
+permitido nesta metade.** `AC-3` (§20.3) e `AC-4` (§21.1) valem **somente** conforme as regras já
+aprovadas e **quando aplicáveis**.
+
+**[ANCORAGEM] Metade `ATELIÊ`** — janela `CK-C10-C60 × TAR-C10-POST`. Transpõem-se **verbatim**,
+**sem alteração de conteúdo e sem tolerância nova**, `AC-1` (§18.8.2, sob a disciplina de *rowid* de
+§19.3), `AC-2` (§18.8.2, l. 2181), `AC-3` (§20.3) e `AC-4` (§21.1), ancoradas em `BASE_C10_*`:
+
+- **`AC-1`** — **somente** a reescrita idempotente já caracterizada de
+  `@ptf_criar_livre_orientation_seen_v1:star`, com **valor idêntico**, **um único** movimento de
+  *rowid*, **antecedente causal exigido** e **nenhuma** alteração de produto associada.
+- **`AC-2`** — `FILE_CHANGED=databases/RKStorage` **exclusivamente** como consequência física dessa
+  reescrita autorizada. Qualquer outro caminho em `FILE_CHANGED` ⇒ **`STOP`**.
+- **`AC-3`** e **`AC-4`** — **inalteradas** em conteúdo e critérios.
+
+**[ANCORAGEM]** **`AC-5` continua proibida — não existe e não será criada.** Qualquer *writer* fora
+de `AC-1`..`AC-4` ⇒ **`ALERTA_LOOP_INFRA`** e **`STOP`**, por §21.3.
+
+### 24.2 Regra **material** de `G-CMP-2`
+
+**[ANCORAGEM]** O que `G-CMP-2` existe para provar no `CASO 10`
+(`04_PLAN_DELTA_F6.md:1021` e `:1086`; `10_RODADA…:394`):
+
+> **ABRIR SEM MODIFICAR NÃO MIGRA, NÃO PROMOVE, NÃO REESCREVE O ACERVO DE PRODUTO.**
+
+**[ANCORAGEM]** São protegidos **integralmente**: *payload*/`stateJson` · índices do acervo ·
+ponteiros · versões · *blobs* · metadados funcionais das obras.
+
+**[ANCORAGEM]** *Bookkeeping* **já caracterizado e causalmente delimitado** por `AC-1`..`AC-4` **não**
+constitui modificação do acervo. Isto **não relaxa um único byte do acervo** — e não cria caminho
+novo: o que não está em `AC-1`..`AC-4` continua sendo `STOP`.
+
+### 24.3 `BLOQUEIO 2` — reconciliação do par agregado `TAR-1 × TAR-2`
+
+**[ANCORAGEM]** A premissa de §10 (item 2) e de §11 (item 11) — *"`TAR-1 × TAR-2` ⇒ os sete
+contadores devem ser zero"* — foi **falsificada** pelas medições **atribuídas prospectivamente** dos
+casos intermediários, que ocorrem **dentro** daquela janela agregada.
+
+**[ANCORAGEM]** Em consequência, §10 item 2 e §11 item 11 são **`SUPERSEDE`**-idos **como gate**:
+
+- `TAR-1 × TAR-2` **permanece obrigatório** como **inventário de encerramento / reconciliação
+  global** do `BLOCO A`;
+- **deixa de ser** gate de sete zeros do `CASO 10` **e** do `BLOCO A`.
+
+**[ANCORAGEM]** O **julgamento causal** usa os *checkpoints* próprios de cada caso. Para o
+`CASO 10`: `TAR-C10-PRE → CK-C10-C60 → TAR-C10-POST / CK-C10 / TAR-2`.
+
+**[ANCORAGEM]** A **regra de honestidade** (`10_RODADA_FISICA_2_F6_SG_A.md:120`, §9.1) permanece
+**INTACTA**: nenhuma diferença pode ser atribuída **retrospectivamente** a outro caso. A atribuição
+só é válida quando **prospectivamente declarada**, **delimitada por *checkpoints***, **compatível com
+*allowlist* já aprovada** e **comprovada na janela causal correta**.
+
+### 24.4 Economia de artefatos
+
+**[ANCORAGEM]** `TAR-C10-PRE` **pode ser** o próprio `TAR-2B-C16`/`CK-C16` **se e somente se**
+**nenhum evento material** ocorrer entre o fecho do `CASO 16` e o **primeiro toque** do `CASO 10`.
+
+**[ANCORAGEM]** `CK-C10 = TAR-C10-POST = TAR-2` **pode ser uma única captura física** com múltiplos
+papéis documentais. `CK-C10-C60` **permanece necessário** entre as duas metades — por **atribuição
+causal**, não por formalidade.
+
+**[ANCORAGEM]** Havendo *background*, *sleep*, *reload*, morte de processo, pausa material ou
+qualquer outra quebra de continuidade, **não** herdar automaticamente `TAR-2B-C16` como *baseline*
+do `CASO 10`: capturar `TAR-C10-PRE` próprio. §13.9 e o veto a reutilizar `TAR-1B-C1` seguem
+válidos e inalterados.
