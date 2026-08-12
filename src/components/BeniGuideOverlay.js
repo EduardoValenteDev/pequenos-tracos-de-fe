@@ -16,7 +16,7 @@
  *        withAudioPrompt?
  */
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Animated, Modal, BackHandler, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Modal, BackHandler } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // [F6-R3.2 · TK-A-026] Um único contrato de ciclo de vida para todas as superfícies.
 import { useSurfaceLifecycle } from '../hooks/useSurfaceLifecycle';
@@ -26,7 +26,7 @@ import BeniAvatar from './beni/BeniAvatar';
 import BeniGuideAudio from './BeniGuideAudio';
 import { getBeniGuideAudio, preloadGuideAudio } from '../data/beniGuideAudio';
 import { getAudioPreferences, subscribeAudioPreferences } from '../services/audioManager';
-import { breakpoints } from '../theme/tokens';
+import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 
 const CARD_H = 168;        // altura estimada do card (posicionamento)
 const CARD_H_TALL = 200;   // estimativa GENEROSA p/ colisão (card real c/ texto de 3 linhas passa de CARD_H)
@@ -54,7 +54,11 @@ export default function BeniGuideOverlay({
   onTabHighlight,        // Fase 1.1.4.3: avisa (true/false) quando o passo realça a aba (embedded).
   withAudioPrompt = false,
 }) {
-  const { width, height } = useWindowDimensions();
+  /* [F6-SG-C · TK-C-003] Ponto MISTO. UMA chamada devolve faixa E medida: a faixa
+   * decide `isTabletLayout` (sidebar × tab bar) e `width`/`height` REAIS continuam
+   * governando todo o posicionamento do callout — `tabTop`, `tabItemW`, `cardLeft`,
+   * `arrowLeft`, `isBigArea`, `janelaRef`. Geometria contínua NUNCA vira faixa. */
+  const { width, height, band } = useWindowBand();
   const insets = useSafeAreaInsets();
   const [phase, setPhase] = useState(withAudioPrompt ? 'prompt' : 'steps');
   const [index, setIndex] = useState(0);
@@ -79,7 +83,7 @@ export default function BeniGuideOverlay({
   const step = safeSteps[index];
   // Tablet (sidebar) vs mobile (tab bar). No tablet, o passo com highlightTab vira um
   // alvo MEDIDO da sidebar ('adventures.sidebarTab'); no mobile usa o realce de tab bar.
-  const isTabletLayout = width >= breakpoints.tablet;
+  const isTabletLayout = band !== BANDS.COMPACT;
   // Realce de aba por chave (mobile=tab bar / tablet=sidebar). Generalizado p/ Início
   // e Aventuras (mesma lógica premium). Índice da aba (mobile) e alvo da sidebar (tablet).
   const TAB_INDEX_BY_KEY = { home: 0, adventures: 1, atelier: 2, stars: 3, profile: 4 };

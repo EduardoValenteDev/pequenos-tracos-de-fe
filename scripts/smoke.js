@@ -23460,13 +23460,37 @@ try {
     const confettiA03 = readSrc('src/components/Confetti.js');
     const congratsA03 = readSrc('src/screens/CongratsScreen.js');
 
+    /* [F6-SG-C · TK-C-003 · emenda `Q-C2-1`] A0.3 REAPONTADA — não relaxada.
+     *
+     * O MECANISMO mudou: `ContentContainer` deixou de comparar largura contra
+     * `breakpoints` e passou a consumir `useWindowBand`. A asserção antiga ficou
+     * vermelha por esse motivo legítimo, e não por regressão. A INTENÇÃO original
+     * segue integralmente exigida:
+     *   · dimensão REATIVA — agora por transitividade, e o vínculo é forte:
+     *     `TA-6-FAIXAS [4/4]` obriga o hook a usar `useWindowDimensions` e proíbe
+     *     `Dimensions.get`/`Platform.isPad`/`expo-device` dentro dele, enquanto
+     *     `G-RSP-1` e `G-RSP-3` varrem `src/` inteiro. Trocar o hook por medida
+     *     congelada quebra LÁ — não há caminho silencioso.
+     *   · política vinda de FONTE CANÔNICA — antes `breakpoints`, agora a faixa,
+     *     que por sua vez lê `tokens.breakpoints`. A cadeia não ganhou origem nova.
+     *   · `maxContentWidth` por TOKEN — inalterado, exigido abaixo.
+     *   · zero `Dimensions.get` e fluidez `100%` — inalterados, no check seguinte.
+     *
+     * O par faixa→token é conferido ORDENADAMENTE de propósito: trocar `EXPANDED`
+     * por `MEDIUM` manteria todos os símbolos presentes e passaria num teste de
+     * mera existência. É exatamente esse falso verde que a ordem impede. */
+    const ccCode = codeOf('src/components/ui/ContentContainer.js');
+
     check(
-      'A0.3: ContentContainer existe e usa useWindowDimensions + tokens (breakpoints/maxContentWidth)',
+      'A0.3: ContentContainer decide por FAIXA (`useWindowBand` + `BANDS`), mapeando EXPANDED→tabletL · MEDIUM→tablet · compacta→phone',
       ccSrc.length > 0 &&
-      /useWindowDimensions\(\)/.test(ccSrc) &&
-      /import\s*\{[^}]*breakpoints[^}]*maxContentWidth[^}]*\}\s*from\s*'\.\.\/\.\.\/theme\/tokens'/.test(ccSrc) &&
+      /import\s*\{[^}]*\buseWindowBand\b[^}]*\bBANDS\b[^}]*\}\s*from\s*'\.\.\/\.\.\/hooks\/useWindowBand'/.test(ccCode) &&
+      /useWindowBand\(\)/.test(ccCode) &&
+      /band\s*===\s*BANDS\.EXPANDED\s*\?\s*maxContentWidth\.tabletL[\s\S]*?band\s*===\s*BANDS\.MEDIUM\s*\?\s*maxContentWidth\.tablet\b[\s\S]*?maxContentWidth\.phone/.test(ccCode) &&
+      !/breakpoints\s*\.\s*tabletL?\b/.test(ccCode) &&
+      /import\s*\{[^}]*maxContentWidth[^}]*\}\s*from\s*'\.\.\/\.\.\/theme\/tokens'/.test(ccCode) &&
       /maxWidth/.test(ccSrc) && /alignSelf:\s*'center'/.test(ccSrc),
-      'ContentContainer ausente ou não usa useWindowDimensions + tokens',
+      'ContentContainer ausente, não consome `useWindowBand`/`BANDS`, inverteu o mapeamento faixa→token, deixou de ler `maxContentWidth` do token, ou voltou a comparar largura contra `breakpoints` localmente',
     );
     check(
       'A0.3: ContentContainer é FLUIDO (width 100%) e centraliza por token — sem largura fixa de tela',

@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { NavigationContainer, useNavigationContainerRef, CommonActions } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { Text, View, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import TabletSidebar from '../components/TabletSidebar';
@@ -77,7 +77,7 @@ import { isPackSandboxDevEnabled } from '../services/packSandboxDevService';
 import PackSandboxDevScreen from '../screens/PackSandboxDevScreen';
 // M1 — gate único das ferramentas internas (Administração dev): rotas internas só sob ele.
 import { isInternalToolsEnabled } from '../config/internalTools';
-import { breakpoints } from '../theme/tokens';
+import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -236,8 +236,14 @@ const TOUR_TAB_CALLOUT = {
  */
 function MainTabs() {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= breakpoints.tablet;
+  /* [F6-SG-C · TK-C-003] Ponto MISTO — as duas naturezas convivem aqui:
+   *   · FAIXA (discreta) decide a COMPOSIÇÃO: sidebar à esquerda × barra inferior.
+   *   · MEDIDA (contínua) decide a GEOMETRIA: `tabW`, `calloutW`, `calloutLeft`.
+   * Uma chamada só devolve as duas — nada de `useWindowDimensions` paralelo. E a
+   * migração é NEUTRA: `isTablet` continua binário, então `MEDIUM`→`EXPANDED` não
+   * inventa disparo nem linha de log novos (o efeito abaixo segue com `[isTablet]`). */
+  const { width, band } = useWindowBand();
+  const isTablet = band !== BANDS.COMPACT;
 
   /* [F6-R3.3 · TK-A-022 · ampliado em F6-R3.x] INSTRUMENTAÇÃO DE MONTAGEM — CN-6.
      Nada estrutural muda aqui: a ausência de remontagem na travessia de 600dp já é

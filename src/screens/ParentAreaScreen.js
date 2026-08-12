@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, Linking, TextInput, Alert, Share, Switch,
-  TouchableOpacity, useWindowDimensions, KeyboardAvoidingView, Platform,
+  TouchableOpacity, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import ParentalGate from '../components/ParentalGate';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,7 +49,7 @@ import {
   deleteChurchGroup,
 } from '../services/churchModeService';
 import { PARENTAL_CONSENT_FLOW_ENABLED } from '../config/featureFlags';
-import { breakpoints } from '../theme/tokens';
+import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 import {
   getAudioPreferences,
   loadAudioPreferences,
@@ -284,8 +284,11 @@ const PARENT_DATA_ACTIONS = [
 
 export default function ParentAreaScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= breakpoints.tablet;
+  // [F6-SG-C · TK-C-003] Faixa, não medida: a decisão é discreta (uma variante de
+  // corpo), então quem manda é `band`. Migração NEUTRA — `MEDIUM` e `EXPANDED`
+  // seguem equivalentes aqui, exatamente como o antigo `width >= 600` os tratava.
+  const { band } = useWindowBand();
+  const isTablet = band !== BANDS.COMPACT;
   const currentPlan = getCurrentPlan();
   const isPremium = currentPlan === 'premium';
 

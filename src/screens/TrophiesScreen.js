@@ -16,7 +16,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, SectionList, StyleSheet, Modal,
-  useWindowDimensions,
 } from 'react-native';
 import FaithIcon from '../components/ui/FaithIcon';
 import { BeniAvatar } from '../components/beni';
@@ -40,7 +39,7 @@ import {
 } from '../services/achievementSeenService';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
 import { backLabelFor } from '../utils/originBack';
-import { breakpoints } from '../theme/tokens';
+import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 
 /* Extrai a unidade ("cenas", "artes"...) do progressLabel para frases naturais. */
 function unitFromLabel(label) {
@@ -193,8 +192,12 @@ export default function TrophiesScreen({ navigation, route }) {
   }, []);
 
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isTablet = width >= breakpoints.tablet;
+  // [F6-SG-C · TK-C-003] Decisão discreta ⇒ faixa, não medida. Migração neutra:
+  // `MEDIUM` e `EXPANDED` seguem equivalentes, como o antigo `width >= 600` — o
+  // agrupamento em pares abaixo permanece EXATAMENTE o mesmo, sem terceira
+  // estrutura para a faixa expandida (isso seria redesenho, não migração).
+  const { band } = useWindowBand();
+  const isTablet = band !== BANDS.COMPACT;
 
   const { progressByStory, postStoryStatusByStory } = useProgressContext();
 

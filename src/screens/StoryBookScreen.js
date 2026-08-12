@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, Image, StyleSheet, ActivityIndicator, ScrollView,
-  Animated, useWindowDimensions, AppState,
+  Animated, AppState,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused, useFocusEffect } from '@react-navigation/native';
@@ -26,7 +26,7 @@ import AchievementUnlockModal from '../components/achievements/AchievementUnlock
 import { images } from '../assets/images';
 import BeniAvatar from '../components/beni/BeniAvatar';
 import { computeBookImageSize } from '../constants/officialImage';
-import { breakpoints } from '../theme/tokens';
+import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 import { ROUTES } from '../constants/routes';
 
 const PROGRESS_KEY = '@ptf_progress';
@@ -193,8 +193,12 @@ function OfficialSceneImage({ source, cena, fallbackColor, onSettled }) {
 export default function StoryBookScreen({ route, navigation }) {
   const { story, fromStoryCompletion = false } = route.params ?? {};
   const insets = useSafeAreaInsets();
-  const { width, height: screenH } = useWindowDimensions();
-  const isTablet = width >= breakpoints.tablet;
+  /* [F6-SG-C · TK-C-003] Ponto MISTO. `isTablet` é a decisão discreta; `width` e
+   * `screenH` REAIS seguem alimentando `computeBookImageSize`. Discretizar o
+   * tamanho da imagem em três degraus faria a arte pular entre faixas — é o oposto
+   * de migração neutra. */
+  const { width, height: screenH, band } = useWindowBand();
+  const isTablet = band !== BANDS.COMPACT;
 
   const { refreshProgress, progressByStory, postStoryStatusByStory } = useProgressContext();
 

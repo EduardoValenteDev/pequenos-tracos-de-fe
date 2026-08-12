@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet,
-  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
@@ -17,15 +16,17 @@ import { useProgressContext } from '../context/ProgressContext';
 import PremiumLockCard from '../components/premium/PremiumLockCard';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
-import { breakpoints } from '../theme/tokens';
+import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 import AppScreen from '../components/layout/AppScreen';
 
 const STAR_BONUS = 2;
 
 export default function QuizScreen({ route, navigation }) {
   const { story } = route.params;
-  const { width } = useWindowDimensions();
-  const isTablet = width >= breakpoints.tablet;
+  // [F6-SG-C · TK-C-003] Decisão discreta ⇒ faixa, não medida. Migração neutra:
+  // `MEDIUM` e `EXPANDED` seguem equivalentes, como o antigo `width >= 600`.
+  const { band } = useWindowBand();
+  const isTablet = band !== BANDS.COMPACT;
 
   const { refreshProgress, progressByStory, postStoryStatusByStory } = useProgressContext();
 

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet,
-  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
@@ -11,7 +10,7 @@ import { HEART_FEELINGS, HEART_KEEPS } from '../data/lumiReflections';
 import { getReflection, saveReflection, addBonusStars } from '../services/postStoryStorage';
 import { useProgressContext } from '../context/ProgressContext';
 import BeniAvatar from '../components/beni/BeniAvatar';
-import { breakpoints } from '../theme/tokens';
+import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 import AppScreen from '../components/layout/AppScreen';
 
 const STAR_BONUS = 1;
@@ -47,8 +46,10 @@ function ChoiceGrid({ options, selected, onSelect, withEmoji }) {
 
 export default function ReflectionScreen({ route, navigation }) {
   const { story } = route.params;
-  const { width } = useWindowDimensions();
-  const isTablet = width >= breakpoints.tablet;
+  // [F6-SG-C · TK-C-003] Decisão discreta ⇒ faixa, não medida. Migração neutra:
+  // `MEDIUM` e `EXPANDED` seguem equivalentes, como o antigo `width >= 600`.
+  const { band } = useWindowBand();
+  const isTablet = band !== BANDS.COMPACT;
 
   const { refreshProgress } = useProgressContext();
 

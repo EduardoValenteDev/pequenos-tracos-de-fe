@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, Image, StyleSheet,
-  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +12,7 @@ import SoundButton from '../components/SoundButton';
 import { isQuizDone, getReflection, isStoryBookOpened } from '../services/postStoryStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
 import LockedStoryFallback from '../components/premium/LockedStoryFallback';
-import { breakpoints } from '../theme/tokens';
+import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 
 function HubCard({ emoji, title, desc, cta, tagColor, done, onPress }) {
   return (
@@ -47,9 +46,11 @@ function HubCard({ emoji, title, desc, cta, tagColor, done, onPress }) {
 
 export default function PostStoryHubScreen({ route, navigation }) {
   const { story } = route.params;
-  const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const isTablet = width >= breakpoints.tablet;
+  // [F6-SG-C · TK-C-003] Decisão discreta ⇒ faixa, não medida. Migração neutra:
+  // `MEDIUM` e `EXPANDED` seguem equivalentes, como o antigo `width >= 600`.
+  const { band } = useWindowBand();
+  const isTablet = band !== BANDS.COMPACT;
 
   const [quizDone, setQuizDone] = useState(false);
   const [reflectionDone, setReflectionDone] = useState(false);

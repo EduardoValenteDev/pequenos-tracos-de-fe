@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Modal,
-  Animated, StyleSheet, useWindowDimensions,
+  Animated, StyleSheet,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,7 +29,8 @@ import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import ContentContainer from '../components/ui/ContentContainer';
 import BotaoPrimario from '../components/ui/BotaoPrimario';
-import { color, breakpoints } from '../theme/tokens';
+import { color } from '../theme/tokens';
+import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 // Piloto "Colorir com o Beni" (Colorir 60) — SÓ na jornada de "A Criação", gated pela flag do
 // piloto OU por Dev Client + ferramentas internas (mesmo mecanismo único de `isColoring60PilotAllowed`).
 import { COLORIR_60_CREATION_PILOT_ENABLED } from '../config/featureFlags';
@@ -107,8 +108,12 @@ function PostStoryCard({ emoji, title, desc, done, tagColor, onPress, isTablet }
 
 export default function StoryDetailScreen({ route, navigation }) {
   const { story } = route.params;
-  const { width } = useWindowDimensions();
-  const isTablet = width >= breakpoints.tablet;
+  // [F6-SG-C · TK-C-003] Decisão discreta ⇒ faixa, não medida. Migração neutra:
+  // `MEDIUM` e `EXPANDED` seguem equivalentes, como o antigo `width >= 600`.
+  // `isTablet` continua descendo como PROP para `StoryBookHero` e
+  // `CreationColoringJourneySection`: eles recebem contrato, não leem janela.
+  const { band } = useWindowBand();
+  const isTablet = band !== BANDS.COMPACT;
 
   // [P4 · FONTE ÚNICA] O progresso de cenas desta tela vem do ProgressContext — a MESMA fonte que a
   // NarrationScreen atualiza (refreshProgress após salvar cada cena) — e não mais de uma leitura
