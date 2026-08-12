@@ -143,6 +143,39 @@ export const maxContentWidth = { phone: '100%', tablet: 560, tabletL: 640 };   /
 export const grid = { phone: 1, tablet: 2, tabletL: 3 };                        // colunas por faixa → HubSurface.js
 export const displayScaleTablet = 1.10;                                         // display +10% (média/expandida) → displayType.js
 
+// [Fase 6 · F6-SG-C · TK-C-016] NAVEGAÇÃO LATERAL — `Q9` AUTORIZADA (contrato em
+// PLAN §19.1). A autorização NÃO é para mover o número: transformar o `width: 200`
+// de `TabletSidebar.js:125` em `sidebarWidth: 200` e declarar o defeito 1 resolvido
+// seria a mesma largura única para 600dp e para 1366dp — o PLAN diz isso com todas
+// as letras (`:791-793`). Por isso o *token* declara o CRUZAMENTO exigido por §19.1,
+// **papel de navegação × faixa**, e não uma constante:
+//
+//   faixa média (`600–899dp`)   → papel `rail` — navegação com ícone e rótulo curto
+//   faixa expandida (`>=900dp`) → papel `full` — barra lateral completa
+//
+// A FAIXA COMPACTA NÃO APARECE, e a ausência é o contrato: no telefone não existe
+// navegação lateral (é a barra inferior), então uma largura compacta seria número
+// sem referente — e um consumidor lendo `[phone]` reintroduziria a barra onde ela
+// não deve existir. É a restrição 6 de §19.1 (`CN-1`) escrita na FORMA do *token*,
+// não numa promessa de comentário.
+//
+// AS CHAVES SÃO `tablet`/`tabletL`, como em `grid` e `maxContentWidth`, e não os
+// nomes de `BANDS`. Não é preferência: `useWindowBand.js` importa `breakpoints`
+// DAQUI, e importar `BANDS` de volta fecharia um ciclo. Quem traduz faixa em chave
+// é o consumidor, exatamente como `HubSurface.HUB_COLUMN_CEILING` já faz.
+//
+// LARGURA ESTRUTURAL, NUNCA ESPAÇO DISPONÍVEL (restrição 4 · `G-SID-3` · `RG-12`):
+// este valor diz quanto a navegação OCUPA. Quem precisa saber o que sobra MEDE —
+// subtrair este *token* da janela seria geometria estimada, o defeito que `R2.3`
+// existe para corrigir.
+//
+// O que este *token* NÃO decide: a composição interna de cada papel (o que a barra
+// mostra em cada faixa) é `TK-C-019`/`TK-C-020`, com validação FÍSICA. Aqui mora só
+// a largura — e é justamente por morar aqui que ajustá-la depois da captura física
+// é uma linha em `tokens.js`, não uma caçada a literais.
+export const navSidebarRole = { tablet: 'rail', tabletL: 'full' };              // papel por faixa (sem `phone`: restrição 6)
+export const navSidebarWidth = { rail: 180, full: 240 };                        // largura ESTRUTURAL por papel → TabletSidebar (TK-C-019)
+
 // Agregador conveniente (uso opcional: `import tokens from '../theme/tokens'`).
 export const tokens = {
   color,
@@ -160,6 +193,8 @@ export const tokens = {
   maxContentWidth,
   grid,
   displayScaleTablet,
+  navSidebarRole,
+  navSidebarWidth,
 };
 
 export default tokens;

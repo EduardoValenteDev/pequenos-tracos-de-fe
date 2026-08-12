@@ -53514,6 +53514,110 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     );
   }
 
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R1.4 · F6-SG-C · TK-C-016 + TK-C-017 — as SEIS restrições de §19.1
+   *
+   * `Q9` autorizou tocar `tokens.js` (área protegida). A autorização veio com seis
+   * restrições, e o PLAN §19.1 abre dizendo o que NÃO conta como cumprimento:
+   * transformar `width: 200` em `sidebarWidth: 200` deixaria a MESMA largura em
+   * 600dp e em 1366dp, e o defeito 1 continuaria de pé com nome novo (`PLAN:791-793`).
+   *
+   * MAPA DE VERIFICAÇÃO — cada restrição com o método NOMEADO (`TK-C-017`):
+   *   1. fonte canônica única .................. `G-SID-2`  (criado em `TK-C-023`)
+   *   2. nenhum hardcode distribuído ........... `G-SID-2`  (criado em `TK-C-023`)
+   *   3. nenhum design system paralelo ......... `G-RSP-4`  (criado em `TK-C-027`)
+   *   4. largura ≠ espaço disponível ........... `G-SID-3` + §41.4 (`TK-C-023`)
+   *   5. composição distinta nas duas faixas ... `SD-4` + captura física em `SG-C`
+   *   6. telefone compacto sem regressão ....... `CN-1`
+   *
+   * O QUE É VERIFICÁVEL AGORA, E POR QUE SÓ ISTO. Cinco das seis se medem no
+   * CONSUMIDOR, e o consumidor só migra em `TK-C-019`..`TK-C-021`. Criar os portões
+   * aqui produziria vermelho POR CONSTRUÇÃO — o oposto de um portão, e a mesma razão
+   * pela qual `TK-C-015` não criou `TA-8`. O que já existe é a FORMA do *token*, e é
+   * ela que decide se as outras cinco chegam a ser possíveis: um *token* que fosse
+   * constante única tornaria a restrição 5 inalcançável por QUALQUER consumidor.
+   *
+   * DOCUMENTAL onde não é estático: o contrato das restrições 4 e 6 está escrito em
+   * `src/theme/tokens.js`, ao lado do *token*, e não numa promessa avulsa. A 6 tem
+   * ainda forma ESTRUTURAL — a faixa compacta não existe como chave, então não há o
+   * que consumir no telefone.
+   *
+   * `TA-9` não é isto. Seu significado canônico (PLAN §23) são os cinco
+   * `registerGuideTarget` da barra lateral, e o dono é `TK-C-063`.
+   * ────────────────────────────────────────────────────────────────────────── */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · TK-C-016 + TK-C-017: token de navegação lateral (Q9 · §19.1) ──');
+
+    const { loadModule: loadTokQ9 } = require('./testing/packInstallHarness');
+    let q9 = null;
+    let q9Erro = '';
+    try {
+      q9 = loadTokQ9('src/theme/tokens.js', {}, ['navSidebarRole', 'navSidebarWidth']);
+    } catch (e) {
+      q9Erro = e.message;
+    }
+
+    const q9Papeis = q9 && q9.navSidebarRole ? q9.navSidebarRole : null;
+    const q9Larguras = q9 && q9.navSidebarWidth ? q9.navSidebarWidth : null;
+
+    const q9Forma = [];
+    if (!q9Papeis || !q9Larguras) {
+      q9Forma.push(`\`navSidebarRole\`/\`navSidebarWidth\` não carregaram de \`tokens.js\`${q9Erro ? ` (${q9Erro})` : ''}`);
+    } else {
+      // Restrição 6 na FORMA: a faixa compacta não tem papel. No telefone a navegação
+      // é a barra inferior; uma chave `phone` aqui seria o convite para consumi-la.
+      if ('phone' in q9Papeis) {
+        q9Forma.push('`navSidebarRole` declara `phone` — a faixa compacta não pode ter papel lateral (restrição 6)');
+      }
+      const q9Chaves = Object.keys(q9Papeis).sort().join(',');
+      if (q9Chaves !== 'tablet,tabletL') {
+        q9Forma.push(`\`navSidebarRole\` cobre {${q9Chaves}} — §19.1 cruza exatamente {tablet, tabletL}`);
+      }
+      // Cruzamento TOTAL: todo papel declarado tem largura estrutural própria.
+      Object.values(q9Papeis).forEach((papel) => {
+        if (!Number.isFinite(q9Larguras[papel])) {
+          q9Forma.push(`o papel \`${papel}\` não tem largura em \`navSidebarWidth\``);
+        }
+      });
+    }
+
+    check(
+      '`TK-C-016`/`TK-C-017` [1/2] (§19.1): o *token* de navegação lateral declara o CRUZAMENTO papel × faixa, é total, e não tem chave para a faixa compacta (restrição 6)',
+      q9Forma.length === 0,
+      q9Forma.join(' · '),
+    );
+
+    /* [2/2] A restrição escrita como NEGATIVA no PLAN. Um *token* que responda o
+     * mesmo nas duas faixas é a constante única de volta, só que com nome melhor — e
+     * nenhum consumidor futuro conseguiria produzir a "composição distinta" da
+     * restrição 5. Por isso a asserção é de DIFERENÇA, e nos DOIS eixos: papel e
+     * largura. A ordem também importa: a barra completa não pode ser mais estreita
+     * que o rail, ou os papéis estão trocados e o nome mente. */
+    const q9Adapt = [];
+    if (q9Papeis && q9Larguras) {
+      if (q9Papeis.tablet === q9Papeis.tabletL) {
+        q9Adapt.push(`as duas faixas recebem o mesmo papel (\`${q9Papeis.tablet}\`) — o eixo "papel de navegação" não existe`);
+      }
+      const q9Media = q9Larguras[q9Papeis.tablet];
+      const q9Ampla = q9Larguras[q9Papeis.tabletL];
+      if (!(Number.isFinite(q9Media) && Number.isFinite(q9Ampla))) {
+        q9Adapt.push(`largura ausente para um dos papéis (${q9Media} · ${q9Ampla})`);
+      } else if (q9Media === q9Ampla) {
+        q9Adapt.push(`largura idêntica em 600–899dp e >=900dp (${q9Media}) — é o \`sidebarWidth: 200\` que §19.1 recusa`);
+      } else if (q9Ampla < q9Media) {
+        q9Adapt.push(`a barra completa (${q9Ampla}) é mais estreita que o rail (${q9Media}) — os papéis estão trocados`);
+      }
+    } else {
+      q9Adapt.push('*token* ausente (ver [1/2])');
+    }
+
+    check(
+      '`TK-C-016`/`TK-C-017` [2/2] (§19.1 · restrição 5): o *token* é ADAPTATIVO — papel e largura DIFEREM entre `600–899dp` e `>=900dp`; renomear a constante única não cumpre `F6-R1.4`',
+      q9Adapt.length === 0,
+      q9Adapt.join(' · '),
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
