@@ -1606,3 +1606,154 @@ listá-lo**.
 | ⛔ | **Nenhuma** interrupção, limpeza ou edição de `raw.log` / `raw2.log` |
 | ⛔ | **Nenhuma** alteração de configuração do aparelho |
 | ⛔ | **Nenhum** `push`, `merge` ou alteração de código |
+
+---
+
+## 17. `EMENDA 5` — `CASO 1` = `PASS` formal · **PAUSA CONTROLADA PÓS-`CASO-1`**
+
+> 🟢 **`CASO 1` ENCERRADO FORMALMENTE COM `PASS`.**
+> Laudo integral: `C:\tmp\ptf_evidencias\R2S2\CASO1_LAUDO.txt` (fora do Git, untracked).
+> A `R2 Sessão 2` fica **PAUSADA CONTROLADAMENTE ENTRE `CASO 1` E `CASO 15`** — **não** encerrada.
+
+### 17.1 Veredito formal
+
+| Eixo | Resultado |
+|---|---|
+| **Persistência** | 🟢 **`PASS`** |
+| **Visual** | 🟢 **`PASS`** |
+| **`CASO 1`** | 🟢 **`PASS`** |
+
+Observação física em **~22:20 de 11/08/2026**. **Evidência externa em vídeo registrada** pelo
+fundador — peça soberana do eixo visual, mantida fora do Git e não reconstruída por este laudo.
+
+### 17.2 Artefatos da janela probatória
+
+| | |
+|---|---|
+| **Baseline** `TAR-1B-C1.tar` | `Length = 17139712` · `SHA256 = F7AA94237284347972149593872CFD4DE4E3FB5CDD6CF01F2F31A270CEA8BF6C` |
+| **Pós** `TAR-1B-C1-POST.tar` | `Length = 17139712` · `SHA256 = 3442F114FD95AFF466EFF6664C53B6A402DE6B3A6A9EAC4439885D8B1DD59BA2` |
+
+**Mesmo `Length`, `SHA256` diferentes** — resolvido por perícia de conteúdo, **não** por inferência:
+o `TAR` é container de blocos de `512 B` com *padding*, logo um arquivo interno pode mudar de
+conteúdo e de tamanho sem alterar o total de blocos.
+
+### 17.3 A diferença é **uma só**
+
+```
+ESCOPO_OK=SIM
+FILES_ADDED=0   FILES_CHANGED=1   FILES_DELETED=0
+KEYS_ADDED=0    KEYS_CHANGED=0    KEYS_DELETED=0   KEYS_ROWID_MOVED=0
+FILE_CHANGED=shared_prefs/WebViewChromiumPrefs.xml
+```
+
+**Justificativa PRÉ-REGISTRADA — não é allowlist retroativa.** Quatro provas positivas:
+
+| | |
+|---|---|
+| 1 | **Nenhum** código do projeto escreve o arquivo — varredura por `WebViewChromiumPrefs`/`CachedFlags` no repositório: **zero** ocorrências. O dono é o `Chromium` do sistema. |
+| 2 | `mtime 22:20:15` casa ao segundo com `22:20:15.636 cr_WebViewApkApp: version=150.0.7871.181 (787118103)` — e `787118103` é **exatamente** o `lastVersionCodeUsed` do arquivo. |
+| 3 | Pré-declarado em `11_PREP_LEGADO_02.md:329` e em `docs/DECISIONS.md` ("Allowlist física corrigida"): *"Abrir a WebView é o que muda este arquivo. **Infraestrutura, não produto.**"* |
+| 4 | O registro do `BLOCO 0` (`G-10_A_G-14_REGISTRO.txt`, item 3) já documentara a oscilação **no sentido inverso**: *"`377 → 127 B` … cache de feature flags do `Chromium`, **re-populado pelo WebView a cada inicialização**."* |
+
+**Prova de retorno byte a byte ao estado já congelado:**
+
+```
+PRE-EXTRACTED          377 B  4ddc93412df13b854dbbfcd8582a2b7e71cedf5efa1ee1a0519cfc679db37282
+REF-POST03             377 B  4ddc93412df13b854dbbfcd8582a2b7e71cedf5efa1ee1a0519cfc679db37282   <== PREP-03
+TAR1BC1POST-EXTRACTED  377 B  4ddc93412df13b854dbbfcd8582a2b7e71cedf5efa1ee1a0519cfc679db37282   <== agora
+```
+
+> 🟢 O arquivo **não mutou para um estado novo: RETORNOU, byte a byte, ao estado que a referência
+> congelada da `PREP-03` já registrava.** O *cold start* com `--clear` zerara o cache; a primeira
+> abertura de `WebView` o repôs de forma determinística e idêntica. `lastVersionCodeUsed` **inalterado**.
+
+### 17.4 Persistência — a prova central
+
+| | |
+|---|---|
+| `MAX_ROWID` baseline → pós | **`67` → `67`** |
+| **Rowids consumidos** | **`0`** |
+| `catalystLocalStorage` idêntico em `(rowid, chave, valor)` | ✅ **sim** |
+| `files/ptf_blobs` | ✅ **byte a byte inalterado** (3 arquivos) |
+| `_ptf_drawing60_screation_alight.a.png` | ✅ **preservado**, `200565 B`, `6814dee7975f95d126eab69ddae3e46c2bf59892da429611b1141773e1c83f81` — **idêntico** em `TAR-1`, `PRE`, `CK-C1`, **`REF-POST03`** e `POST` |
+
+`AsyncStorage` grava com `INSERT OR REPLACE`: **toda** escrita consome *rowid*, inclusive a que fosse
+depois sobrescrita — que um diff de valores jamais veria. **Zero *rowid* consumido** significa que não
+houve **nem sequer uma tentativa** de escrita mascarada.
+
+> 🔴 **Abrir "Haja luz" e apenas observar NÃO REALIZOU NENHUMA ESCRITA.**
+
+### 17.5 Os dois *writers* automáticos
+
+| | |
+|---|---|
+| **`W-2`** `@ptf_creation_colorir_invite_shown_v1` | ✅ **ocorreu ANTES do baseline**, em **`rowid 67`**, valor `"1"` — exatamente conforme a previsão nominal da `EMENDA 4` §16.4. A cisão `FASE A`/`FASE B` cumpriu sua função: manteve `W-2` **fora** da janela de medição do `CASO 1`. |
+| **`W-1`** `@ptf_entitlement_v1` | ✅ **PERMANECEU AUSENTE** — confirma a previsão da `EMENDA 4` §16.3 (`FLAG_KEEP_SCREEN_ON` em `__DEV__` ⇒ `AppState` nunca sai de `active`). |
+
+### 17.6 Marcadores congelados — previsão pré-registrada cumprida
+
+O `G-13` do `BLOCO 0` registrou, **antes** desta execução: *"`COLORING_STATE_COUNT=0` … **será o
+marcador do `Caso 1`**."*
+
+| Marcador | Janela `22:19:30–22:22:30` |
+|---|---|
+| **`M+2`** `[COLORING_STATE] load OK espacoLogico=` | 🟢 **PRESENTE — `1×`** |
+| `M-1` `load OK W=` | ⚪ **AUSENTE** |
+| `M-2` `incompatible saved state ignored` | ⚪ **AUSENTE** |
+| `M-3` `saved state invalid/incompatible` | ⚪ **AUSENTE** |
+
+Os três negativos são as assinaturas de falha do *runtime* **HISTÓRICO**. Todos ausentes: o *runtime*
+canônico carregou a obra legada **sem descartar, ignorar nem invalidar** o estado salvo.
+`2964` linhas na janela, **todas** as linhas `ReactNativeJS` sob **`PID 18029`** — idêntico ao `PID`
+probatório congelado no `G-13`. O processo **não** reiniciou.
+
+### 17.7 Ramo `v2-legado` — carregado com sucesso
+
+```
+22:20:16.256  PAINT_BRANCH:{"ramo":"v2-legado","candidato":true}
+22:20:16.274  LOAD_PAINT_BRANCH:{"ramo":"v2-legado","candidato":true}
+22:20:16.400  [COLORING_STATE] load OK espacoLogico=1122x1402 origem=6,186 1428x1784
+```
+
+Geometria de carga **idêntica** à de projeção (`espacoLogico=1122x1402 projecao x=6 y=186 w=1428 h=1784`):
+mesma dimensão lógica, mesma origem, mesma área — **sem deslocamento, sem reescala, sem corte**.
+O caminho de compatibilidade legada foi **exercido e bem-sucedido**.
+
+### 17.8 Pendências que **permanecem abertas**
+
+| | |
+|---|---|
+| **`ACHADO-V1`** (imagens das cenas `5..10` não carregadas na `FASE A`) | 🟡 **CONGELADO e NÃO INVESTIGADO.** Não afetou o `CASO 1`: a imagem-base do editor `C60` carregou normalmente (`uriLen=1149046`, `naturalSize=1122x1402`). Investigação em spec própria, fora desta janela probatória. |
+| **`CASO 15`, `CASO 14`, `CASO 16`, `CASO 10`** | ⛔ **NÃO EXECUTADOS** |
+| **Ressalva de escopo do `CASO 1`** | Mediu **abrir e observar**. **Não** mediu desenhar, salvar, girar nem recarregar. |
+
+### 17.9 **CONTRATO DE RETOMADA** — vinculante
+
+| | |
+|---|---|
+| **A** | **`TAR-1B-C1-POST` é o estado probatório final do `CASO 1`.** É o marco contra o qual a retomada será comparada. |
+| **B** | Após o fechamento desta pausa, o fundador **poderá bloquear fisicamente o tablet**. 🔴 **A partir desse ato, `S-34` se extingue e NÃO se presume mais continuidade de *foreground* nem ausência de *writes* de *lifecycle*.** Em particular, `W-1` (`@ptf_entitlement_v1`) passa a ser **esperado**, pois o retorno de `AppState` a `active` dispara `entitlementService.js:128-132`. |
+| **C** | Na retomada, **não reutilizar `raw2.log`**. Abrir **canal novo** (ex.: `raw3.log`), com `raw.log` **e** `raw2.log` preservados integralmente — não editados, não truncados, não reaproveitados. |
+| **D** | Antes do `CASO 15`, capturar **novo estado de entrada com nome próprio** (ex.: `CK-RESUME-01.tar`) e compará-lo com `TAR-1B-C1-POST`, **identificando explicitamente** cada mutação ocorrida durante suspensão/retomada. |
+| **E** | 🔴 **Nenhuma mutação de *lifecycle* da pausa pode contaminar o baseline do `CASO 15`.** O caso só começa depois de **nova estabilidade** (`R-2''`: duas capturas `RK` idênticas, nenhuma descartada) **e** de um **`TAR` de baseline próprio** do `CASO 15`. |
+| **F** | 🔴 **Nenhum artefato existente pode ser apagado, sobrescrito ou renomeado** — inclusive os de nome impróprio (`RK-PRE-WAKE.bin`, `RK-POST-WAKE.bin`, reclassificados `Q-1`/`Q-2` na §16.5). |
+| **G** | ⛔ **Nenhum caso seguinte é iniciado fisicamente hoje.** |
+
+### 17.10 Previsão falsificável registrada **antes** da retomada
+
+O cache de *feature flags* do `Chromium` **já está populado** neste processo. Portanto, nas próximas
+aberturas de `WebView` **sem *cold start***, `shared_prefs/WebViewChromiumPrefs.xml` deve permanecer
+em `377 B` / `4ddc9341…` e o comparador deve devolver `FILES_CHANGED=0`.
+
+> 🔴 **Se voltar a mudar, a explicação da §17.3 está ERRADA e vira `STOP`.**
+
+### 17.11 O que esta emenda **NÃO** concede
+
+| | |
+|---|---|
+| ⛔ | **Nenhum** `PASS` a `CASO 15`, `14`, `16` ou `10` — seguem **não executados** |
+| ⛔ | **Nenhuma** conclusão sobre desenhar, salvar, girar ou recarregar obra legada |
+| ⛔ | **Nenhum** encerramento da `R2 Sessão 2` — é **pausa**, não fecho |
+| ⛔ | **Nenhuma** investigação ou normalização do `ACHADO-V1` |
+| ⛔ | **Nenhuma** exclusão, renomeação ou sobrescrita de artefato |
+| ⛔ | **Nenhum** `push`, `merge` ou alteração de código |
