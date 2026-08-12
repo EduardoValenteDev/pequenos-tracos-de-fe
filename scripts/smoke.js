@@ -52654,7 +52654,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04Incompletas = arnesArq.familiasIncompletas();
 
     check(
-      'TA-14 [1/11]: as quatro famílias existem (`HubSurface` · `EditorialSurface` · `ImmersiveSurface` · `GameSurface`) e expõem política pura',
+      'TA-14 [1/13]: as quatro famílias existem (`HubSurface` · `EditorialSurface` · `ImmersiveSurface` · `GameSurface`) e expõem política pura',
       c04Incompletas.length === 0,
       `famílias ausentes ou sem política carregável: ${c04Incompletas.join(' · ') || '(nenhuma)'}`,
     );
@@ -52664,7 +52664,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04HubMaus = c04Hub.linhas.filter((l) => !l.ok);
 
     check(
-      'TA-14 [2/11]: `HubSurface` compõe por inventário × cabimento × teto da faixa nos 7 cenários (média dá 1 coluna com cartão largo; expandida dá 2 com inventário pobre)',
+      'TA-14 [2/13]: `HubSurface` compõe por inventário × cabimento × teto da faixa nos 7 cenários (média dá 1 coluna com cartão largo; expandida dá 2 com inventário pobre)',
       !c04Hub.ausente && c04Hub.linhas.length === 7 && c04HubMaus.length === 0,
       c04Hub.ausente
         ? `arquétipo Hub indisponível: ${c04Hub.faltando.join('/') || '(arquivo ausente)'}`
@@ -52677,7 +52677,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04TravDistintas = new Set(c04Trav.map((l) => l.obtido)).size;
 
     check(
-      'TA-14 [3/11]: mesma família e MESMO conteúdo (9 itens de 220dp) produzem composições distintas nas três faixas — 1 · 2 · 3',
+      'TA-14 [3/13]: mesma família e MESMO conteúdo (9 itens de 220dp) produzem composições distintas nas três faixas — 1 · 2 · 3',
       !c04Hub.ausente && c04Trav.length === 3 && c04TravMaus.length === 0 && c04TravDistintas === 3,
       c04Hub.ausente
         ? 'arquétipo Hub indisponível'
@@ -52689,7 +52689,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04EdMaus = c04Ed.linhas.filter((l) => !l.ok);
 
     check(
-      'TA-14 [4/11]: `EditorialSurface` só abre região de apoio quando a faixa expandida E o chamador trazem conteúdo — a capacidade nunca inventa painel',
+      'TA-14 [4/13]: `EditorialSurface` só abre região de apoio quando a faixa expandida E o chamador trazem conteúdo — a capacidade nunca inventa painel',
       !c04Ed.ausente && c04Ed.linhas.length === 4 && c04EdMaus.length === 0,
       c04Ed.ausente
         ? `arquétipo Editorial indisponível: ${c04Ed.faltando.join('/') || '(arquivo ausente)'}`
@@ -52701,7 +52701,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04ImMaus = c04Im.linhas.filter((l) => !l.ok);
 
     check(
-      'TA-14 [5/11]: `ImmersiveSurface` entrega a janela inteira nas três faixas — zero coluna imposta, zero recorte da arte; só a expandida ganha CAPACIDADE acompanhante (`D10`, composição é `F9`)',
+      'TA-14 [5/13]: `ImmersiveSurface` entrega a janela inteira nas três faixas — zero coluna imposta, zero recorte da arte; só a expandida ganha CAPACIDADE acompanhante (`D10`, composição é `F9`)',
       !c04Im.ausente && c04Im.linhas.length === 3 && c04ImMaus.length === 0,
       c04Im.ausente
         ? `arquétipo Imersivo indisponível: ${c04Im.faltando.join('/') || '(arquivo ausente)'}`
@@ -52713,7 +52713,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04JgMaus = c04Jg.linhas.filter((l) => !l.ok);
 
     check(
-      'TA-14 [6/11]: `GameSurface` preserva a proporção do tabuleiro nos 4 cenários — o excedente vira moldura simétrica e a área jogável nunca transborda nem distorce',
+      'TA-14 [6/13]: `GameSurface` preserva a proporção do tabuleiro nos 4 cenários — o excedente vira moldura simétrica e a área jogável nunca transborda nem distorce',
       !c04Jg.ausente && c04Jg.linhas.length === 4 && c04JgMaus.length === 0,
       c04Jg.ausente
         ? `arquétipo de Jogo indisponível: ${c04Jg.faltando.join('/') || '(arquivo ausente)'}`
@@ -52733,7 +52733,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04SemPolitica = c04Nomes.filter((f) => f.nomes.length === 0).map((f) => f.chave);
 
     check(
-      'TA-14 [7/11]: as quatro políticas são PRÓPRIAS — cada família exporta ao menos um contrato e nenhum nome se repete entre famílias',
+      'TA-14 [7/13]: as quatro políticas são PRÓPRIAS — cada família exporta ao menos um contrato e nenhum nome se repete entre famílias',
       c04SemPolitica.length === 0 && c04Repetidos.length === 0 && c04Todos.length >= 4,
       `famílias sem política: ${c04SemPolitica.join(' · ') || '(nenhuma)'} · nomes compartilhados: ${c04Repetidos.join(' · ') || '(nenhum)'}`,
     );
@@ -52748,7 +52748,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04TetoHub = arqPura('hub');
 
     check(
-      'TA-14 [8/11]: nenhuma regra universal de colunas — a expressão proibida não aparece nos quatro, só o Hub conta colunas e o teto dele vem de `grid` (token), não de literal',
+      'TA-14 [8/13]: nenhuma regra universal de colunas — a expressão proibida não aparece nos quatro, só o Hub conta colunas e o teto dele vem de `grid` (token), não de literal',
       c04ComFrase.length === 0
       && c04ComGrid.length === 1 && c04ComGrid[0] === 'hub'
       && /grid\s*\.\s*phone/.test(c04TetoHub) && /grid\s*\.\s*tablet\b/.test(c04TetoHub) && /grid\s*\.\s*tabletL\b/.test(c04TetoHub)
@@ -52768,7 +52768,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04SemHook = FAMILIAS.filter((chave) => !/\buseWindowBand\b/.test(arqCodigo(chave)));
 
     check(
-      'TA-14 [9/11]: os quatro arquétipos leem faixa só por `useWindowBand` — zero `breakpoints` próprio, zero comparação de largura contra literal, zero `Dimensions.get`/`useWindowDimensions` paralelo',
+      'TA-14 [9/13]: os quatro arquétipos leem faixa só por `useWindowBand` — zero `breakpoints` próprio, zero comparação de largura contra literal, zero `Dimensions.get`/`useWindowDimensions` paralelo',
       c04ComBreakpoint.length === 0 && c04ComLiteral.length === 0 && c04ComMedidaCrua.length === 0 && c04SemHook.length === 0,
       `com \`breakpoints\`: ${c04ComBreakpoint.join(' · ') || '(nenhum)'} · com literal de largura: ${c04ComLiteral.join(' · ') || '(nenhum)'} · com medida crua: ${c04ComMedidaCrua.join(' · ') || '(nenhum)'} · sem \`useWindowBand\`: ${c04SemHook.join(' · ') || '(nenhum)'}`,
     );
@@ -52782,7 +52782,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04EdReimplementa = /\bmaxContentWidth\b/.test(arqCodigo('editorial'));
 
     check(
-      'TA-14 [10/11]: só `EditorialSurface` conhece a coluna de leitura — `ImmersiveSurface` e `GameSurface` não importam `ContentContainer` nem `maxContentWidth`, e o Editorial compõe COM `ContentContainer` sem reimplementar `maxWidth`',
+      'TA-14 [10/13]: só `EditorialSurface` conhece a coluna de leitura — `ImmersiveSurface` e `GameSurface` não importam `ContentContainer` nem `maxContentWidth`, e o Editorial compõe COM `ContentContainer` sem reimplementar `maxWidth`',
       c04ComColuna.length === 1 && c04ComColuna[0] === 'editorial' && !c04EdReimplementa,
       `famílias que conhecem a coluna: ${c04ComColuna.join(' · ') || '(nenhuma)'}${c04EdReimplementa ? ' · o Editorial reimplementa `maxContentWidth` em vez de delegar' : ''}`,
     );
@@ -52797,12 +52797,48 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     );
 
     check(
-      'TA-14 [11/11]: os quatro arquétipos são OFERECIDOS, nunca impostos — `TK-C-004` não tem consumidor em `src/` (adoção Editorial é `C-C3`, Hub é `C-C4`, Imersiva é `C-C5`, jogo é `F12A`)',
+      'TA-14 [11/13]: os quatro arquétipos são OFERECIDOS, nunca impostos — `TK-C-004` não tem consumidor em `src/` (adoção Editorial é `C-C3`, Hub é `C-C4`, Imersiva é `C-C5`, jogo é `F12A`)',
       c04Consumidores.length === 0,
       `consumidores prematuros: ${c04Consumidores.join(' · ') || '(nenhum)'}`,
     );
 
-    // ── Mutantes mortos: sem isto, as onze asserções acima seriam decorativas ──
+    /* ── [12] `TK-C-005`: a medida da linha é do texto, e o excedente tem destino ──
+     * A tabela responde `SD-3` com número: em 1180dp a coluna para em 640dp nos
+     * DOIS casos — o que muda é se os 540dp restantes viram vazio (defeito) ou
+     * região de apoio (cura). Sem a linha do defeito, o portão não saberia
+     * reconhecer o que `G-RSP-6` vai proibir em `TK-C-014`. */
+    const c05Med = arnesArq.executarEditorialMedida();
+    const c05MedMaus = c05Med.linhas.filter((l) => !l.ok);
+
+    check(
+      'TA-14 [12/13] (`TK-C-005`): a coluna editorial para na medida de leitura nas três faixas, e na expandida o excedente vira região de apoio — nunca vazio dominante (`SD-3`)',
+      !c05Med.ausente && c05Med.linhas.length === 4 && c05MedMaus.length === 0,
+      c05Med.ausente
+        ? `medida editorial indisponível: ${c05Med.faltando.join('/') || '(arquivo ausente)'}`
+        : `travessia errada: ${c05MedMaus.map((m) => `${m.nome} → ${JSON.stringify(m.obtido)}`).join(' · ') || '(tabela vazia)'}`,
+    );
+
+    /* ── [13] `TK-C-005`: composição, não segunda primitiva de largura ──
+     * `EditorialSurface` precisa saber onde a coluna termina, e há dois jeitos: ler
+     * `maxContentWidth` por conta própria — que é `P-30` renascendo — ou PERGUNTAR
+     * ao dono. Esta asserção exige o segundo, e exige que a decisão de `A0.3` tenha
+     * apenas mudado de forma: mesma expressão ternária, agora nomeada e acima do
+     * `export default` (a região que o arnês consegue carregar). */
+    const c05CcCodigo = codeOf('src/components/ui/ContentContainer.js');
+    const c05CcPura = c05CcCodigo.split(/export default/)[0];
+    const c05EdPura = arqPura('editorial');
+
+    check(
+      'TA-14 [13/13] (`TK-C-005`): `EditorialSurface` PERGUNTA a largura de coluna a `ContentContainer` em vez de reimplementá-la — `contentColumnMaxWidth` é exportada na região pura e a decisão de `A0.3` continua sendo a mesma expressão',
+      /import\s+[^;]*\{[^}]*\bcontentColumnMaxWidth\b[^}]*\}\s*from\s*'\.\.\/ui\/ContentContainer'/.test(arqCodigo('editorial')) &&
+      /\bcontentColumnMaxWidth\s*\(/.test(c05EdPura) &&
+      /export\s+function\s+contentColumnMaxWidth\b/.test(c05CcPura) &&
+      /band\s*===\s*BANDS\.EXPANDED\s*\?\s*maxContentWidth\.tabletL[\s\S]*?band\s*===\s*BANDS\.MEDIUM\s*\?\s*maxContentWidth\.tablet\b[\s\S]*?maxContentWidth\.phone/.test(c05CcPura) &&
+      !/\bmaxContentWidth\b/.test(arqCodigo('editorial')),
+      'o Editorial deixou de compor com `ContentContainer` (ou passou a ler `maxContentWidth` sozinho), ou a política de coluna saiu da região pura de `ContentContainer` — em qualquer dos casos, `P-30` está de volta com duas primitivas de largura',
+    );
+
+    // ── Mutantes mortos: sem isto, as treze asserções acima seriam decorativas ──
     const c04Mutantes = [
       {
         nome: 'M-a · o Hub para de olhar o cabimento — cartão largo em faixa média voltaria a dar duas',
@@ -52837,6 +52873,16 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       {
         nome: 'M-g · o tabuleiro passa a esticar até a borda — distorção no lugar de moldura',
         rodar: () => arnesArq.executarJogo((s) => s.replace('const width = cabeEmAltura ? availableWidth : availableHeight * aspectRatio;', 'const width = availableWidth;')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-h · o diagnóstico de vazio dominante é neutralizado — `SD-3` deixaria de ser reconhecível e `G-RSP-6` nasceria cego',
+        rodar: () => arnesArq.executarEditorialMedida((s) => s.replace('capacidadeOciosa && excedente > 0', 'false')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-i · o Editorial reimplementa a largura em vez de perguntar ao dono — `P-30` de volta, com a coluna crescendo junto com a janela',
+        rodar: () => arnesArq.executarEditorialMedida((s) => s.replace('contentColumnMaxWidth(band)', 'availableWidth')),
         quebrou: (r) => r.linhas.some((l) => !l.ok),
       },
     ];

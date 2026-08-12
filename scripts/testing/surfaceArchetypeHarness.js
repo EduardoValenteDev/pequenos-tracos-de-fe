@@ -33,7 +33,7 @@ const ARQUETIPOS = {
   editorial: {
     rotulo: 'Editorial',
     arquivo: 'src/components/layout/EditorialSurface.js',
-    exports: ['editorialSupportCapacity', 'editorialComposition'],
+    exports: ['editorialSupportCapacity', 'editorialComposition', 'editorialLayout'],
   },
   imersiva: {
     rotulo: 'Imersiva',
@@ -47,11 +47,22 @@ const ARQUETIPOS = {
   },
 };
 
-/** `BANDS` e `grid` REAIS — nunca uma cópia local. */
+/**
+ * `BANDS`, `grid` e a política de coluna REAIS — nunca uma cópia local.
+ *
+ * [`TK-C-005`] `contentColumnMaxWidth` é carregada do PRÓPRIO `ContentContainer`.
+ * Se o arnês definisse a largura por conta própria, o teste passaria a provar a
+ * cópia em vez do dono — que é justamente o defeito `P-30`.
+ */
 function fontesCanonicas() {
   const { BANDS } = montarFaixa();
-  const { grid } = loadModule('src/theme/tokens.js', {}, ['grid']);
-  return { BANDS, grid };
+  const { grid, maxContentWidth } = loadModule('src/theme/tokens.js', {}, ['grid', 'maxContentWidth']);
+  const { contentColumnMaxWidth } = loadModule(
+    'src/components/ui/ContentContainer.js',
+    { maxContentWidth, BANDS },
+    ['contentColumnMaxWidth'],
+  );
+  return { BANDS, grid, maxContentWidth, contentColumnMaxWidth };
 }
 
 /**
@@ -62,13 +73,14 @@ function fontesCanonicas() {
 function carregarArquetipo(chave, mutate) {
   const meta = ARQUETIPOS[chave];
   if (!meta) throw new Error(`carregarArquetipo: família desconhecida "${chave}"`);
-  const { BANDS, grid } = fontesCanonicas();
+  const { BANDS, grid, contentColumnMaxWidth } = fontesCanonicas();
+  const deps = { BANDS, grid, contentColumnMaxWidth };
   try {
-    const mod = loadModule(meta.arquivo, { BANDS, grid }, meta.exports, mutate);
+    const mod = loadModule(meta.arquivo, deps, meta.exports, mutate);
     const faltando = meta.exports.filter((n) => mod[n] === undefined);
-    return { ausente: false, faltando, mod, BANDS, grid };
+    return { ausente: false, faltando, mod, BANDS, grid, contentColumnMaxWidth };
   } catch (e) {
-    return { ausente: true, faltando: meta.exports.slice(), erro: e.message, BANDS, grid };
+    return { ausente: true, faltando: meta.exports.slice(), erro: e.message, BANDS, grid, contentColumnMaxWidth };
   }
 }
 
@@ -167,6 +179,61 @@ function executarEditorial(mutate) {
   return { ausente: false, faltando: [], linhas };
 }
 
+/* ── Editorial · medida de linha e destino do excedente (`TK-C-005`) ─────────
+ * A pergunta de `SD-3`: numa janela de `1180dp`, o que acontece com os `540dp`
+ * que sobram depois da coluna de leitura? A tabela abaixo dá as duas respostas
+ * possíveis e diz qual delas é defeito.
+ *
+ * A terceira linha é o defeito com nome: faixa expandida, coluna estreita, e o
+ * excedente deixado como vazio. A quarta é a cura — o MESMO excedente virando
+ * região de apoio. A coluna não muda de largura entre as duas: o que muda é o
+ * destino da sobra. Larguras reais de aparelho (Pixel retrato, iPad retrato,
+ * iPad paisagem), não números redondos de laboratório. */
+const TRAVESSIA_EDITORIAL = [
+  {
+    nome: 'compacta · 411dp — coluna fluida, sem sobra e sem apoio possível',
+    band: 'compact', largura: 411, hasSupport: false,
+    coluna: '100%', apoio: 0, vazio: 0, vazioDominante: false,
+  },
+  {
+    nome: 'média · 823dp — a coluna para em 560dp; a sobra ainda é margem legítima',
+    band: 'medium', largura: 823, hasSupport: false,
+    coluna: 560, apoio: 0, vazio: 263, vazioDominante: false,
+  },
+  {
+    nome: 'expandida · 1180dp SEM apoio — coluna de 640dp cercada de 540dp de vazio (DEFEITO `SD-3`)',
+    band: 'expanded', largura: 1180, hasSupport: false,
+    coluna: 640, apoio: 0, vazio: 540, vazioDominante: true,
+  },
+  {
+    nome: 'expandida · 1180dp COM apoio — mesma coluna de 640dp, e os 540dp viram região de apoio',
+    band: 'expanded', largura: 1180, hasSupport: true,
+    coluna: 640, apoio: 540, vazio: 0, vazioDominante: false,
+  },
+];
+
+function executarEditorialMedida(mutate) {
+  const { ausente, faltando, mod, BANDS } = carregarArquetipo('editorial', mutate);
+  if (ausente || faltando.length) return { ausente: true, faltando, linhas: [] };
+
+  const linhas = TRAVESSIA_EDITORIAL.map((c) => {
+    const band = BANDS[c.band.toUpperCase()];
+    const r = mod.editorialLayout({ band, availableWidth: c.largura, hasSupport: c.hasSupport });
+    return {
+      ...c,
+      obtido: r,
+      ok:
+        r.columnMaxWidth === c.coluna &&
+        Math.abs(r.supportWidth - c.apoio) < EPSILON &&
+        Math.abs(r.voidWidth - c.vazio) < EPSILON &&
+        r.dominantVoid === c.vazioDominante &&
+        r.columnOwner === 'ContentContainer',
+    };
+  });
+
+  return { ausente: false, faltando: [], linhas };
+}
+
 /* ── Imersiva ────────────────────────────────────────────────────────────────
  * A obra domina a superfície nas três faixas. A faixa expandida ganha CAPACIDADE
  * de composição acompanhante (`D10`) — a composição em si é entrega de `F9`. O
@@ -246,10 +313,12 @@ module.exports = {
   familiasIncompletas,
   executarHub,
   executarEditorial,
+  executarEditorialMedida,
   executarImersiva,
   executarJogo,
   CENARIOS_HUB,
   TRAVESSIA_HUB,
   CENARIOS_EDITORIAL,
+  TRAVESSIA_EDITORIAL,
   CENARIOS_JOGO,
 };

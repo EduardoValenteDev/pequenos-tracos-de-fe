@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import ContentContainer from '../ui/ContentContainer';
+import ContentContainer, { contentColumnMaxWidth } from '../ui/ContentContainer';
 import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
 
 /**
@@ -28,6 +28,13 @@ import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
  * `TK-C-004` cria o contrato e NENHUM consumidor. A medida de leitura da família é
  * `TK-C-005`; a adoção nas quatro telas é `TK-C-006` (`C-C3`), com 12 capturas. Nada
  * aqui toca Story Home V2 nem Página Viva — são `F9`.
+ *
+ * [`TK-C-005`] A medida de linha ganha número, e o excedente ganha destino. Numa
+ * janela de `1180dp` a coluna para em `640dp` — o que decide se a tela está certa ou
+ * errada são os `540dp` que sobram: viram região de apoio (certo) ou vazio dominante
+ * (`SD-3`, errado). Quem sabe onde a coluna termina continua sendo `ContentContainer`;
+ * este arquivo PERGUNTA (`contentColumnMaxWidth`) em vez de reimplementar, porque a
+ * segunda primitiva de largura foi exatamente o defeito `P-30`.
  */
 
 /** A faixa expandida COMPORTA região de apoio. Comportar não é ter. */
@@ -50,16 +57,53 @@ export function editorialComposition({ band, hasSupport = false }) {
 }
 
 /**
- * Props:
- *   children     — o corpo de leitura, sempre dentro de `ContentContainer`
- *   support      — conteúdo da região de apoio; sem ele, região nenhuma aparece
- *   supportStyle — estilo da região de apoio (a tela decide o que ela é)
+ * A conta de `SD-3`: onde a coluna de leitura termina, e para onde vai o que sobra.
+ *
+ * `columnMaxWidth` vem do dono — `'100%'` na compacta (fluido), número nas demais.
+ * `supportWidth` e `voidWidth` são o MESMO excedente com destinos opostos, e é essa
+ * troca que `dominantVoid` diagnostica: faixa que comporta apoio, chamador que não
+ * trouxe nada, e sobra de largura sem função. É esse estado que `G-RSP-6` proíbe.
  */
-export default function EditorialSurface({ children, support = null, style, supportStyle, ...rest }) {
-  const { band } = useWindowBand();
-  const composicao = editorialComposition({ band, hasSupport: support != null });
+export function editorialLayout({ band, availableWidth, hasSupport = false }) {
+  const composicao = editorialComposition({ band, hasSupport });
+  const columnMaxWidth = contentColumnMaxWidth(band);
 
-  if (!composicao.support) {
+  const largura = Number.isFinite(availableWidth) ? availableWidth : 0;
+  // Na compacta a coluna é fluida (`'100%'`), então ela É a largura — e nada sobra.
+  const coluna = typeof columnMaxWidth === 'number' ? Math.min(columnMaxWidth, largura) : largura;
+  const excedente = Math.max(0, largura - coluna);
+
+  const capacidadeOciosa = composicao.supportCapacity && !composicao.support;
+
+  return Object.freeze({
+    ...composicao,
+    columnMaxWidth,
+    supportWidth: composicao.support ? excedente : 0,
+    voidWidth: composicao.support ? 0 : excedente,
+    dominantVoid: capacidadeOciosa && excedente > 0,
+  });
+}
+
+/**
+ * Props:
+ *   children       — o corpo de leitura, sempre dentro de `ContentContainer`
+ *   support        — conteúdo da região de apoio; sem ele, região nenhuma aparece
+ *   supportStyle   — estilo da região de apoio (a tela decide o que ela é)
+ *   availableWidth — espaço real quando a tela já o conhece; sem ele, vale a janela
+ */
+export default function EditorialSurface({
+  children,
+  support = null,
+  style,
+  supportStyle,
+  availableWidth,
+  ...rest
+}) {
+  const { band, width } = useWindowBand();
+  const largura = Number.isFinite(availableWidth) ? availableWidth : width;
+  const layout = editorialLayout({ band, availableWidth: largura, hasSupport: support != null });
+
+  if (!layout.support) {
     return (
       <ContentContainer style={style} {...rest}>
         {children}
@@ -69,7 +113,7 @@ export default function EditorialSurface({ children, support = null, style, supp
 
   return (
     <View style={[styles.comApoio, style]} {...rest}>
-      <View style={styles.leitura}>
+      <View style={[styles.leitura, { width: layout.columnMaxWidth }]}>
         <ContentContainer>{children}</ContentContainer>
       </View>
       <View style={[styles.apoio, supportStyle]}>{support}</View>
@@ -79,8 +123,9 @@ export default function EditorialSurface({ children, support = null, style, supp
 
 const styles = StyleSheet.create({
   comApoio: { flexDirection: 'row', width: '100%' },
-  // A coluna de leitura mantém a medida que `ContentContainer` impõe; o excedente
-  // da faixa é para a região de apoio, e é por isso que só ela cresce.
-  leitura: { flexShrink: 1 },
+  // A coluna de leitura recebe a largura que `ContentContainer` decide e NÃO encolhe:
+  // sem isto ela cederia espaço ao apoio e a medida de linha viraria sobra do layout.
+  // O excedente é da região de apoio — por isso só ela cresce (`flex: 1`).
+  leitura: { flexShrink: 0 },
   apoio: { flex: 1 },
 });

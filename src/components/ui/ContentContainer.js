@@ -25,14 +25,29 @@ import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
  * ponto do app cuja composição já era ternária, e por isso o único onde `MEDIUM` e
  * `EXPANDED` legitimamente diferem. A asserção `A0.3` foi reapontada ao mecanismo
  * novo preservando a intenção original, não relaxada.
+ *
+ * [Fase 6 · F6-SG-C · TK-C-005] A decisão de largura vira POLÍTICA NOMEADA, e não
+ * muda de dono. `EditorialSurface` precisa saber onde a coluna de leitura termina
+ * para entregar o excedente da faixa expandida à região de apoio (`SD-3`); a única
+ * forma de ele saber isso SEM reimplementar a regra é perguntando aqui. Mesma
+ * expressão, mesmos degraus, mesmos tokens — só ganhou nome.
  */
-export default function ContentContainer({ children, style, ...rest }) {
-  const { band } = useWindowBand();
 
-  const maxWidth =
+/**
+ * A largura máxima da coluna de conteúdo para uma faixa. `'100%'` na compacta
+ * (fluido), número nas demais. Fonte única — `maxContentWidth`, nunca literal.
+ */
+export function contentColumnMaxWidth(band) {
+  return (
     band === BANDS.EXPANDED ? maxContentWidth.tabletL   // ≥900 → 640
     : band === BANDS.MEDIUM ? maxContentWidth.tablet    // ≥600 → 560
-    : maxContentWidth.phone;                            // compacta → '100%'
+    : maxContentWidth.phone                             // compacta → '100%'
+  );
+}
+
+export default function ContentContainer({ children, style, ...rest }) {
+  const { band } = useWindowBand();
+  const maxWidth = contentColumnMaxWidth(band);
 
   return (
     <View
