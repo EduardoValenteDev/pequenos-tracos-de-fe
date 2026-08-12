@@ -2320,3 +2320,341 @@ arquivo e linha citados. O que **não** pôde ser confirmado foi registrado como
 | ⛔ | **Nenhuma** reabertura do `PASS` do `CASO 1` |
 | ⛔ | **Nenhuma** alteração de `compare_state.py` — o selo `G-03` é vinculante |
 | ⛔ | **Nenhum** `push`, `merge` ou alteração de código executável |
+
+---
+
+## 19. `EMENDA 7` — correção cirúrgica pós-auditoria Verde
+
+> **Rodada 100% documental.** Nenhum `ADB` executado, nenhum `Metro`, nenhum tablet, nenhum
+> *runtime*, nenhuma evidência física nova, nenhum `CASO 15`, nenhum `ACHADO-V1`.
+
+### 19.0 Alcance — delta, não reconstrução
+
+A auditoria Verde da `EMENDA 6` retornou `EMENDA6_AUDIT_STOP` com **cinco bloqueios**, ratificando
+`V-01`, `V-02`, `V-03` e `V-04` como **RESOLVIDOS**. Esta emenda corrige **apenas** o delta `B1..B5` e
+as clarificações estritamente necessárias para torná-lo falsificável.
+
+**[NORMA NOVA]** Tudo o que a `EMENDA 6` estabeleceu e que não seja explicitamente alterado abaixo
+permanece **íntegro e vinculante**. O vocabulário `SUPERSEDE` / `RESTRINGE` / `CLARIFICA` de §18.0
+continua valendo, e as marcas **[FATO]**, **[DECISÃO HUMANA]**, **[INFERÊNCIA]** e **[NORMA NOVA]**
+continuam obrigatórias.
+
+---
+
+### 19.1 **`B1`** — continuidade de *rowid* na retomada
+
+**[FATO]** `AR-2` (§18.5.2) admitia `KEY_ADDED=@ptf_entitlement_v1` sem exigir o *rowid* da chave nova.
+`compare_state.py` emite `KEY_ADDED=<chave>` **sem** *rowid* (l. 87-91) — o *rowid* só aparece na
+linha `KEY_ROWID_MOVED`, que não se aplica a chave inédita. **[INFERÊNCIA]** Logo a adjudicação
+anterior aceitaria como `PASS` um estado em que a chave apareceu **junto** com escritas extras já
+absorvidas por *rowids* intermediários — falso `PASS` real, não hipotético.
+
+**[NORMA NOVA] — adjudicação pericial suplementar.** Para **todo** *snapshot* relevante, a perícia
+registra explicitamente, a partir da árvore extraída correspondente:
+
+```
+MAX_ROWID
+TOTAL_KEYS
+(rowid, chave, valor)   de cada chave relevante
+```
+
+**[NORMA NOVA]** `compare_state.py` **continua selado e inalterado** (selo `G-03`), e sua saída
+continua sendo reportada **integralmente**. A adjudicação suplementar é **acréscimo**, nunca
+substituição: usa consulta `SQLite` **somente leitura** (`mode=ro`) sobre as **árvores extraídas** —
+jamais sobre o aparelho, jamais com escrita. Esta norma **`RESTRINGE`** `AR-2`: os sete contadores
+deixam de ser suficientes para adjudicar a janela da pausa.
+
+**[NORMA NOVA] — `chaves protegidas`.** É o conjunto **completo** das chaves presentes no *snapshot*
+anterior do par comparado. Para todas elas, exige-se identidade em **`(chave, rowid, valor)`**.
+
+#### 19.1.1 Regra de `W-1` (`@ptf_entitlement_v1`)
+
+**Ramo I — `W-1` ausente antes e é a única chave admitida a aparecer depois.** Exigir
+**simultaneamente**:
+
+| # | Invariante |
+|---|---|
+| 1 | `ROWID(@ptf_entitlement_v1) = MAX_ROWID_ANTERIOR + 1` |
+| 2 | `MAX_ROWID_POSTERIOR = MAX_ROWID_ANTERIOR + 1` |
+| 3 | `TOTAL_KEYS_POSTERIOR = TOTAL_KEYS_ANTERIOR + 1` |
+| 4 | Identidade de **todas** as chaves protegidas em `(chave, rowid, valor)` |
+
+**Ramo II — `W-1` permanece ausente.** Exigir `MAX_ROWID_POSTERIOR = MAX_ROWID_ANTERIOR`,
+`TOTAL_KEYS_POSTERIOR = TOTAL_KEYS_ANTERIOR` e identidade de **todos** os pares protegidos — isto é,
+compatível com **ausência de escrita persistente** segundo o contrato.
+
+**[NORMA NOVA]** Qualquer salto de *rowid* **incompatível com o único *writer* admitido** é **`STOP`**.
+Em particular: `MAX_ROWID` avançando mais de 1 no Ramo I, ou avançando de todo no Ramo II, é `STOP`
+mesmo que os sete contadores de `compare_state.py` estejam "explicados".
+
+#### 19.1.2 Limite honesto do instrumento
+
+**[NORMA NOVA]** Estas invariantes provam ausência de **efeito líquido persistido observável** no
+escopo capturado. Elas **não** provam — e é **proibido** alegar que provem — ausência de escrita
+**transitória que não deixe vestígio observável**: gravação seguida de remoção dentro da mesma janela,
+mutação fora do escopo de captura, ou estado que jamais chegou ao disco. O instrumento mede o que
+mede; o corpus registra essa fronteira em vez de fingir que ela não existe.
+
+---
+
+### 19.2 **`B2`** — separar **pausa** de **reativação**
+
+**[NORMA NOVA]** A janela única de retomada da `EMENDA 6` é **`SUPERSEDE`**-ida por **duas janelas
+probatórias distintas**, com *checkpoints* e tokens próprios. Nenhuma das capturas abaixo é executada
+nesta rodada.
+
+#### 19.2.1 *Checkpoints* e tokens
+
+| Artefato | Definição |
+|---|---|
+| **`CK-RESUME-01.tar`** | *Checkpoint* do estado **encontrado após a pausa**, **antes** de qualquer reativação intencional do app. |
+| **`CK-RESUME-02-ACTIVE.tar`** | *Checkpoint* **posterior à reativação controlada** do app. |
+
+| Token | Janela adjudicada |
+|---|---|
+| **`PAUSE_DELTA_RESULT=PASS\|STOP`** | `TAR-1B-C1-POST × CK-RESUME-01` |
+| **`ACTIVE_DELTA_RESULT=PASS\|STOP`** | `CK-RESUME-01 × CK-RESUME-02-ACTIVE` |
+| **`RESUME_DELTA_RESULT=PASS\|STOP`** | Retomada global |
+
+**[NORMA NOVA]** `RESUME_DELTA_RESULT=PASS` **somente** se `PAUSE_DELTA_RESULT=PASS` **e**
+`ACTIVE_DELTA_RESULT=PASS`. Os três tokens são reportados junto de `ENTRY_STATE_RESULT` de **cada**
+comparação. Esta norma **`SUPERSEDE`** a definição de token único de §18.5.1, preservando a proibição
+central: nenhum deles substitui ou reinterpreta `ENTRY_STATE_RESULT`.
+
+**[NORMA NOVA]** A `ALLOWLIST-RESUME` (§18.5.2) **`RESTRINGE`**-se à janela da **pausa**
+(`PAUSE_DELTA_RESULT`). A janela de **reativação** tem regime próprio (§19.2.4). Misturar as duas é
+`STOP`.
+
+#### 19.2.2 Ordem futura obrigatória
+
+**[NORMA NOVA]** A ordem de §18.6 é **`SUPERSEDE`**-ida por:
+
+| # | Passo |
+|---|---|
+| 1 | `G-04` — aparelho **único**, serial **`RX2XC003LTJ`**, estado `device` |
+| 2 | Manter o tablet **sem interação humana** além do estritamente necessário para estabelecer o enlace `ADB` |
+| 3 | Provar **ausência** dos dois destinos novos (padrão `HARD STOP` da §15.1) |
+| 4 | Abrir `raw3.log` **antes** de qualquer reativação intencional |
+| 5 | Registrar *offset* de relógio e a fronteira **retrospectivo/vivo** |
+| 6 | **Determinar o estado do processo — antes de desbloquear ou relançar o app** (§19.2.5) |
+| 7 | Capturar **`CK-RESUME-01.tar`** |
+| 8 | Comparar `TAR-1B-C1-POST × CK-RESUME-01` |
+| 9 | Adjudicar **exclusivamente** a janela da pausa → `PAUSE_DELTA_RESULT` |
+| 10 | **Somente se** aceitável, executar a **reativação controlada** |
+| 11 | Capturar **`CK-RESUME-02-ACTIVE.tar`** |
+| 12 | Comparar `CK-RESUME-01 × CK-RESUME-02-ACTIVE` |
+| 13 | Adjudicar **exclusivamente** a janela de reativação → `ACTIVE_DELTA_RESULT` |
+| 14 | **Somente se ambas** passarem → `RESUME_DELTA_RESULT=PASS` |
+
+**[NORMA NOVA]** Os passos 4 e 6 precedem **obrigatoriamente** qualquer desbloqueio ou relançamento.
+Determinar identidade de processo **depois** de reativar destrói a própria pergunta.
+
+#### 19.2.3 Ramos de estado do processo
+
+**[NORMA NOVA]** Pré-registrados, declarados **antes** da reativação:
+
+| Ramo | Definição | Consequência |
+|---|---|---|
+| **`WARM`** | O processo anterior **ainda está vivo** e a identidade contínua é **positivamente comprovada** | A reativação controlada é o **retorno do app a *foreground***. |
+| **`COLD`** | O processo anterior **não existe** ou a identidade é **diferente** | **NÃO é automaticamente falha de produto.** O fato é **declarado antes** da reativação; só então ocorre o **lançamento controlado**. |
+| **`INDETERMINADO`** | A identidade **não pôde** ser estabelecida no grau exigido (§19.2.5) | Nenhuma tolerância de §19.2.4 é concedida, e a §17.10 é adjudicada como **`D3` — não aplicável** (§18.4). |
+
+**[NORMA NOVA]** O ramo `INDETERMINADO` existe porque afirmar `WARM` sem prova seria exatamente o
+falso `PASS` que esta emenda corrige. Ele é **conservador nas duas janelas**: não concede tolerância
+alguma e não permite concluir `D1`.
+
+#### 19.2.4 *Writers* do ramo `COLD` — sustentação positiva, um a um
+
+**[NORMA NOVA]** Não existe allowlist genérica de *relaunch*. Cada *writer* precisa de sustentação
+**positiva** no corpus ou no código. Reconferido o histórico, **exatamente um** a possui:
+
+| Caminho | Sustentação positiva | Condição | Tipo de delta tolerado | `STOP` |
+|---|---|---|---|---|
+| `shared_prefs/WebViewChromiumPrefs.xml` | §17.3, provas 1 e 4: nenhum código do projeto escreve o arquivo (dono é o `Chromium` do sistema); e `G-10_A_G-14_REGISTRO.txt`, item 3, já registrara a oscilação `377 → 127 B` — *"cache de feature flags do `Chromium`, **re-populado pelo WebView a cada inicialização**"*. §17.3 (l. 1666-1668) documenta o retorno **byte a byte** a `377 B` / `4DDC9341…` após repopulação. | Ramo **`COLD`** **E** janela **`CK-RESUME-01 × CK-RESUME-02-ACTIVE`** **E** o ramo declarado **antes** da reativação | `FILE_CHANGED` deste caminho **exclusivamente** para um destes dois estados: (a) `377 B` / `4DDC93412DF13B854DBBFCD8582A2B7E71CEDF5EFA1EE1A0519CFC679DB37282` (repopulado); (b) `127 B` (cache zerado, tamanho atestado no corpus) — cujo `SHA256` deve ser **registrado** na primeira observação | Qualquer terceiro estado; qualquer tamanho fora de `377`/`127`; ocorrência no ramo `WARM` ou `INDETERMINADO`; ocorrência na janela da **pausa** |
+
+**[NORMA NOVA] — não tolerados no ramo `COLD`, por ausência de sustentação falsificável:**
+`files/DevLauncherApp-BridgelessReactNativeDevBundle.js` · `shared_prefs/expo.modules.devlauncher.recentyopenedapps.xml` ·
+`files/profileInstalled` · `files/ptf_blobs/**` · qualquer caminho não nomeado acima. A plausibilidade
+de que um relançamento "possa" tocá-los **não** é sustentação — e esta emenda não inventa uma.
+
+**[NORMA NOVA]** `W-1` (`@ptf_entitlement_v1`) é admitido na janela de **reativação** em **ambos** os
+ramos, sob a disciplina de *rowid* integral de §19.1.1. Sua ausência continua não sendo `STOP`
+(§18.10.1, preservada).
+
+**[NORMA NOVA]** Nenhum *writer* de infraestrutura de relançamento pode ser julgado na janela
+`TAR-1B-C1-POST × CK-RESUME-01`. Naquela janela o app **não foi reativado**; qualquer mutação de
+relançamento ali é, por definição, **não atribuída** ⇒ `STOP`.
+
+#### 19.2.5 Método observável de identidade de processo
+
+**[FATO]** A `EMENDA 6` exigiu "identidade de processo" sem definir método. **[FATO]** Varredura do
+corpus por `/proc`, `pidof`, `ps -A`, `ps -o` e leitura de tempo de início retornou **zero
+precedente**: o único instrumento de leitura de estado já exercido é `dumpsys` (§12, regra `O-4`, e
+§16.9). **[FATO]** Esta rodada é documental e **não** pode executar `ADB`, logo **não** é possível
+confirmar aqui qual rota responde no aparelho alvo.
+
+**[NORMA NOVA] — portão de seleção de método, executado no início da janela, somente leitura.**
+Tentar em ordem e **registrar qual degrau respondeu**:
+
+| Degrau | Método | Grau de identidade |
+|---|---|---|
+| **`N1`** (preferido) | `PID` **+** identidade temporal de início — `starttime` (campo 22 de `/proc/<pid>/stat`, *boot-relative*) ou `stat -c %Y /proc/<pid>`, ancorado por `/proc/uptime`; via `run-as` quando o acesso direto for negado | **Forte** — autoriza afirmar `WARM` |
+| **`N2`** | `PID` **+** qualquer outro marcador temporal de início somente leitura que o aparelho aceite | **Forte** — autoriza afirmar `WARM` |
+| **`N3`** | **Somente `PID`** | **Fraco** — **não** autoriza afirmar `WARM` |
+
+**[NORMA NOVA]** Se apenas `N3` for observável, a limitação é **registrada explicitamente** e o ramo
+é **`INDETERMINADO`**, nunca `WARM`. Razão declarada: **`PID` é reciclável** — `PID` igual é
+**compatível com** continuidade, e não prova dela.
+
+**[NORMA NOVA]** Toda leitura deste portão é **somente leitura**, sob a regra `O-4` (§12): `settings
+put`, `svc`, `input` e `keyevent` continuam **proibidos**. Nenhum comando deste portão pode
+desbloquear, acordar, lançar ou parar o app.
+
+---
+
+### 19.3 **`B3`** — `ALLOWLIST-C15` relativa ao baseline
+
+**[NORMA NOVA]** Toda âncora numérica **absoluta** em `67` é **removida**. A `AC-1` de §18.8.2
+(`48->N`, `N > 67`) é **`SUPERSEDE`**-ida: o futuro **`TAR-1B-C15`** é a **única** âncora numérica do
+caso.
+
+**[NORMA NOVA]** No baseline, registrar obrigatoriamente:
+
+```
+BASE_C15_MAX_ROWID
+BASE_C15_TOTAL_KEYS
+BASE_C15_ORIENTATION_ROWID
+BASE_C15_ORIENTATION_VALUE
+```
+
+**[NORMA NOVA]** Após o `CASO 15`, para a **única** reescrita idempotente admitida —
+`@ptf_criar_livre_orientation_seen_v1:star` — exigir **simultaneamente**:
+
+| # | Invariante |
+|---|---|
+| 1 | `BASE_C15_ORIENTATION_VALUE = '1'` (valor anterior) |
+| 2 | valor posterior `= '1'` |
+| 3 | `POST_ORIENTATION_ROWID = BASE_C15_MAX_ROWID + 1` |
+| 4 | `POST_MAX_ROWID = BASE_C15_MAX_ROWID + 1` |
+| 5 | `POST_TOTAL_KEYS = BASE_C15_TOTAL_KEYS` |
+| 6 | Todos os demais pares protegidos `(chave, rowid, valor)` **idênticos** |
+
+**[NORMA NOVA]** Qualquer avanço **adicional** de *rowid* é **`STOP`** — inclusive quando o valor
+final "parecer certo". Uma segunda montagem, ou uma segunda regravação, torna-se **observável**
+exatamente por esse avanço extra.
+
+**[NORMA NOVA] — proibição de argumento não observável.** É **vedado** sustentar a conclusão pela
+expressão *"exatamente uma escrita"* isoladamente: isso descreve o código, não a observação. A
+conclusão deve repousar **nas invariantes 1-6 acima**, que são medidas. O raciocínio de código
+(§18.8.2) permanece válido como **explicação** do mecanismo, não como **prova** do resultado.
+
+---
+
+### 19.4 **`B4`** — affordance canônica única
+
+**[FATO]** §18.8.1 registrou **duas** affordances `✏️ Editar`: no cartão da grade
+(`src/screens/AtelierGalleryScreen.js:161`) e dentro do visualizador ampliado (`:234`).
+
+**[NORMA NOVA]** A ambiguidade é **eliminada**. Rota única autorizada do `CASO 15`:
+
+```
+Início → Brincar → Minhas artes
+```
+
+e, na galeria, **exclusivamente** o botão `✏️ Editar` **direto no cartão da obra legada**
+(`src/screens/AtelierGalleryScreen.js:161`).
+
+**[NORMA NOVA]** **Não** abrir o visualizador intermediário. **Não** usar o `Editar` interno do
+visualizador (`:234`). Qualquer outra affordance ⇒ **`STOP` antes** da execução do caso.
+
+**[NORMA NOVA] — razão registrada.** Esta escolha **minimiza interações** e mantém o **primeiro toque
+após o baseline** inequivocamente associado à **abertura do editor**. O caminho pelo visualizador
+insere um toque adicional e um estado intermediário entre o baseline e a abertura, dissolvendo
+justamente a atribuição que o caso precisa medir.
+
+---
+
+### 19.5 **`B5`** — ordem causal corrigida do `CASO 15`
+
+**[FATO]** A `EMENDA 6` (§18.9) posicionou o baseline logo após o `R-2''`, **omitindo** lançamento e
+navegação — que ocorrem necessariamente **antes** dele e produzem mutação própria.
+
+**[NORMA NOVA]** A sequência é **`SUPERSEDE`**-ida por:
+
+| # | Passo |
+|---|---|
+| 1 | `RESUME_DELTA_RESULT=PASS` |
+| 2 | Garantir o app **ativo** sob identidade de processo **registrada** |
+| 3 | Navegar até `Início → Brincar → Minhas artes` |
+| 4 | Confirmar que a obra legada esperada **está presente na galeria** — **sem abri-la** |
+| 5 | **Reancorar** a identidade do processo |
+| 6 | Executar `R-2''` **já nesta superfície** (`RK-E1.bin` / `RK-F1.bin`) |
+| 7 | Capturar **`TAR-1B-C15.tar`** |
+| 8 | Registrar `BASE_C15_MAX_ROWID`, `BASE_C15_TOTAL_KEYS`, `BASE_C15_ORIENTATION_ROWID`, `BASE_C15_ORIENTATION_VALUE` |
+| 9 | **ZERO interação** |
+| 10 | **Primeiro e único toque inicial do caso**: `✏️ Editar` **direto do cartão** (§19.4) |
+| 11 | Observar |
+| 12 | Voltar conforme protocolo |
+| 13 | Capturar `CK-C15` |
+| 14 | Comparar e adjudicar (§19.3) |
+
+**[NORMA NOVA]** A navegação até `Minhas artes` fica **FORA** da janela probatória específica do
+`CASO 15`. O baseline é capturado **somente depois** da navegação **e** da estabilidade — nunca antes.
+
+**[NORMA NOVA]** `CK-RESUME-01` e `CK-RESUME-02-ACTIVE` **nunca** podem substituir `TAR-1B-C15`.
+Usar qualquer um deles como referência do `CASO 15` é `STOP`.
+
+---
+
+### 19.6 Clarificações não bloqueantes — verificadas antes de adotadas
+
+#### 19.6.1 `ADB`: ato desta rodada × estado residual — **CONFIRMADO, adotado**
+
+**[FATO]** No momento desta emenda existe um *daemon* `adb` **vivo no host**: `PID 15372`, iniciado em
+`12/08/2026 11:10:27` — remanescente da rodada do portão `G-04`, **anterior** à `EMENDA 6`.
+
+**[NORMA NOVA]** *"Nenhum `ADB` executado"* é afirmação sobre **atos da rodada**, não sobre **estado
+do host**. O corpus passa a distinguir os dois: uma rodada documental pode conviver com *daemon*
+residual sem que isso a torne uma rodada de *runtime*. **`CLARIFICA`** o cabeçalho de §19 e §18.
+
+#### 19.6.2 Valor admissível de `@ptf_entitlement_v1` — **CONFIRMADO, adotado**
+
+**[FATO]** O valor gravado é `JSON.stringify` de um objeto produzido **exclusivamente** por
+`sanitizeEntitlement` (`src/services/entitlementService.js:84-97`, gravado em `:99-101`), com conjunto
+de campos **fechado**: obrigatórios `loaded` (sempre `true`), `lastValidatedAt`, `maxSeenDeviceTimestamp`;
+opcionais `rcActive`, `rcCancelledButPaid`, `expiresAt`.
+
+**[NORMA NOVA]** `AR-2` (§18.5.2) é **`RESTRINGE`**-ida: o valor observado deve ser `JSON` de objeto
+com `loaded === true`, contendo os **três** campos obrigatórios e **nenhum** campo fora do conjunto de
+seis acima. Valor fora desse contrato ⇒ **`STOP`** — inclusive um `plan` solto, que o próprio
+`sanitizeEntitlement` descarta por projeto.
+
+#### 19.6.3 Reancoragem de identidade antes do `R-2''` — **adotado**
+
+**[NORMA NOVA]** Já incorporado como passo 5 de §19.5. A identidade registrada no portão de retomada
+**não** é presumida válida horas depois: ela é **reancorada** imediatamente antes do `R-2''` e do
+baseline. Divergência entre a identidade reancorada e a registrada ⇒ **`STOP`**, porque o baseline
+descreveria uma árvore diferente da medida.
+
+#### 19.6.4 Ausência de `M+1` não prova presença do *shell* — **CONFIRMADO, adotado**
+
+**[FATO]** §11-8 já estabelece que *"ausência de `M+1` no bundle **não** é `STOP`: ele não existe lá"*.
+**[FATO]** O canal de log **perde linhas por projeto**: §16.8 registra que os primeiros ~`34,5 MB` de
+`raw2.log` são despejo retrospectivo de um *ring buffer* — que, por ser anel, **rotaciona**.
+
+**[NORMA NOVA]** A decisão de §18.8.3 é preservada **e delimitada**: o aparecimento de uma linha
+`[shell] MainTabs MONTADO` nova durante o `CASO 15` continua sendo `STOP`; mas **a ausência dessa
+linha não prova, sozinha, a presença ou a continuidade do *shell***. Ausência de sinal num canal com
+perda conhecida é **ausência de evidência**, não evidência de ausência. **`CLARIFICA`** §18.8.3 sem
+revogá-la.
+
+### 19.7 O que a `EMENDA 7` **NÃO** concede
+
+| | |
+|---|---|
+| ⛔ | **Nenhuma** reabertura de `V-01`, `V-02`, `V-03` ou `V-04` — ratificados como **RESOLVIDOS** |
+| ⛔ | **Nenhum** `PASS` a `CASO 15`, `14`, `16` ou `10` |
+| ⛔ | **Nenhuma** captura, comparação ou adjudicação executada nesta rodada |
+| ⛔ | **Nenhuma** alteração de `compare_state.py` — o selo `G-03` permanece |
+| ⛔ | **Nenhuma** allowlist genérica de *relaunch* |
+| ⛔ | **Nenhum** `push`, `merge` ou alteração de código executável |
