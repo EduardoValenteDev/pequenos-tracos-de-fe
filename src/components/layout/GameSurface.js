@@ -18,6 +18,14 @@ import { useWindowBand } from '../../hooks/useWindowBand';
  * quatro jogos e o Quiz já tratam ciclo de vida por conta própria, e refatorá-los
  * aqui seria risco sem requisito. A adoção por tela — e o `GameShell` — é `F12A`,
  * fase alheia. Nenhuma tela de jogo é migrada por esta task.
+ *
+ * A FRONTEIRA É MEDIDA, NÃO PROMETIDA (`TK-C-012`). Enquanto as outras três famílias
+ * eram liberadas em `C-C3`/`C-C4`/`C-C5`, o risco deixou de ser "alguém adota o Jogo
+ * cedo demais" e passou a ser "um jogo é arrastado por uma onda de adoção alheia".
+ * Por isso são dois portões, não um: `TA-14 [11/21]` proíbe consumidor desta família,
+ * e `TA-14 [20/21]` proíbe as cinco famílias de jogo de importarem arquétipo NENHUM.
+ * Fora deles, a prova é `git diff` — e no `F6-SG-C` inteiro nenhuma tela de jogo foi
+ * migrada para arquétipo.
  */
 
 /**
