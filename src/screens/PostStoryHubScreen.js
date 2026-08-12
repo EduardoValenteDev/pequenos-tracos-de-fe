@@ -12,6 +12,7 @@ import SoundButton from '../components/SoundButton';
 import { isQuizDone, getReflection, isStoryBookOpened } from '../services/postStoryStorage';
 import { canOpenStoryFullExperience } from '../services/contentAccessService';
 import LockedStoryFallback from '../components/premium/LockedStoryFallback';
+import EditorialSurface from '../components/layout/EditorialSurface';
 import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 
 function HubCard({ emoji, title, desc, cta, tagColor, done, onPress }) {
@@ -96,23 +97,33 @@ export default function PostStoryHubScreen({ route, navigation }) {
           <Text style={styles.headerSub}>Agora veja tudo que você desbloqueou.</Text>
         </LinearGradient>
 
-        <View style={[styles.body, isTablet && styles.bodyTablet]}>
-
-          {/* ── Story cover ── */}
-          <View style={styles.storyCoverCard}>
-            {hasImage ? (
-              <Image
-                source={images[story.imagemCapa]}
-                style={styles.storyCoverImage}
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={styles.storyCoverFallback}>
-                <Text style={styles.storyCoverEmoji}>{story.emoji}</Text>
-                <Text style={styles.storyCoverTitle}>{story.titulo}</Text>
-              </View>
-            )}
-          </View>
+        {/* ── [F6-SG-C · TK-C-006] Família Editorial ──
+            A coluna de leitura são as ESCOLHAS: o que a criança desbloqueou e para
+            onde ela pode ir agora. A capa da história é o que ela acabou de viver —
+            material de apoio, e por isso vai para a região lateral na faixa
+            expandida. Nada foi criado para preencher espaço (`D4`): é a MESMA capa
+            que já estava aqui, recolocada. Nas faixas que não abrem a região ela
+            volta ao topo da coluna, como sempre esteve. */}
+        <EditorialSurface
+          style={[styles.body, isTablet && styles.bodyTablet]}
+          support={(
+            <View style={styles.storyCoverCard}>
+              {hasImage ? (
+                <Image
+                  source={images[story.imagemCapa]}
+                  style={styles.storyCoverImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.storyCoverFallback}>
+                  <Text style={styles.storyCoverEmoji}>{story.emoji}</Text>
+                  <Text style={styles.storyCoverTitle}>{story.titulo}</Text>
+                </View>
+              )}
+            </View>
+          )}
+          supportStyle={styles.apoio}
+        >
 
           {/* ── Unlocked label ── */}
           <Text style={styles.unlockedLabel}>Você desbloqueou:</Text>
@@ -159,7 +170,7 @@ export default function PostStoryHubScreen({ route, navigation }) {
           >
             <Text style={styles.backBtnText}>🏠 Voltar para o início</Text>
           </SoundButton>
-        </View>
+        </EditorialSurface>
       </ScrollView>
     </View>
   );
@@ -186,6 +197,9 @@ const styles = StyleSheet.create({
 
   body: { paddingHorizontal: 16, paddingTop: 20 },
   bodyTablet: { paddingHorizontal: 48 },
+
+  // Respiro entre a coluna de escolhas e a capa, no mesmo ritmo do resto da tela.
+  apoio: { paddingLeft: 20 },
 
   storyCoverCard: {
     backgroundColor: '#FFF8EF',

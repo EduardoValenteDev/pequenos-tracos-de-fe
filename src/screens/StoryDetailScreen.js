@@ -28,6 +28,7 @@ import { getBeniGuideMessage } from '../data/beniGuideMessages';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
 import SoundButton from '../components/SoundButton';
 import ContentContainer from '../components/ui/ContentContainer';
+import EditorialSurface, { useEditorialSupport } from '../components/layout/EditorialSurface';
 import BotaoPrimario from '../components/ui/BotaoPrimario';
 import { color } from '../theme/tokens';
 import { useWindowBand, BANDS } from '../hooks/useWindowBand';
@@ -415,6 +416,31 @@ export default function StoryDetailScreen({ route, navigation }) {
     setInviteVisible(false);
   }
 
+  /* ── [F6-SG-C · TK-C-006] Onde o guia do Beni mora ──
+     Ele acompanha a lista de cenas na faixa expandida e volta ao lugar de sempre nas
+     demais. Duas condições além da faixa, e as duas evitam perder conteúdo: sem lista
+     de cenas não existe região para hospedá-lo, e em "em breve" ele não é exibido de
+     todo jeito. O nó é UM só, renderizado em UM lugar — nunca nos dois. */
+  const apoioAbre = useEditorialSupport();
+  const guiaNaListaDeCenas = apoioAbre && !isComingSoon && story.cenas?.length > 0;
+  const guiaDoBeni = (
+    <BeniGuideBubble
+      message={
+        !canAccess
+          ? getBeniGuideMessage('premiumBlocked')
+          : isCompleted
+            ? getBeniGuideMessage('storyCompleted')
+            : progressCount > 0
+              ? getBeniGuideMessage('continueStory')
+              : getBeniGuideMessage('storyIntro')
+      }
+      avatarVariant={isCompleted ? 'celebrating' : !canAccess ? 'thinking' : 'pointing'}
+      tone={!canAccess ? 'yellow' : 'soft'}
+      compact
+      style={styles.beniEntry}
+    />
+  );
+
   return (
     <View style={styles.wrapper}>
       <AppScreen
@@ -490,24 +516,12 @@ export default function StoryDetailScreen({ route, navigation }) {
             </ContentContainer>
           )}
 
-          {/* ── ENTRADA GUIADA PELO BENI ── */}
-          {!isComingSoon && (
+          {/* ── ENTRADA GUIADA PELO BENI ──
+              [F6-SG-C · TK-C-006] Só fica AQUI quando a região de apoio não abre. Na
+              faixa expandida ele acompanha a lista de cenas, ao lado — ver abaixo. */}
+          {!isComingSoon && !guiaNaListaDeCenas && (
             <ContentContainer style={styles.beniWrap}>
-              <BeniGuideBubble
-                message={
-                  !canAccess
-                    ? getBeniGuideMessage('premiumBlocked')
-                    : isCompleted
-                      ? getBeniGuideMessage('storyCompleted')
-                      : progressCount > 0
-                        ? getBeniGuideMessage('continueStory')
-                        : getBeniGuideMessage('storyIntro')
-                }
-                avatarVariant={isCompleted ? 'celebrating' : !canAccess ? 'thinking' : 'pointing'}
-                tone={!canAccess ? 'yellow' : 'soft'}
-                compact
-                style={styles.beniEntry}
-              />
+              {guiaDoBeni}
             </ContentContainer>
           )}
 
@@ -583,9 +597,22 @@ export default function StoryDetailScreen({ route, navigation }) {
             />
           )}
 
-          {/* ── LISTA DE CENAS ── */}
+          {/* ── LISTA DE CENAS ──
+              [F6-SG-C · TK-C-006] Família Editorial. Esta é a coluna de leitura da
+              tela: uma lista longa, percorrida de cima a baixo. Numa janela larga ela
+              é o trecho que ficaria estreito no meio do vazio, e por isso é aqui que
+              a região de apoio abre — levando o guia do Beni para o lado, em vez de
+              deixá-lo empurrando a lista para baixo. Mesmo guia de sempre; nada foi
+              inventado para ocupar a sobra (`D4`).
+
+              As seções acima (hero, ação principal, pós-cenas) continuam de largura
+              cheia: são faixas de exibição, não leitura corrida. */}
           {story.cenas?.length > 0 ? (
-            <View style={[styles.scenesSection, isTablet && styles.scenesSectionTablet]}>
+            <EditorialSurface
+              style={[styles.scenesSection, isTablet && styles.scenesSectionTablet]}
+              support={guiaNaListaDeCenas ? guiaDoBeni : null}
+              supportStyle={styles.apoio}
+            >
               <Text style={styles.scenesTitle}>Cenas da aventura</Text>
               {story.cenas.map((cena, index) => (
                 <SceneListItem
@@ -598,7 +625,7 @@ export default function StoryDetailScreen({ route, navigation }) {
                   onPress={() => goToPremium('Narration', { story, cenaIndex: index })}
                 />
               ))}
-            </View>
+            </EditorialSurface>
           ) : isComingSoon ? (
             <View style={styles.emptySection}>
               <LumiEmptyState
@@ -771,6 +798,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, marginTop: 24,
   },
   scenesSectionTablet: { paddingHorizontal: 24 },
+  // Respiro entre a lista de cenas e o guia do Beni, no mesmo ritmo do resto da tela.
+  apoio: { paddingLeft: 20 },
   scenesTitle: {
     fontFamily: 'FredokaOne', fontSize: 18, color: pt.text, marginBottom: 12,
   },

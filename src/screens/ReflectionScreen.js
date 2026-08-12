@@ -12,6 +12,7 @@ import { useProgressContext } from '../context/ProgressContext';
 import BeniAvatar from '../components/beni/BeniAvatar';
 import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 import AppScreen from '../components/layout/AppScreen';
+import EditorialSurface, { useEditorialSupport } from '../components/layout/EditorialSurface';
 
 const STAR_BONUS = 1;
 // Bloco 4C: reflexão curta — 2 perguntas + feedback (não é quiz).
@@ -88,6 +89,26 @@ export default function ReflectionScreen({ route, navigation }) {
     (stepKey === 'feeling' && feelingIdx !== null) ||
     (stepKey === 'keep' && keepIdx !== null);
 
+  /* ── [F6-SG-C · TK-C-006] Família Editorial ──
+     A coluna de leitura é a conversa: a pergunta, as escolhas e o botão. A lição da
+     história é material de apoio de verdade — o comentário de `M2c` já a declarava
+     display-only, fora do fluxo e da recompensa —, e por isso é ela que vai para a
+     região lateral na faixa expandida.
+
+     Diferente da pós-história, aqui o material NÃO mora no topo: ele aparece depois
+     do cartão do Beni e antes do botão. Deixar a rede de segurança recolocá-lo subiria
+     a lição acima da celebração no telefone — redesenho de tela, que o arquétipo não
+     faz. Então a tela pergunta antes e mantém a lição exatamente onde sempre esteve
+     quando a região não abre. */
+  const apoioAbre = useEditorialSupport();
+  const temLicao = !!(story.reflexaoLicao || story.licaoCoracao);
+  const licaoDaHistoria = stepKey === 'done' && temLicao ? (
+    <View style={styles.lessonCard}>
+      <Text style={styles.lessonTitle}>O que essa história nos ensina</Text>
+      <Text style={styles.lessonText}>{story.reflexaoLicao || story.licaoCoracao}</Text>
+    </View>
+  ) : null;
+
   return (
     <View style={styles.wrapper}>
       <SafeScreenHeader
@@ -116,7 +137,11 @@ export default function ReflectionScreen({ route, navigation }) {
           </View>
         </LinearGradient>
 
-        <View style={[styles.body, isTablet && styles.bodyTablet]}>
+        <EditorialSurface
+          style={[styles.body, isTablet && styles.bodyTablet]}
+          support={apoioAbre ? licaoDaHistoria : null}
+          supportStyle={styles.apoio}
+        >
 
           {/* ── Tela 1: como o coração ficou ── */}
           {stepKey === 'feeling' && (
@@ -158,13 +183,9 @@ export default function ReflectionScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* M2c: lição central da história (display-only; não altera o fluxo/recompensa). */}
-          {stepKey === 'done' && !!(story.reflexaoLicao || story.licaoCoracao) && (
-            <View style={styles.lessonCard}>
-              <Text style={styles.lessonTitle}>O que essa história nos ensina</Text>
-              <Text style={styles.lessonText}>{story.reflexaoLicao || story.licaoCoracao}</Text>
-            </View>
-          )}
+          {/* M2c: lição central da história (display-only; não altera o fluxo/recompensa).
+              Só fica aqui quando a região de apoio NÃO abre — nunca nos dois lugares. */}
+          {!apoioAbre ? licaoDaHistoria : null}
 
           {stepKey === 'done' ? (
             <SoundButton style={styles.nextBtn} onPress={handleGuardar} activeOpacity={0.85}>
@@ -179,7 +200,7 @@ export default function ReflectionScreen({ route, navigation }) {
               <Text style={styles.nextBtnText}>Próximo →</Text>
             </SoundButton>
           )}
-        </View>
+        </EditorialSurface>
       </AppScreen>
     </View>
   );
@@ -210,6 +231,9 @@ const styles = StyleSheet.create({
 
   body: { padding: 20 },
   bodyTablet: { paddingHorizontal: 64 },
+
+  // Respiro entre a conversa e a lição, no mesmo ritmo do resto da tela.
+  apoio: { paddingLeft: 20 },
 
   lumiSays: {
     fontFamily: 'Nunito', fontSize: 12, color: '#7C3AED',

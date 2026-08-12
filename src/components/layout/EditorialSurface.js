@@ -91,6 +91,20 @@ export function editorialLayout({ band, availableWidth, hasSupport = false }) {
 }
 
 /**
+ * Escotilha para telas cujo material de apoio NÃO vive no topo da coluna.
+ *
+ * A rede de segurança do componente recoloca o apoio no início do corpo, e para a
+ * maioria das telas é exatamente onde ele já estava. Quando não é — material que
+ * hoje aparece no meio da leitura —, subi-lo mudaria a ordem de leitura no telefone,
+ * e o arquétipo não redesenha tela. Nesse caso a tela pergunta antes: entrega o
+ * material como apoio quando a região abre, e o mantém no lugar de sempre quando não.
+ */
+export function useEditorialSupport() {
+  const { band } = useWindowBand();
+  return editorialSupportCapacity(band);
+}
+
+/**
  * Props:
  *   children       — o corpo de leitura, sempre dentro de `ContentContainer`
  *   support        — conteúdo da região de apoio; sem ele, região nenhuma aparece

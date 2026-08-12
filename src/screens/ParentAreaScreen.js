@@ -36,6 +36,7 @@ import { deleteAllAtelierCreations } from '../services/atelierResetService';
 import { getStoreReviewUrl } from '../config/storeLinks';
 import SoundButton from '../components/SoundButton';
 import { BeniSpeechCard } from '../components/beni';
+import EditorialSurface from '../components/layout/EditorialSurface';
 import {
   getParentSettings,
   updateParentSettings,
@@ -668,21 +669,37 @@ export default function ParentAreaScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
 
-        <View style={[styles.body, isTablet && styles.bodyTablet, { paddingTop: insets.top + 14 }]}>
+        {/* ── [F6-SG-C · TK-C-006] Família Editorial ──
+            A coluna de leitura são as seções: é nelas que o responsável entra, lê e
+            decide. O topo — a apresentação da central e o recado do Beni — é contexto
+            que não se lê duas vezes, e é ele que vai para a região lateral na faixa
+            expandida, deixando as seções começarem no alto da tela em vez de nascerem
+            empurradas para baixo.
 
-          {/* ── Topo compacto (central simples) ── */}
-          <View style={styles.welcomeCard}>
-            <Text style={styles.welcomeTitle}>Central da família</Text>
-            <Text style={styles.welcomeSub}>
-              O essencial primeiro. Toque numa seção para ver os detalhes.
-            </Text>
-          </View>
-          <BeniSpeechCard
-            context="parentArea"
-            variant="adult"
-            text="Pequenos momentos frequentes ajudam mais do que sessões longas."
-            style={{ marginTop: 8 }}
-          />
+            Nada foi criado para preencher espaço (`D4`): é o MESMO bloco que já abria
+            a tela. Nas faixas que não abrem a região ele volta ao topo da coluna,
+            exatamente onde sempre esteve. */}
+        <EditorialSurface
+          style={[styles.body, isTablet && styles.bodyTablet, { paddingTop: insets.top + 14 }]}
+          supportStyle={styles.apoio}
+          support={(
+            <>
+              {/* ── Topo compacto (central simples) ── */}
+              <View style={styles.welcomeCard}>
+                <Text style={styles.welcomeTitle}>Central da família</Text>
+                <Text style={styles.welcomeSub}>
+                  O essencial primeiro. Toque numa seção para ver os detalhes.
+                </Text>
+              </View>
+              <BeniSpeechCard
+                context="parentArea"
+                variant="adult"
+                text="Pequenos momentos frequentes ajudam mais do que sessões longas."
+                style={{ marginTop: 8 }}
+              />
+            </>
+          )}
+        >
 
           {/* ─── 1. RESUMO DA CRIANÇA (única aberta por padrão) ─────────────────── */}
           <AccordionSection title="Resumo da criança" defaultOpen>
@@ -1410,7 +1427,7 @@ export default function ParentAreaScreen({ navigation }) {
           </AccordionSection>
           )}
 
-        </View>
+        </EditorialSurface>
       </ScrollView>
       </KeyboardAvoidingView>
 
@@ -1501,6 +1518,9 @@ const styles = StyleSheet.create({
   churchStepText: { flex: 1, fontFamily: 'Nunito', fontSize: 13, color: pt.text, fontWeight: '700' },
   body: { paddingHorizontal: 16, paddingTop: 20 },
   bodyTablet: { paddingHorizontal: 48 },
+
+  // Respiro entre as seções e o contexto do topo, no mesmo ritmo do resto da tela.
+  apoio: { paddingLeft: 20 },
 
   sectionTitle: {
     fontFamily: 'FredokaOne', fontSize: 17, color: pt.text,
