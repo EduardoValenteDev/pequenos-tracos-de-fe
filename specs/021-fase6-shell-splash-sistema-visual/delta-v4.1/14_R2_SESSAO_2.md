@@ -1410,3 +1410,199 @@ o pré-condicionamento não havia terminado quando o `CK-STORY-COMPLETE` foi tir
 | ⛔ | **Nenhuma** alteração de configuração do aparelho, `settings put`, `svc` ou `input` |
 | ⛔ | **Nenhuma** exclusão de amostra, tentativa ou artefato |
 | ⛔ | **Nenhum** `push`, `merge` ou alteração de código |
+
+---
+
+## 16. `EMENDA 4` — cancelamento do `B1`, tela que nunca podia apagar, `S-34`
+
+> 🟢 **`CK-STORY-COMPLETE` está `APROVADO`** (laudo em `C:\tmp\ptf_evidencias\R2S2\CK-STORY-COMPLETE_LAUDO.txt`).
+> Esta emenda corrige a **`FASE B`** antes do `B2`. Tablet no `Parabéns`, em primeiro plano,
+> **nunca** foi a segundo plano. Nenhuma navegação executada.
+
+### 16.1 O fato físico que derrubou a premissa
+
+O `B0.1`/`B1` foi executado e devolveu:
+
+```
+RK-PRE-WAKE  = F84EF633361779A16521D907AA52E8692DBA5F9F11D301D9446A2802E598FEF1
+RK-POST-WAKE = F84EF633361779A16521D907AA52E8692DBA5F9F11D301D9446A2802E598FEF1
+```
+
+**Mas não houve despertar.** O relato do operador: *"o tablet NUNCA apagou desde o
+`CK-STORY-COMPLETE`. Ele permaneceu ligado na tela `Parabéns` durante todo o intervalo."*
+Não houve transição de tela apagada para acesa, logo **`B1` não foi executado** — foi apenas uma
+segunda amostra do banco.
+
+Isso contradizia frontalmente a leitura `A0`: `screen_off_timeout = 30000` e
+`stay_on_while_plugged_in = 0`. Trinta segundos de tempo-limite, e a tela seguiu acesa por dezenas
+de minutos.
+
+### 16.2 A causa — provada no código, não suposta
+
+```tsx
+// node_modules/expo/src/launch/withDevTools.tsx:8-20
+// This hook can be optionally imported because __DEV__ never changes during runtime.
+const useOptionalKeepAwake: (tag?: string) => void = (() => {
+  ...
+  const { useKeepAwake, ExpoKeepAwakeTag } = require('expo-keep-awake');
+  return () => useKeepAwake(ExpoKeepAwakeTag, { suppressDeactivateWarnings: true });
+})();
+...
+useOptionalKeepAwake();      // ← ativo por TODA a vida do app quando __DEV__
+```
+
+`expo-keep-awake@15.0.8` está instalado como dependência do próprio `expo`
+(`package-lock.json:4665`). E o mecanismo no Android é **flag de janela**, não *wake lock*:
+
+```kotlin
+// expo-keep-awake/android/.../ExpoKeepAwakeManager.kt:36
+activity.runOnUiThread { activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+```
+
+> 🔴 **Em `__DEV__`, a raiz do app segura `FLAG_KEEP_SCREEN_ON` o tempo inteiro.**
+> `screen_off_timeout` é **irrelevante** enquanto o app estiver em primeiro plano.
+
+**Correção de premissa (`ponto 5`):** o `R-2'` da `EMENDA 2` §14.8 afirmava *"o aparelho **PODE**
+dormir; o que não pode é ACORDAR"*. A primeira metade é **FALSA**: com o *dev client* em primeiro
+plano, o aparelho **nunca pôde** dormir naturalmente. O desenho sobreviveu porque era conservador
+nas duas direções, mas a premissa fica **corrigida e registrada como errada**. Nenhum resultado da
+`FASE A` depende dela: a prova do `CK-STORY-COMPLETE` é a perícia de *storage*, com contabilidade
+de *rowid* de folga zero.
+
+### 16.3 `B1` — **CANCELADO DEFINITIVAMENTE** (não adiado, não substituído)
+
+Cadeia lógica:
+
+| | |
+|---|---|
+| 1 | Em `__DEV__`, o app segura `FLAG_KEEP_SCREEN_ON` (§16.2) |
+| 2 | ⇒ a tela não apaga sozinha com o app em primeiro plano |
+| 3 | ⇒ o app não vai a segundo plano sozinho |
+| 4 | ⇒ `AppState` **nunca sai de `active`** |
+| 5 | ⇒ o ouvinte de `entitlementService.js:128-132` **nunca volta a disparar** |
+| 6 | ⇒ **`@ptf_entitlement_v1` não será escrito** |
+
+> 🔴 **`W-1` é IMPOSSÍVEL no percurso natural desta sessão**, enquanto o *runtime* `DEV` permanecer
+> em primeiro plano. A afirmação é condicional e o antecedente é verificável — não é fé.
+
+**Por que não se fabrica o `wake`:** produzir a transição exigiria apertar o botão de energia,
+o `Home`, os recentes ou disparar `adb keyevent` **de propósito**, só para gerar uma escrita que o
+protocolo **jamais sofreria**. Isso não é reparar evidência — é **fabricar estado**, proibido desde
+a abertura desta rodada. Absorver um evento previsto é correto; **provocá-lo é contaminar**.
+
+`O-4` fica reforçado: `keyevent`, `input`, `svc` e `settings put` seguem proibidos — e agora também
+o **botão físico de energia**, pelo mesmo motivo.
+
+### 16.4 A cisão `FASE A` / `FASE B` **permanece** — agora por uma razão só
+
+A cisão tinha **duas** justificativas. Uma caiu (`W-1`). A outra **não**:
+
+> **`W-2` — `@ptf_creation_colorir_invite_shown_v1`**, gravada automaticamente no foco da
+> `StoryDetail` (`StoryDetailScreen.js:273` → `coloring60JourneyInvite.js:41`), sem toque nenhum.
+> Chave **AUSENTE** no `CK-C1` **e** no `CK-STORY-COMPLETE` (verificado direto no `SQLite`).
+
+Enquanto existir um *writer* automático **dentro da rota de entrada**, o `TAR-1B-C1` tem de ser
+capturado **depois** dele. A cisão continua obrigatória e a `ALLOWLIST-NAV-C1` (§15.7) segue válida,
+com `W-1` agora marcado **`0` ocorrências esperadas** em vez de `0 ou 1`.
+
+### 16.5 Artefatos preservados e **reclassificados**
+
+Nenhum arquivo é apagado, renomeado ou sobrescrito. **Nome de arquivo não se corrige reescrevendo
+evidência** — corrige-se no laudo:
+
+| Arquivo | Nome de origem | **Classificação real** |
+|---|---|---|
+| `RK-PRE-WAKE.bin` | passo `B0.1` | **amostra de quiescência `Q-1`** |
+| `RK-POST-WAKE.bin` | passo `B1` (não executado) | **amostra de quiescência `Q-2`** |
+
+Os dois, somados ao `RK-B1` da `FASE A`, formam uma **prova tripla de quiescência**:
+
+```
+RK-B1 (21:07:16) = RK-PRE-WAKE = RK-POST-WAKE
+                 = F84EF633361779A16521D907AA52E8692DBA5F9F11D301D9446A2802E598FEF1
+```
+
+Três leituras independentes, separadas no tempo, com o app **vivo e em primeiro plano** — evidência
+**mais forte** do que o teste que o `B1` pretendia fazer. O `B1` não deixou lacuna; deixou reforço.
+
+### 16.6 `S-34` — o app não vai a segundo plano até o fim do `CASO 1`
+
+> 🔴 **Proibidos até o encerramento do `CASO 1`:** botão de energia, `Home`, botão de recentes,
+> troca de aplicativo, notificação atendida, ou **qualquer** ida voluntária a segundo plano.
+
+Se ocorrer por acidente: **não esconder**. Registrar a hora pela câmera externa, capturar um `RK`
+novo com nome próprio, verificar se `@ptf_entitlement_v1` apareceu e — se o `TAR-1B-C1` já existir —
+**descartá-lo logicamente** (nunca apagá-lo) e refazer `B4`/`B5` como `TAR-1B-C1-r2.tar`.
+
+### 16.7 Duas simplificações que **fortalecem** o protocolo
+
+| Item | `EMENDA 3` | **Agora** |
+|---|---|---|
+| Micro-arrasto vertical em `B3`/`B4`/`B5` | autorizado como gesto inerte | **REMOVIDO — desnecessário**; a tela não apaga |
+| Janela `B4`/`B5` | toques inertes tolerados | **ZERO TOQUE** |
+| `S-31` (tela apagar entre `B5` e `B6`) | risco real a vigiar | **estruturalmente impossível** com o app em primeiro plano; segue no papel apenas como rede de segurança de `S-34` |
+
+"Zero toque" é estritamente mais forte que "toques provadamente inertes": elimina a classe inteira
+de dúvida em vez de argumentar contra ela.
+
+### 16.8 Canal de log
+
+| | |
+|---|---|
+| `raw.log` | **PRESERVADO INTEGRALMENTE**, `87632782 B`, última escrita `20:29:13`. Não editado, não truncado, não reaproveitado. A lacuna da `FASE A` fica **documentada, não maquiada**. |
+| `raw2.log` | **VIVO** — `34563961 B` → `34579668 B` em 8 s. `PS3` não interrompido. |
+
+> ⚠️ **Declaração obrigatória sobre `raw2.log`:** os ~**34,5 MB iniciais** são o *dump*
+> **retrospectivo** do *ring buffer* do `logcat` no instante do `B0`, **não** captura ao vivo. Só o
+> que vem **depois** desse ponto é captura viva. Toda correlação tem de declarar de qual dos dois
+> trechos veio a linha, além do `OFFSET_MS=+10799`.
+>
+> 🟢 **Bônus:** esse *dump* retrospectivo **pode conter parte da janela `20:55-21:07`** perdida na
+> `FASE A`. Vale procurar depois — recuperação gratuita, sem custo probatório, e nunca substitui o
+> que se perdeu, apenas complementa.
+
+### 16.9 Correção da condição empírica — `dumpsys` é **informativo**, nunca reprova
+
+A `EMENDA 3` propunha exigir um *wake lock* visível em `dumpsys power` para autorizar `B2`.
+**Exigência retirada**, e o fundador está tecnicamente certo: o mecanismo é
+`FLAG_KEEP_SCREEN_ON` **na janela da `Activity`** (`ExpoKeepAwakeManager.kt:36`), **não** um
+`PowerManager` *wake lock* — logo a seção `Wake Locks` do `dumpsys power` legitimamente **pode não
+listá-lo**.
+
+| Leitura | Papel |
+|---|---|
+| `dumpsys power` | **informativa**, opcional |
+| `dumpsys window` / `FLAG_KEEP_SCREEN_ON` | **informativa**, opcional, corroborante |
+
+> 🔴 **A ausência de uma *string* específica em qualquer `dumpsys` NÃO reprova o portão.**
+> A representação do `dumpsys` varia por versão e por OEM; ausência de *string* não é ausência de
+> fato. O portão se apoia em evidência positiva, não em ausência de texto.
+
+### 16.10 **Texto final da condição que autoriza `B2`**
+
+> **`B2` está AUTORIZADO** quando, e somente quando, as seis evidências abaixo forem
+> **simultaneamente** verdadeiras — todas positivas, nenhuma por ausência de *string*:
+>
+> 1. `RK-B1` = `RK-PRE-WAKE` = `RK-POST-WAKE` = `F84EF633361779A16521D907AA52E8692DBA5F9F11D301D9446A2802E598FEF1` — quiescência tripla do `RKStorage`;
+> 2. `raw2.log` **vivo e crescendo**, com `PS3` ininterrupto;
+> 3. `raw.log` **preservado integralmente**, não editado, não truncado, não reaproveitado;
+> 4. app **continuamente em primeiro plano** na tela `Parabéns`, sem nenhuma ida a segundo plano;
+> 5. **nenhuma** interação de *background* ocorrida — nem acidental, nem provocada;
+> 6. **prova de código** de que o *runtime* `DEV` ativa o mecanismo *keep awake*
+>    (`withDevTools.tsx:8-20` + `ExpoKeepAwakeManager.kt:36`), tornando `W-1` impossível no percurso
+>    natural desta sessão.
+>
+> Leituras de `dumpsys` são **informativas** e **não** integram esta condição.
+> Satisfeitas as seis, a `FASE B` prossegue **direto do `B2`**, sob `S-34`, com `B4`/`B5` em
+> **zero toque**.
+
+### 16.11 O que esta emenda **NÃO** concede
+
+| | |
+|---|---|
+| ⛔ | **Nenhum** `PASS` — `CASO 1` continua `NÃO EXECUTADO` |
+| ⛔ | **Nenhuma** fabricação de `sleep`/`wake`, por botão físico ou por `adb` |
+| ⛔ | **Nenhuma** exclusão, renomeação ou sobrescrita de artefato — inclusive os de nome agora impróprio |
+| ⛔ | **Nenhuma** interrupção, limpeza ou edição de `raw.log` / `raw2.log` |
+| ⛔ | **Nenhuma** alteração de configuração do aparelho |
+| ⛔ | **Nenhum** `push`, `merge` ou alteração de código |
