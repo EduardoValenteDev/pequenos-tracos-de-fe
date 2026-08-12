@@ -1783,9 +1783,10 @@ testada e `F6-SG-A` concedido:
 
 #### `TK-C-003` · Migrar as comparações de largura existentes para `useWindowBand`
 - **Pacote · Subportão:** `F6-R1.2` · `F6-SG-C` — **Objetivo:** eliminar a política implícita espalhada, **sem** mudar a política.
-- **Arquivos:** os ~34 pontos que hoje leem `useWindowDimensions` — ⚠️ **INCERTEZA LOCALIZADA** quanto ao subconjunto que decide **composição** (alvo) versus o que decide **medida pontual** (fora do alvo); resolver por leitura dirigida na implementação — **Símbolos/contratos:** `breakpoints.phone` (13 consumidores), `breakpoints.tabletL` (`ContentContainer.js:25`).
+- **Arquivos:** os ~34 pontos que hoje leem `useWindowDimensions` — ⚠️ **INCERTEZA LOCALIZADA** quanto ao subconjunto que decide **composição** (alvo) versus o que decide **medida pontual** (fora do alvo); resolver por leitura dirigida na implementação · **`scripts/smoke.js`** (reapontamento de `A0.3` — ver emenda `Q-C2-1` abaixo) — **Símbolos/contratos:** `breakpoints.phone` (13 consumidores), `breakpoints.tabletL` (`ContentContainer.js:25`).
 - **Precondições:** `TK-C-002` — **Depende de:** `TK-C-002`
 - **Mudança esperada:** migração **comportamentalmente neutra**: os mesmos limiares, agora lidos de um lugar só. "O que falta é a política, não a medida."
+- **Emenda `Q-C2-1` (HUMAN GATE — opção (a) aprovada):** `ContentContainer.js` **é** alvo de `TK-C-003` e migra para `useWindowBand`. A asserção **`A0.3`** do smoke prova hoje o **mecanismo antigo** (dimensão lida por `useWindowDimensions` + comparação local contra `breakpoints`); ao trocar o mecanismo ela fica **vermelha por motivo legítimo** e deve ser **reapontada** ao mecanismo novo. A **intenção** de `A0.3` permanece integral — dimensão reativa, política vinda de fonte canônica, `maxContentWidth` por *token*, zero `Dimensions.get`, `ContentContainer` ainda responsivo. **Proibido enfraquecer o portão apenas para fazê-lo passar.** Emenda cirúrgica: nenhum outro texto de `TK-C-003` é corrigido aqui.
 - **Prova:** `TA-6`, `CN-5` — **Gate:** **`G-RSP-5`** (nenhuma comparação literal de largura decidindo composição fora do *hook*)
 - **Conclusão:** o comportamento na faixa compacta é idêntico ao anterior em captura.
 - **Risco · decisão:** **`RG-5`** — **Auto:** parcial · **Física futura:** **sim** · **Commit:** `C-C2` · **Rollback:** reverter `C-C2`.
