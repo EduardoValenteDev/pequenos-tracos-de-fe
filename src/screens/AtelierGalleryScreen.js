@@ -14,6 +14,16 @@ import {
   resolveArtThumbUri, resolveArtPreviewUri,
 } from '../services/atelierStorage';
 import { displayTitle } from '../services/atelierArtNaming';
+import { useHubComposition, hubRows } from '../components/layout/HubSurface';
+
+/**
+ * [F6-SG-C · TK-C-008] Largura mínima de uma arte guardada, medida no próprio cartão:
+ * a miniatura ocupa 110 fixos e o restante precisa comportar o título numa linha e os
+ * botões "Editar" e apagar lado a lado — cerca de 180 com os 14 de respiro de cada
+ * lado. Abaixo disso o cartão deixa de ser cartão e vira uma coluna de rótulos.
+ */
+const HUB_MIN_CARD = 320;
+const HUB_GAP = 12;
 
 function formatDate(iso) {
   try {
@@ -30,6 +40,13 @@ export default function AtelierGalleryScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [viewingArt, setViewingArt] = useState(null);
   const [viewingArtFull, setViewingArtFull] = useState(null);
+
+  // [F6-SG-C · TK-C-008] A galeria é HUB: um inventário para varrer e escolher. A
+  // `FlatList` continua sendo a lista virtualizada de sempre — o que muda é que ela
+  // passa a virtualizar LINHAS quando a largura comporta mais de uma arte, em vez de
+  // repetir um cartão largo e solitário numa tela de 1180dp.
+  const { columns } = useHubComposition({ itemCount: arts.length, minItemWidth: HUB_MIN_CARD, gap: HUB_GAP });
+  const emGrade = columns > 1;
 
   useFocusEffect(
     useCallback(() => {
@@ -72,6 +89,55 @@ export default function AtelierGalleryScreen({ navigation }) {
     );
   }
 
+  /* O cartão de uma arte. Extraído do `renderItem` porque agora ele é usado nos dois
+     caminhos — item solto na coluna única, célula de linha na grade — e duplicá-lo
+     seria abrir espaço para as duas versões divergirem. */
+  function renderArt(art) {
+    return (
+      <View style={styles.card}>
+        {/* Thumbnail */}
+        <SoundButton
+          style={styles.thumbWrapper}
+          onPress={() => handleViewArt(art)}
+          activeOpacity={0.85}
+        >
+          <SafeImage
+            source={resolveArtThumbUri(art) ? { uri: resolveArtThumbUri(art) } : null}
+            style={styles.thumb}
+            resizeMode="cover"
+            fallbackIcon="🎨"
+            fallbackColors={['#F3EEE6', '#E7DECF']}
+          />
+          <View style={styles.thumbViewHint}>
+            <Text style={styles.thumbViewHintText}>👁</Text>
+          </View>
+        </SoundButton>
+
+        {/* Info */}
+        <View style={styles.cardInfo}>
+          <Text style={styles.artTitle} numberOfLines={1}>{displayTitle(art.title)}</Text>
+          <Text style={styles.artDate}>{formatDate(art.createdAt)}</Text>
+          <View style={styles.btnRow}>
+            <SoundButton
+              style={styles.continueBtn}
+              onPress={() => handleContinue(art)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.continueBtnText}>✏️ Editar</Text>
+            </SoundButton>
+            <SoundButton
+              style={styles.deleteBtn}
+              onPress={() => handleDelete(art)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.deleteBtnText}>🗑️</Text>
+            </SoundButton>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -104,8 +170,8 @@ export default function AtelierGalleryScreen({ navigation }) {
         style={styles.container}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
-        data={arts}
-        keyExtractor={(art) => String(art.id)}
+        data={emGrade ? hubRows(arts, columns) : arts}
+        keyExtractor={(item, index) => (emGrade ? `row-${item[0] ? item[0].id : index}` : String(item.id))}
         ListHeaderComponent={
           /* Contador */
           <View style={styles.counterRow}>
@@ -128,48 +194,19 @@ export default function AtelierGalleryScreen({ navigation }) {
             />
           </View>
         }
-        renderItem={({ item: art }) => (
-          <View style={styles.card}>
-            {/* Thumbnail */}
-            <SoundButton
-              style={styles.thumbWrapper}
-              onPress={() => handleViewArt(art)}
-              activeOpacity={0.85}
-            >
-              <SafeImage
-                source={resolveArtThumbUri(art) ? { uri: resolveArtThumbUri(art) } : null}
-                style={styles.thumb}
-                resizeMode="cover"
-                fallbackIcon="🎨"
-                fallbackColors={['#F3EEE6', '#E7DECF']}
-              />
-              <View style={styles.thumbViewHint}>
-                <Text style={styles.thumbViewHintText}>👁</Text>
-              </View>
-            </SoundButton>
-
-            {/* Info */}
-            <View style={styles.cardInfo}>
-              <Text style={styles.artTitle} numberOfLines={1}>{displayTitle(art.title)}</Text>
-              <Text style={styles.artDate}>{formatDate(art.createdAt)}</Text>
-              <View style={styles.btnRow}>
-                <SoundButton
-                  style={styles.continueBtn}
-                  onPress={() => handleContinue(art)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.continueBtnText}>✏️ Editar</Text>
-                </SoundButton>
-                <SoundButton
-                  style={styles.deleteBtn}
-                  onPress={() => handleDelete(art)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.deleteBtnText}>🗑️</Text>
-                </SoundButton>
-              </View>
+        renderItem={({ item }) => (
+          emGrade ? (
+            <View style={styles.gridRow}>
+              {item.map((art) => (
+                <View key={art.id} style={styles.gridCell}>{renderArt(art)}</View>
+              ))}
+              {/* Última linha curta: sem as células vazias a arte solitária se esticaria
+                  pela linha inteira e a miniatura de 110 ficaria perdida no meio. */}
+              {Array.from({ length: columns - item.length }, (_, i) => (
+                <View key={`gap-${i}`} style={styles.gridCell} />
+              ))}
             </View>
-          </View>
+          ) : renderArt(item)
         )}
         initialNumToRender={6}
         maxToRenderPerBatch={6}
@@ -312,6 +349,11 @@ const styles = StyleSheet.create({
   emptyContainer: {
     paddingVertical: 24,
   },
+
+  // [TK-C-008] Linha da grade: o intervalo é do `gap`, e o que sobra se divide por
+  // igual entre as células — nenhuma porcentagem, nenhum número de colunas embutido.
+  gridRow: { flexDirection: 'row', gap: HUB_GAP },
+  gridCell: { flex: 1 },
 
   // ── Art card ──
   card: {

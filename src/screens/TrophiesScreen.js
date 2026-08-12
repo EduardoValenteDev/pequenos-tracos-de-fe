@@ -39,7 +39,16 @@ import {
 } from '../services/achievementSeenService';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
 import { backLabelFor } from '../utils/originBack';
-import { useWindowBand, BANDS } from '../hooks/useWindowBand';
+import { useHubComposition, hubRows } from '../components/layout/HubSurface';
+
+/**
+ * [F6-SG-C · TK-C-008] O que a TELA sabe e o arquétipo não: onde a conquista deixa de
+ * ser legível. O card é uma linha — círculo de 44, intervalo de 14, título e barra de
+ * progresso —, e abaixo de ~320dp o título começa a quebrar em três linhas. Este é o
+ * piso que, em 1180dp, autoriza a terceira coluna e, em 700dp, mantém duas.
+ */
+const HUB_MIN_CARD = 320;
+const HUB_GAP = 10;
 
 /* Extrai a unidade ("cenas", "artes"...) do progressLabel para frases naturais. */
 function unitFromLabel(label) {
@@ -108,7 +117,7 @@ function computeNextAchievement(ctx) {
 }
 
 /* ── Card de conquista ───────────────────────────────────────────── */
-function AchievementCard({ achievement, unlocked, ctx, isTablet, onPress }) {
+function AchievementCard({ achievement, unlocked, ctx, onPress }) {
   const prog = !unlocked ? safeProgress(achievement, ctx) : null;
   const ratio = prog ? Math.min(prog.current / prog.target, 1) : 0;
   const progLabel = safeProgressLabel(achievement, ctx);
@@ -120,7 +129,6 @@ function AchievementCard({ achievement, unlocked, ctx, isTablet, onPress }) {
       onPress={onPress}
       style={[
         styles.card,
-        isTablet && styles.cardTablet,
         unlocked
           ? [styles.cardUnlocked, { borderColor: achievement.color, backgroundColor: achievement.color + '12' }]
           : styles.cardLocked,
@@ -192,13 +200,11 @@ export default function TrophiesScreen({ navigation, route }) {
   }, []);
 
   const insets = useSafeAreaInsets();
-  // [F6-SG-C · TK-C-003] Decisão discreta ⇒ faixa, não medida. Migração neutra:
-  // `MEDIUM` e `EXPANDED` seguem equivalentes, como o antigo `width >= 600` — o
-  // agrupamento em pares abaixo permanece EXATAMENTE o mesmo, sem terceira
-  // estrutura para a faixa expandida (isso seria redesenho, não migração).
-  const { band } = useWindowBand();
-  const isTablet = band !== BANDS.COMPACT;
-
+  // [F6-SG-C · TK-C-003 → TK-C-008] Aqui morava `isTablet = band !== COMPACT`, e com
+  // ele a terceira estrutura que `TK-C-003` deliberadamente NÃO criou — porque criá-la
+  // ali teria sido redesenho disfarçado de migração. `C-C4` é onde ela cabe: a faixa
+  // continua entrando (por dentro de `useHubComposition`), mas agora como TETO, e a
+  // pergunta binária "é tablet?" desaparece da tela.
   const { progressByStory, postStoryStatusByStory } = useProgressContext();
 
   const [ctx, setCtx] = useState(null);
@@ -234,19 +240,22 @@ export default function TrophiesScreen({ navigation, route }) {
   const next = computeNextAchievement(ctx);
 
   // Seções por categoria para a SectionList (pula categorias sem conquistas).
-  // No tablet, agrupa em pares para manter a grade 2-col aprovada; no celular,
-  // 1-col (cada conquista é um item). Mesmas categorias/ordem/visual de antes.
+  //
+  // [F6-SG-C · TK-C-008] A densidade vem da família Hub. O fatiador embutido daqui —
+  // preso ao número dois — era o único do app, e é dele que `hubRows` nasceu: a lista
+  // continua virtualizando LINHAS, exatamente como antes, mas quantas conquistas
+  // cabem numa linha deixou de ser resposta de "é tablet?" e passou a ser composição
+  // do inventário do álbum com a largura real. Em 1180dp a grade abre a terceira
+  // coluna (PLAN §18) em vez de manter duas metades de 560.
+  const { columns } = useHubComposition({ itemCount: total, minItemWidth: HUB_MIN_CARD, gap: HUB_GAP });
+  const emGrade = columns > 1;
+
   const albumSections = ACHIEVEMENT_CATEGORIES
     .map(cat => {
       const items = visible.filter(a => a.category === cat.id);
       if (items.length === 0) return null;
       const catUnlocked = items.filter(isUnlocked).length;
-      const data = isTablet
-        ? items.reduce((rows, a, i) => {
-            if (i % 2 === 0) rows.push([a]); else rows[rows.length - 1].push(a);
-            return rows;
-          }, [])
-        : items;
+      const data = emGrade ? hubRows(items, columns) : items;
       return { key: cat.id, cat, totalItems: items.length, catUnlocked, data };
     })
     .filter(Boolean);
@@ -283,7 +292,7 @@ export default function TrophiesScreen({ navigation, route }) {
         }]}
         showsVerticalScrollIndicator={false}
         sections={albumSections}
-        keyExtractor={(item, index) => (isTablet ? `row-${item[0]?.id ?? index}` : String(item.id))}
+        keyExtractor={(item, index) => (emGrade ? `row-${item[0]?.id ?? index}` : String(item.id))}
         stickySectionHeadersEnabled={false}
         ListHeaderComponent={
           <>
@@ -366,17 +375,22 @@ export default function TrophiesScreen({ navigation, route }) {
         )}
         renderSectionFooter={() => <View style={styles.sectionFooterGap} />}
         renderItem={({ item }) => (
-          isTablet ? (
+          emGrade ? (
             <View style={styles.grid}>
               {item.map(a => (
-                <AchievementCard
-                  key={a.id}
-                  achievement={a}
-                  unlocked={isUnlocked(a)}
-                  ctx={ctx}
-                  isTablet
-                  onPress={() => setSelected(a)}
-                />
+                <View key={a.id} style={styles.gridCell}>
+                  <AchievementCard
+                    achievement={a}
+                    unlocked={isUnlocked(a)}
+                    ctx={ctx}
+                    onPress={() => setSelected(a)}
+                  />
+                </View>
+              ))}
+              {/* Categoria com número ímpar de conquistas fecha com célula vazia: sem
+                  ela a última ficaria larga como a linha inteira e a grade entortaria. */}
+              {Array.from({ length: columns - item.length }, (_, i) => (
+                <View key={`gap-${i}`} style={styles.gridCell} />
               ))}
             </View>
           ) : (
@@ -384,7 +398,6 @@ export default function TrophiesScreen({ navigation, route }) {
               achievement={item}
               unlocked={isUnlocked(item)}
               ctx={ctx}
-              isTablet={false}
               onPress={() => setSelected(item)}
             />
           )
@@ -534,7 +547,10 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: pt.text, flex: 1 },
   sectionCount: { fontFamily: 'Nunito', fontSize: 12, color: pt.muted, fontWeight: '800' },
 
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  // [TK-C-008] A largura da conquista deixou de ser `48%` — dois por definição. A
+  // célula divide o que sobra por igual, seja a grade de duas ou de três colunas.
+  grid: { flexDirection: 'row', gap: HUB_GAP },
+  gridCell: { flex: 1 },
 
   // Cards
   card: {
@@ -542,7 +558,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl, padding: 14, marginBottom: 10, gap: 14,
     position: 'relative', overflow: 'hidden',
   },
-  cardTablet: { width: '48%' },
   cardUnlocked: {
     borderWidth: 2,
     elevation: 4, shadowColor: '#000',

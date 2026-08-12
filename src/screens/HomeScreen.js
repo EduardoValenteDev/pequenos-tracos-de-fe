@@ -11,7 +11,7 @@ import { stories } from '../data/stories';
 import { images } from '../assets/images';
 import SoundButton from '../components/SoundButton';
 import RecoverableImage from '../components/ui/RecoverableImage';
-import CenteredContent from '../components/layout/CenteredContent';
+import HubSurface from '../components/layout/HubSurface';
 import { BeniAvatar } from '../components/beni';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
@@ -68,6 +68,17 @@ const DAILY_CHALLENGES = [
 function dayIndex(listLength) {
   return Math.floor(Date.now() / 86400000) % listLength;
 }
+
+/**
+ * [F6-SG-C · TK-C-008] Largura mínima de um destino da Home. O gabarito é o cartão
+ * mais exigente — o Cultinho —, que numa linha só põe ícone, título, a etiqueta de
+ * "⏱️ 5 min" e o botão "Começar": pouco mais de 400dp somando os respiros. Abaixo
+ * disso o título e a etiqueta se atropelam, e a coluna não deve se dividir.
+ *
+ * Sem `gap`: cada cartão já traz `marginHorizontal: 16`, e a calha entre colunas sai
+ * dos 16 de cada lado. Somar um intervalo novo seria inventar espaçamento.
+ */
+const HUB_MIN_CARD = 420;
 
 /* ═══════════════════════════════════════════════════════════════════
    BeniHeroScene — cena de entrada do mundo
@@ -782,16 +793,22 @@ export default function HomeScreen({ navigation }) {
           })}
         />
 
-        <CenteredContent>
-          {/* Alvos do guia da Home: o ref medível fica no PRÓPRIO card (halo justo).
-              Card 1 (Seu início) destaca a aba Início (tab bar / sidebar). */}
-          {jornadaBlock}
+        {/* Alvos do guia da Home: o ref medível fica no PRÓPRIO card (halo justo).
+            Card 1 (Seu início) destaca a aba Início (tab bar / sidebar).
+
+            [F6-SG-C · TK-C-008] A Missão de Hoje fica FORA da grade: ela é a ação
+            principal do app, não um destino entre pares. Os outros cinco são o
+            inventário do hub — a criança varre e escolhe —, e é neles que a faixa
+            larga deixa de ser coluna estreita cercada de vazio (PLAN §18). */}
+        {jornadaBlock}
+
+        <HubSurface minItemWidth={HUB_MIN_CARD}>
           {achievementBlock}
           {cultinhoEmCasaBlock}
           {bauBlock}
           {criarBlock}
           {cantinhoBlock}
-        </CenteredContent>
+        </HubSurface>
       </Animated.View>
     </ScrollView>
       {homeGuide.visible && (

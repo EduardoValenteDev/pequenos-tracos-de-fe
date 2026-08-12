@@ -52654,7 +52654,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04Incompletas = arnesArq.familiasIncompletas();
 
     check(
-      'TA-14 [1/14]: as quatro famílias existem (`HubSurface` · `EditorialSurface` · `ImmersiveSurface` · `GameSurface`) e expõem política pura',
+      'TA-14 [1/17]: as quatro famílias existem (`HubSurface` · `EditorialSurface` · `ImmersiveSurface` · `GameSurface`) e expõem política pura',
       c04Incompletas.length === 0,
       `famílias ausentes ou sem política carregável: ${c04Incompletas.join(' · ') || '(nenhuma)'}`,
     );
@@ -52664,7 +52664,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04HubMaus = c04Hub.linhas.filter((l) => !l.ok);
 
     check(
-      'TA-14 [2/14]: `HubSurface` compõe por inventário × cabimento × teto da faixa nos 7 cenários (média dá 1 coluna com cartão largo; expandida dá 2 com inventário pobre)',
+      'TA-14 [2/17]: `HubSurface` compõe por inventário × cabimento × teto da faixa nos 7 cenários (média dá 1 coluna com cartão largo; expandida dá 2 com inventário pobre)',
       !c04Hub.ausente && c04Hub.linhas.length === 7 && c04HubMaus.length === 0,
       c04Hub.ausente
         ? `arquétipo Hub indisponível: ${c04Hub.faltando.join('/') || '(arquivo ausente)'}`
@@ -52677,7 +52677,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04TravDistintas = new Set(c04Trav.map((l) => l.obtido)).size;
 
     check(
-      'TA-14 [3/14]: mesma família e MESMO conteúdo (9 itens de 220dp) produzem composições distintas nas três faixas — 1 · 2 · 3',
+      'TA-14 [3/17]: mesma família e MESMO conteúdo (9 itens de 220dp) produzem composições distintas nas três faixas — 1 · 2 · 3',
       !c04Hub.ausente && c04Trav.length === 3 && c04TravMaus.length === 0 && c04TravDistintas === 3,
       c04Hub.ausente
         ? 'arquétipo Hub indisponível'
@@ -52689,7 +52689,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04EdMaus = c04Ed.linhas.filter((l) => !l.ok);
 
     check(
-      'TA-14 [4/14]: `EditorialSurface` só abre região de apoio quando a faixa expandida E o chamador trazem conteúdo — a capacidade nunca inventa painel',
+      'TA-14 [4/17]: `EditorialSurface` só abre região de apoio quando a faixa expandida E o chamador trazem conteúdo — a capacidade nunca inventa painel',
       !c04Ed.ausente && c04Ed.linhas.length === 4 && c04EdMaus.length === 0,
       c04Ed.ausente
         ? `arquétipo Editorial indisponível: ${c04Ed.faltando.join('/') || '(arquivo ausente)'}`
@@ -52701,7 +52701,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04ImMaus = c04Im.linhas.filter((l) => !l.ok);
 
     check(
-      'TA-14 [5/14]: `ImmersiveSurface` entrega a janela inteira nas três faixas — zero coluna imposta, zero recorte da arte; só a expandida ganha CAPACIDADE acompanhante (`D10`, composição é `F9`)',
+      'TA-14 [5/17]: `ImmersiveSurface` entrega a janela inteira nas três faixas — zero coluna imposta, zero recorte da arte; só a expandida ganha CAPACIDADE acompanhante (`D10`, composição é `F9`)',
       !c04Im.ausente && c04Im.linhas.length === 3 && c04ImMaus.length === 0,
       c04Im.ausente
         ? `arquétipo Imersivo indisponível: ${c04Im.faltando.join('/') || '(arquivo ausente)'}`
@@ -52713,7 +52713,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04JgMaus = c04Jg.linhas.filter((l) => !l.ok);
 
     check(
-      'TA-14 [6/14]: `GameSurface` preserva a proporção do tabuleiro nos 4 cenários — o excedente vira moldura simétrica e a área jogável nunca transborda nem distorce',
+      'TA-14 [6/17]: `GameSurface` preserva a proporção do tabuleiro nos 4 cenários — o excedente vira moldura simétrica e a área jogável nunca transborda nem distorce',
       !c04Jg.ausente && c04Jg.linhas.length === 4 && c04JgMaus.length === 0,
       c04Jg.ausente
         ? `arquétipo de Jogo indisponível: ${c04Jg.faltando.join('/') || '(arquivo ausente)'}`
@@ -52733,7 +52733,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04SemPolitica = c04Nomes.filter((f) => f.nomes.length === 0).map((f) => f.chave);
 
     check(
-      'TA-14 [7/14]: as quatro políticas são PRÓPRIAS — cada família exporta ao menos um contrato e nenhum nome se repete entre famílias',
+      'TA-14 [7/17]: as quatro políticas são PRÓPRIAS — cada família exporta ao menos um contrato e nenhum nome se repete entre famílias',
       c04SemPolitica.length === 0 && c04Repetidos.length === 0 && c04Todos.length >= 4,
       `famílias sem política: ${c04SemPolitica.join(' · ') || '(nenhuma)'} · nomes compartilhados: ${c04Repetidos.join(' · ') || '(nenhum)'}`,
     );
@@ -52748,7 +52748,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04TetoHub = arqPura('hub');
 
     check(
-      'TA-14 [8/14]: nenhuma regra universal de colunas — a expressão proibida não aparece nos quatro, só o Hub conta colunas e o teto dele vem de `grid` (token), não de literal',
+      'TA-14 [8/17]: nenhuma regra universal de colunas — a expressão proibida não aparece nos quatro, só o Hub conta colunas e o teto dele vem de `grid` (token), não de literal',
       c04ComFrase.length === 0
       && c04ComGrid.length === 1 && c04ComGrid[0] === 'hub'
       && /grid\s*\.\s*phone/.test(c04TetoHub) && /grid\s*\.\s*tablet\b/.test(c04TetoHub) && /grid\s*\.\s*tabletL\b/.test(c04TetoHub)
@@ -52768,7 +52768,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04SemHook = FAMILIAS.filter((chave) => !/\buseWindowBand\b/.test(arqCodigo(chave)));
 
     check(
-      'TA-14 [9/14]: os quatro arquétipos leem faixa só por `useWindowBand` — zero `breakpoints` próprio, zero comparação de largura contra literal, zero `Dimensions.get`/`useWindowDimensions` paralelo',
+      'TA-14 [9/17]: os quatro arquétipos leem faixa só por `useWindowBand` — zero `breakpoints` próprio, zero comparação de largura contra literal, zero `Dimensions.get`/`useWindowDimensions` paralelo',
       c04ComBreakpoint.length === 0 && c04ComLiteral.length === 0 && c04ComMedidaCrua.length === 0 && c04SemHook.length === 0,
       `com \`breakpoints\`: ${c04ComBreakpoint.join(' · ') || '(nenhum)'} · com literal de largura: ${c04ComLiteral.join(' · ') || '(nenhum)'} · com medida crua: ${c04ComMedidaCrua.join(' · ') || '(nenhum)'} · sem \`useWindowBand\`: ${c04SemHook.join(' · ') || '(nenhum)'}`,
     );
@@ -52782,27 +52782,29 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c04EdReimplementa = /\bmaxContentWidth\b/.test(arqCodigo('editorial'));
 
     check(
-      'TA-14 [10/14]: só `EditorialSurface` conhece a coluna de leitura — `ImmersiveSurface` e `GameSurface` não importam `ContentContainer` nem `maxContentWidth`, e o Editorial compõe COM `ContentContainer` sem reimplementar `maxWidth`',
+      'TA-14 [10/17]: só `EditorialSurface` conhece a coluna de leitura — `ImmersiveSurface` e `GameSurface` não importam `ContentContainer` nem `maxContentWidth`, e o Editorial compõe COM `ContentContainer` sem reimplementar `maxWidth`',
       c04ComColuna.length === 1 && c04ComColuna[0] === 'editorial' && !c04EdReimplementa,
       `famílias que conhecem a coluna: ${c04ComColuna.join(' · ') || '(nenhuma)'}${c04EdReimplementa ? ' · o Editorial reimplementa `maxContentWidth` em vez de delegar' : ''}`,
     );
 
     /* ── [11] Oferecido, nunca imposto ──
-     * `TK-C-004` entregou contrato e NENHUM consumidor. `C-C3` liberou UMA família —
-     * a Editorial, por `TK-C-006` — e as outras três continuam trancadas: a Hub é
-     * `C-C4`, a Imersiva é `C-C5`, e a de jogo é `F12A`, fase alheia. Um import de
-     * `GameSurface` nascendo aqui seria migração de tela por tabela.
+     * `TK-C-004` entregou contrato e NENHUM consumidor. `C-C3` liberou a Editorial
+     * (`TK-C-006`) e `C-C4` libera a Hub (`TK-C-008`); as duas que sobram continuam
+     * trancadas — a Imersiva é `C-C5`, e a de jogo é `F12A`, FASE ALHEIA. Um import
+     * de `GameSurface` nascendo aqui seria migração de tela por tabela, e é
+     * exatamente o que a regra dos quatro arquétipos proíbe.
      *
-     * A asserção não foi relaxada quando a primeira adoção chegou: ela ESTREITOU. A
-     * ausência de consumidor deixou de valer para o Editorial porque `C-C3` a
-     * revogou de propósito — e passou a ser cobrada, nas quatro telas, por `[14]`. */
-    const ARQ_IMPORT_TRANCADOS = /(?:from|require\()\s*['"][^'"]*\/(?:HubSurface|ImmersiveSurface|GameSurface)['"]/;
+     * A asserção nunca foi relaxada: ela ESTREITA a cada liberação, e só depois que
+     * outro portão assume a cobrança. A Editorial saiu daqui porque `[14]` passou a
+     * cobrá-la nas quatro telas de leitura; a Hub sai porque `[17]` a cobra nas
+     * quatro telas de escolha. Liberar sem substituto seria perder a vigilância. */
+    const ARQ_IMPORT_TRANCADOS = /(?:from|require\()\s*['"][^'"]*\/(?:ImmersiveSurface|GameSurface)['"]/;
     const c04Consumidores = b1Arquivos.filter(
       (rel) => !FAMILIAS.some((chave) => arnesArq.ARQUETIPOS[chave].arquivo === rel) && ARQ_IMPORT_TRANCADOS.test(codeOf(rel)),
     );
 
     check(
-      'TA-14 [11/14]: as famílias ainda não liberadas continuam OFERECIDAS, nunca impostas — zero consumidor de `HubSurface` (`C-C4`), `ImmersiveSurface` (`C-C5`) e `GameSurface` (`F12A`) em `src/`',
+      'TA-14 [11/17]: as famílias ainda não liberadas continuam OFERECIDAS, nunca impostas — zero consumidor de `ImmersiveSurface` (`C-C5`) e `GameSurface` (`F12A`) em `src/`',
       c04Consumidores.length === 0,
       `consumidores prematuros: ${c04Consumidores.join(' · ') || '(nenhum)'}`,
     );
@@ -52816,7 +52818,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c05MedMaus = c05Med.linhas.filter((l) => !l.ok);
 
     check(
-      'TA-14 [12/14] (`TK-C-005`): a coluna editorial para na medida de leitura nas três faixas, o excedente da expandida vira região de apoio (nunca vazio dominante — `SD-3`) e o material de apoio NÃO some nas faixas que não abrem a região',
+      'TA-14 [12/17] (`TK-C-005`): a coluna editorial para na medida de leitura nas três faixas, o excedente da expandida vira região de apoio (nunca vazio dominante — `SD-3`) e o material de apoio NÃO some nas faixas que não abrem a região',
       !c05Med.ausente && c05Med.linhas.length === 6 && c05MedMaus.length === 0,
       c05Med.ausente
         ? `medida editorial indisponível: ${c05Med.faltando.join('/') || '(arquivo ausente)'}`
@@ -52834,7 +52836,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c05EdPura = arqPura('editorial');
 
     check(
-      'TA-14 [13/14] (`TK-C-005`): `EditorialSurface` PERGUNTA a largura de coluna a `ContentContainer` em vez de reimplementá-la — `contentColumnMaxWidth` é exportada na região pura e a decisão de `A0.3` continua sendo a mesma expressão',
+      'TA-14 [13/17] (`TK-C-005`): `EditorialSurface` PERGUNTA a largura de coluna a `ContentContainer` em vez de reimplementá-la — `contentColumnMaxWidth` é exportada na região pura e a decisão de `A0.3` continua sendo a mesma expressão',
       /import\s+[^;]*\{[^}]*\bcontentColumnMaxWidth\b[^}]*\}\s*from\s*'\.\.\/ui\/ContentContainer'/.test(arqCodigo('editorial')) &&
       /\bcontentColumnMaxWidth\s*\(/.test(c05EdPura) &&
       /export\s+function\s+contentColumnMaxWidth\b/.test(c05CcPura) &&
@@ -52864,12 +52866,82 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     );
 
     check(
-      'TA-14 [14/14] (`TK-C-006`): as quatro telas de leitura adotam a família Editorial E entregam material de apoio — sem material, a faixa expandida ficaria com vazio dominante e a adoção seria decorativa',
+      'TA-14 [14/17] (`TK-C-006`): as quatro telas de leitura adotam a família Editorial E entregam material de apoio — sem material, a faixa expandida ficaria com vazio dominante e a adoção seria decorativa',
       c06Ausentes.length === 0 && c06SemAdocao.length === 0 && c06SemApoio.length === 0,
       `ausentes: ${c06Ausentes.join(' · ') || '(nenhuma)'} · sem adotar: ${c06SemAdocao.join(' · ') || '(nenhuma)'} · sem material de apoio: ${c06SemApoio.join(' · ') || '(nenhuma)'}`,
     );
 
-    // ── Mutantes mortos: sem isto, as treze asserções acima seriam decorativas ──
+    /* ── [15] `TK-C-007`: a densidade responde ao inventário, não à faixa ──
+     * A tabela de `[2]` já provava que o teto da faixa não é ordem de colunas. O
+     * que faltava era a última linha: `3 + 1` respeita teto e cabimento e ainda
+     * assim é grade que não olhou o conteúdo. A regra de recuo não tem número
+     * mágico — recua enquanto não custar uma linha a mais — e a coluna `razao`
+     * é o que impede `SD-2` de virar retórica: se a faixa fosse a regra
+     * universal, todas as linhas responderiam `'band'`. */
+    const c07Dens = arnesArq.executarHubDensidade();
+    const c07DensMaus = c07Dens.linhas.filter((l) => !l.ok);
+    const c07Razoes = new Set(c07Dens.linhas.map((l) => l.obtido && l.obtido.limitedBy));
+
+    check(
+      'TA-14 [15/17] (`TK-C-007`): a densidade do Hub é governada pelo inventário real — a última linha órfã recua quando isso não custa altura, e a faixa responde por apenas parte das composições',
+      !c07Dens.ausente && c07Dens.linhas.length === 6 && c07DensMaus.length === 0
+      && c07Razoes.has('balance') && c07Razoes.has('inventory') && c07Razoes.has('width') && c07Razoes.size === 4,
+      c07Dens.ausente
+        ? `densidade do Hub indisponível: ${c07Dens.faltando.join('/') || '(arquivo ausente)'}`
+        : `cenários errados: ${c07DensMaus.map((m) => `${m.nome} → ${m.obtido && m.obtido.columns}col/${m.obtido && m.obtido.rows}lin/${m.obtido && m.obtido.limitedBy} (esperado ${m.colunas}/${m.linhas}/${m.razao})`).join(' · ') || '(tabela vazia)'} · razões observadas: ${[...c07Razoes].join(' · ')}`,
+    );
+
+    /* ── [16] `TK-C-007`: distribuir em linhas é política, não JSX ──
+     * `TrophiesScreen` já tinha um fatiador embutido — e preso ao número dois. Se
+     * a distribuição continuasse por conta de cada tela, `TK-C-008` produziria
+     * quatro fatiadores levemente diferentes, e é assim que uma conquista some da
+     * última linha sem ninguém perceber. */
+    const c07Fatias = c07Dens.fatias || [];
+    const c07FatiasMas = c07Fatias.filter((l) => !l.ok);
+
+    check(
+      'TA-14 [16/17] (`TK-C-007`): a distribuição em linhas pertence à política do arquétipo — a última linha pode vir curta, mas nenhum item se perde, se duplica ou muda de ordem',
+      !c07Dens.ausente && c07Fatias.length === 4 && c07FatiasMas.length === 0,
+      c07Dens.ausente
+        ? 'distribuição em linhas indisponível'
+        : `fatias erradas: ${c07FatiasMas.map((m) => `${m.nome} → [${m.obtido.join(',')}] (esperado [${m.tamanhos.join(',')}])`).join(' · ') || '(tabela vazia)'}`,
+    );
+
+    /* ── [17] `TK-C-008`: a adoção nas quatro telas de escolha ──
+     * Duas metades, cobradas juntas — e a segunda é a que importa. Importar a família
+     * e continuar com a densidade escrita à mão seria adoção decorativa: a tela usaria
+     * o arquétipo e seguiria exibindo o defeito que ele existe para curar.
+     *
+     * A segunda metade é a ausência de NÚMERO DE COLUNA embutido. `48%` é "dois por
+     * definição"; `[[0, 1], [2, 3]]` fora da grade §9 seria o mesmo; e `CenteredContent`
+     * numa tela de escolha é a coluna estreita centralizada que `PLAN §18` proíbe para
+     * a família Hub — o vazio lateral que `SD-2` chama de defeito.
+     *
+     * A grade 2×2 do Brincar é a EXCEÇÃO declarada: ela é composição interna aprovada
+     * em `B1 §9`, vive dentro de UM destino, e o teto compacto (`grid.phone = 1`) a
+     * transformaria numa pilha de quatro no telefone. Adotar ali seria regressão, não
+     * migração — por isso `[1418]` continua vigiando-a exatamente como antes. */
+    const C08_TELAS = [
+      'src/screens/HomeScreen.js',
+      'src/screens/BrincarScreen.js',
+      'src/screens/TrophiesScreen.js',
+      'src/screens/AtelierGalleryScreen.js',
+    ];
+    const C08_ADOCAO = /import\s+(?:HubSurface\s*(?:,\s*)?)?(?:\{[^}]*\b(?:useHubComposition|hubRows)\b[^}]*\})?\s*from\s*'[^']*\/layout\/HubSurface'/;
+    const c08Ausentes = C08_TELAS.filter((rel) => !srcExists(rel));
+    const c08SemAdocao = C08_TELAS.filter((rel) => srcExists(rel) && !C08_ADOCAO.test(codeOf(rel)));
+    const c08SemMedida = C08_TELAS.filter((rel) => srcExists(rel) && !/\bminItemWidth\b/.test(codeOf(rel)));
+    const c08ColunaFixa = C08_TELAS.filter(
+      (rel) => srcExists(rel) && /\bCenteredContent\b|width:\s*'4\d%'/.test(codeOf(rel)),
+    );
+
+    check(
+      'TA-14 [17/17] (`TK-C-008`): as quatro telas de escolha adotam a família Hub, declaram a largura mínima que só ELAS conhecem, e nenhuma delas volta à coluna estreita centralizada nem a um número de colunas embutido',
+      c08Ausentes.length === 0 && c08SemAdocao.length === 0 && c08SemMedida.length === 0 && c08ColunaFixa.length === 0,
+      `ausentes: ${c08Ausentes.join(' · ') || '(nenhuma)'} · sem adotar: ${c08SemAdocao.join(' · ') || '(nenhuma)'} · sem \`minItemWidth\`: ${c08SemMedida.join(' · ') || '(nenhuma)'} · com coluna fixa: ${c08ColunaFixa.join(' · ') || '(nenhuma)'}`,
+    );
+
+    // ── Mutantes mortos: sem isto, as dezesseis asserções acima seriam decorativas ──
     const c04Mutantes = [
       {
         nome: 'M-a · o Hub para de olhar o cabimento — cartão largo em faixa média voltaria a dar duas',
@@ -52920,6 +52992,21 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         nome: 'M-j · a recolocação do apoio some — material entregue pela tela desapareceria no telefone, e girar o aparelho tiraria conteúdo da criança',
         rodar: () => arnesArq.executarEditorialMedida((s) => s.replace("(hasSupport === true ? 'column' : 'none')", "'none'")),
         quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-k · o Hub volta a preencher até o teto — quatro brincadeiras virariam `3 + 1`, com um cartão sozinho e dois buracos ao lado',
+        rodar: () => arnesArq.executarHubDensidade((s) => s.replace('hubBalanced(viavel, inventario)', 'viavel')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-l · o recuo deixa de pesar o custo em altura — dez artes cairiam para duas colunas e a página cresceria uma linha inteira à toa',
+        rodar: () => arnesArq.executarHubDensidade((s) => s.replace('if (hubRowCount(itemCount, n) > linhas) break;', '')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-m · a última linha curta é descartada na distribuição — a décima arte da criança sumiria da galeria',
+        rodar: () => arnesArq.executarHubDensidade((s) => s.replace('i < lista.length', 'i + passo <= lista.length')),
+        quebrou: (r) => r.fatias.some((l) => !l.ok),
       },
     ];
 

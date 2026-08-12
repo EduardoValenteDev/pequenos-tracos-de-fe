@@ -34,7 +34,7 @@ import SoundButton from '../components/SoundButton';
 import FaithIcon from '../components/ui/FaithIcon';
 import SafeImage from '../components/ui/SafeImage';
 import { BeniAvatar } from '../components/beni';
-import CenteredContent from '../components/layout/CenteredContent';
+import HubSurface from '../components/layout/HubSurface';
 import { ROUTES } from '../constants/routes';
 import PalavrinhasBeniWarmer from '../components/palavrinhas/PalavrinhasBeniWarmer';
 import { iniciarWarmup } from '../services/beniAssetWarmup';
@@ -77,6 +77,18 @@ const BENI_GAMES = [
     a11y: 'Monte a Cena, jogo de raciocínio, jogar',
   },
 ];
+
+/**
+ * [F6-SG-C · TK-C-008] Largura mínima de um DESTINO do Brincar, deduzida do desenho que
+ * já existe: o bloco mais largo é a grade §9, e ela só continua legível enquanto cada
+ * `GameCard` mantiver a largura que hoje tem no telefone (≈184dp em 411dp). Dois cards,
+ * o intervalo de 10 e as margens de 16 de cada lado somam pouco mais de 410 — daí o
+ * piso. Abaixo disso a coluna não se divide, e o Brincar continua em pilha.
+ *
+ * Quem conhece esta medida é a TELA, nunca o arquétipo: `HubSurface` compõe com o que
+ * recebe e não sabe o que é um `GameCard`.
+ */
+const HUB_MIN_BLOCO = 420;
 
 /** Abertura ÚNICA de um jogo — a mesma rota para grade e sugestão (sem divergência). */
 function openGame(navigation, game) {
@@ -240,7 +252,11 @@ export default function BrincarScreen({ navigation, route }) {
         </View>
       </LinearGradient>
 
-      <CenteredContent>
+      {/* [F6-SG-C · TK-C-008] Brincar é HUB: quatro destinos, e a faixa é TETO, não ordem.
+          Na compacta o teto é uma coluna — exatamente a pilha de hoje. Na largura de
+          tablet a coluna deixa de ser estreita-e-centralizada (PLAN §18) e os destinos
+          se compõem lado a lado quando cada metade ainda comporta a grade legível. */}
+      <HubSurface minItemWidth={HUB_MIN_BLOCO}>
         {/* ── Beni sugere hoje (§8): faixa compacta, cor do jogo sugerido, botão pequeno ── */}
         <AnimatedCard delay={60} reduce={reduceMotion} style={styles.suggestWrap}>
           <SoundButton
@@ -263,53 +279,59 @@ export default function BrincarScreen({ navigation, route }) {
           </SoundButton>
         </AnimatedCard>
 
-        {/* ── Jogos do Beni (§9): grade 2×2, cards idênticos ── */}
-        <AnimatedCard delay={110} reduce={reduceMotion} style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>Jogos do Beni</Text>
-          <Text style={styles.sectionSub}>Cada brincadeira tem uma descoberta diferente.</Text>
-        </AnimatedCard>
+        {/* ── Jogos do Beni (§9): grade 2×2, cards idênticos ──
+            O título e a grade são UM destino: separá-los em células diferentes deixaria
+            o rótulo órfão ao lado do que ele nomeia. */}
+        <View>
+          <AnimatedCard delay={110} reduce={reduceMotion} style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>Jogos do Beni</Text>
+            <Text style={styles.sectionSub}>Cada brincadeira tem uma descoberta diferente.</Text>
+          </AnimatedCard>
 
-        <AnimatedCard delay={150} reduce={reduceMotion} style={styles.grid}>
-          {[[0, 1], [2, 3]].map((pair) => (
-            <View key={`row-${pair[0]}`} style={styles.gridRow}>
-              {pair.map((i) => (
-                <View key={BENI_GAMES[i].id} style={styles.gridCell}>
-                  <GameCard game={BENI_GAMES[i]} onPress={() => abrirJogo(BENI_GAMES[i])} />
-                </View>
-              ))}
-            </View>
-          ))}
-        </AnimatedCard>
+          <AnimatedCard delay={150} reduce={reduceMotion} style={styles.grid}>
+            {[[0, 1], [2, 3]].map((pair) => (
+              <View key={`row-${pair[0]}`} style={styles.gridRow}>
+                {pair.map((i) => (
+                  <View key={BENI_GAMES[i].id} style={styles.gridCell}>
+                    <GameCard game={BENI_GAMES[i]} onPress={() => abrirJogo(BENI_GAMES[i])} />
+                  </View>
+                ))}
+              </View>
+            ))}
+          </AnimatedCard>
+        </View>
 
         {/* ── Crie do seu jeito (§14): Criar livre em card horizontal próprio ── */}
-        <AnimatedCard delay={210} reduce={reduceMotion} style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>Crie do seu jeito</Text>
-        </AnimatedCard>
+        <View>
+          <AnimatedCard delay={210} reduce={reduceMotion} style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>Crie do seu jeito</Text>
+          </AnimatedCard>
 
-        <AnimatedCard delay={240} reduce={reduceMotion} style={styles.creativeWrap}>
-          <SoundButton
-            style={styles.creativeCard}
-            onPress={() => navigation.navigate(ROUTES.ATELIER_CANVAS, {})}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Criar livre, atividade de desenho, abrir folha"
-          >
-            <View style={styles.creativeArt}>
-              <View style={[styles.creativeSheet]} />
-              <View style={[styles.creativeDot, { backgroundColor: pt.faithBlue, left: 12 }]} />
-              <View style={[styles.creativeDot, { backgroundColor: pt.goldDeep, left: 22 }]} />
-              <View style={[styles.creativeDot, { backgroundColor: pt.greenDeep, left: 32 }]} />
-              <FaithIcon name="criar_livre" size={24} color={pt.purple} />
-            </View>
-            <View style={styles.creativeTexts}>
-              <Text style={styles.creativeTitle}>Criar livre</Text>
-              <Text style={styles.creativeDesc} numberOfLines={2}>Desenhe, invente e guarde suas criações.</Text>
-            </View>
-            <View style={[styles.creativeBtn, { backgroundColor: pt.purple }]}>
-              <Text style={styles.creativeBtnText}>Abrir folha</Text>
-            </View>
-          </SoundButton>
-        </AnimatedCard>
+          <AnimatedCard delay={240} reduce={reduceMotion} style={styles.creativeWrap}>
+            <SoundButton
+              style={styles.creativeCard}
+              onPress={() => navigation.navigate(ROUTES.ATELIER_CANVAS, {})}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Criar livre, atividade de desenho, abrir folha"
+            >
+              <View style={styles.creativeArt}>
+                <View style={[styles.creativeSheet]} />
+                <View style={[styles.creativeDot, { backgroundColor: pt.faithBlue, left: 12 }]} />
+                <View style={[styles.creativeDot, { backgroundColor: pt.goldDeep, left: 22 }]} />
+                <View style={[styles.creativeDot, { backgroundColor: pt.greenDeep, left: 32 }]} />
+                <FaithIcon name="criar_livre" size={24} color={pt.purple} />
+              </View>
+              <View style={styles.creativeTexts}>
+                <Text style={styles.creativeTitle}>Criar livre</Text>
+                <Text style={styles.creativeDesc} numberOfLines={2}>Desenhe, invente e guarde suas criações.</Text>
+              </View>
+              <View style={[styles.creativeBtn, { backgroundColor: pt.purple }]}>
+                <Text style={styles.creativeBtnText}>Abrir folha</Text>
+              </View>
+            </SoundButton>
+          </AnimatedCard>
+        </View>
 
         {/* ── Minhas artes (§15): continuação natural — criar → guardar → rever ── */}
         <AnimatedCard delay={280} reduce={reduceMotion} style={styles.cardCompact}>
@@ -351,7 +373,7 @@ export default function BrincarScreen({ navigation, route }) {
             </View>
           )}
         </AnimatedCard>
-      </CenteredContent>
+      </HubSurface>
       <View style={{ height: 8 }} />
       {/* Aquecedor offscreen das poses do Beni (decodifica em segundo plano; não bloqueia a tela). */}
       <PalavrinhasBeniWarmer />

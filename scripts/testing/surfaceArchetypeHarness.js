@@ -28,7 +28,7 @@ const ARQUETIPOS = {
   hub: {
     rotulo: 'Hub',
     arquivo: 'src/components/layout/HubSurface.js',
-    exports: ['HUB_COLUMN_CEILING', 'hubColumnCeiling', 'hubColumns'],
+    exports: ['HUB_COLUMN_CEILING', 'hubColumnCeiling', 'hubColumns', 'hubComposition', 'hubBalanced', 'hubRows'],
   },
   editorial: {
     rotulo: 'Editorial',
@@ -144,6 +144,116 @@ function executarHub(mutate) {
   });
 
   return { ausente: false, faltando: [], linhas, travessia };
+}
+
+/* ── Hub · densidade governada pelo inventário (`TK-C-007`) ──────────────────
+ * `TK-C-004` já fazia a composição parar no menor entre teto, cabimento e
+ * inventário. Faltava a pergunta que só aparece quando a grade encontra conteúdo
+ * real: o que fazer com a ÚLTIMA linha. Quatro brincadeiras em três colunas dão
+ * `3 + 1` — um item sozinho no fim, com dois buracos ao lado. Nada nisso viola o
+ * teto nem o cabimento, e mesmo assim é composição que ignorou o inventário.
+ *
+ * A regra tem uma condição só, e ela não tem número mágico: recuar uma coluna é
+ * legítimo enquanto NÃO custar uma linha a mais. Mesma altura e sem órfão ⇒ recua.
+ * Se o recuo alongaria a página, a densidade vence e o órfão fica — é o caso da
+ * galeria com dez artes, onde `3+3+3+1` é grade normal e duas colunas seriam
+ * desperdício de largura numa tela que tem largura de sobra.
+ *
+ * A coluna `razao` é o que torna `SD-2` verificável em vez de retórico: se a faixa
+ * fosse a regra universal, ela responderia `'band'` em toda linha. */
+const CENARIOS_DENSIDADE = [
+  {
+    nome: 'expandida · 4 brincadeiras — três colunas deixariam um órfão; duas linhas cheias custam a MESMA altura',
+    band: 'expanded', largura: 1180, itemCount: 4, minItemWidth: 220, gap: 10,
+    colunas: 2, linhas: 2, razao: 'balance',
+  },
+  {
+    // Aqui teto e cabimento empatam em três, e a razão relatada é a mais próxima
+    // do conteúdo — a largura. O que esta linha prova não é a razão: é que o
+    // recuo NÃO acontece quando custaria a quarta linha virar quinta.
+    nome: 'expandida · 10 artes — recuar custaria uma linha inteira, então a densidade vence e o órfão fica',
+    band: 'expanded', largura: 1180, itemCount: 10, minItemWidth: 320, gap: 12,
+    colunas: 3, linhas: 4, razao: 'width',
+  },
+  {
+    nome: 'expandida · 2 itens — quem decide é o inventário, e nem chega a existir órfão',
+    band: 'expanded', largura: 1180, itemCount: 2, minItemWidth: 220, gap: 16,
+    colunas: 2, linhas: 1, razao: 'inventory',
+  },
+  {
+    nome: 'média · 27 conquistas de 320dp — o teto real é a LARGURA, não a faixa',
+    band: 'medium', largura: 700, itemCount: 27, minItemWidth: 320, gap: 16,
+    colunas: 2, linhas: 14, razao: 'width',
+  },
+  {
+    nome: 'compacta · 27 itens que caberiam em duas — aqui sim a faixa é a razão',
+    band: 'compact', largura: 411, itemCount: 27, minItemWidth: 150, gap: 16,
+    colunas: 1, linhas: 27, razao: 'band',
+  },
+  {
+    nome: 'expandida · 9 itens — as três colunas fecham exatas e nada recua',
+    band: 'expanded', largura: 1180, itemCount: 9, minItemWidth: 220, gap: 16,
+    colunas: 3, linhas: 3, razao: 'band',
+  },
+];
+
+/* A distribuição em linhas é política, não JSX: sem ela, cada tela virtualizada
+ * escreveria o próprio fatiador — e `TrophiesScreen` já tinha um, embutido e
+ * preso ao número dois. A última linha pode vir curta; completá-la é da
+ * superfície, e o que se prova aqui é que nenhum item se perde no caminho. */
+const CENARIOS_LINHAS = [
+  { nome: '4 itens em 2 colunas — duas linhas cheias', total: 4, colunas: 2, tamanhos: [2, 2] },
+  { nome: '10 itens em 3 colunas — a última linha vem curta, e vem', total: 10, colunas: 3, tamanhos: [3, 3, 3, 1] },
+  { nome: '27 itens em 1 coluna — a compacta continua sendo uma lista', total: 27, colunas: 1, tamanhos: new Array(27).fill(1) },
+  { nome: '0 itens — inventário vazio não inventa linha', total: 0, colunas: 3, tamanhos: [] },
+];
+
+function executarHubDensidade(mutate) {
+  const { ausente, faltando, mod, BANDS } = carregarArquetipo('hub', mutate);
+  if (ausente || faltando.length) return { ausente: true, faltando, linhas: [], fatias: [] };
+
+  const linhas = CENARIOS_DENSIDADE.map((c) => {
+    const r = mod.hubComposition({
+      band: BANDS[c.band.toUpperCase()],
+      availableWidth: c.largura,
+      itemCount: c.itemCount,
+      minItemWidth: c.minItemWidth,
+      gap: c.gap,
+    });
+    return {
+      ...c,
+      obtido: r,
+      ok: r.columns === c.colunas && r.rows === c.linhas && r.limitedBy === c.razao
+        // A composição publicada e a função de coluna NUNCA podem divergir: são a
+        // mesma decisão vista por dois consumidores diferentes.
+        && mod.hubColumns({
+          band: BANDS[c.band.toUpperCase()],
+          availableWidth: c.largura,
+          itemCount: c.itemCount,
+          minItemWidth: c.minItemWidth,
+          gap: c.gap,
+        }) === c.colunas,
+    };
+  });
+
+  const fatias = CENARIOS_LINHAS.map((c) => {
+    const itens = Array.from({ length: c.total }, (_, i) => ({ id: `i${i}` }));
+    const obtido = mod.hubRows(itens, c.colunas);
+    const tamanhos = Array.isArray(obtido) ? obtido.map((linha) => linha.length) : [];
+    const planos = Array.isArray(obtido) ? obtido.flat().map((x) => x && x.id) : [];
+    return {
+      ...c,
+      obtido: tamanhos,
+      ok:
+        tamanhos.length === c.tamanhos.length &&
+        tamanhos.every((n, i) => n === c.tamanhos[i]) &&
+        // Nenhum item some e nenhum se repete: a ordem original atravessa intacta.
+        planos.length === c.total &&
+        planos.every((id, i) => id === `i${i}`),
+    };
+  });
+
+  return { ausente: false, faltando: [], linhas, fatias };
 }
 
 /* ── Editorial ───────────────────────────────────────────────────────────────
@@ -323,12 +433,15 @@ module.exports = {
   carregarArquetipo,
   familiasIncompletas,
   executarHub,
+  executarHubDensidade,
   executarEditorial,
   executarEditorialMedida,
   executarImersiva,
   executarJogo,
   CENARIOS_HUB,
   TRAVESSIA_HUB,
+  CENARIOS_DENSIDADE,
+  CENARIOS_LINHAS,
   CENARIOS_EDITORIAL,
   TRAVESSIA_EDITORIAL,
   CENARIOS_JOGO,
