@@ -52476,6 +52476,122 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       'a varredura de `src/` não enxergou um identificador órfão introduzido de propósito');
   }
 
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R1.2 · F6-SG-C · TK-C-001 — FAIXA DE JANELA (`TA-6` · faixas)
+   *
+   * O que muda de natureza aqui: os portões `G-RSP-*` criados por `TK-A-094` são
+   * asserções de AUSÊNCIA (não existe `Dimensions.get`, não nasce um quarto
+   * breakpoint). Elas provam que ninguém REGREDIU — não provam que a política
+   * está CERTA. Um `bandForWidth` com as comparações trocadas passaria em todas.
+   *
+   * Este bloco prova a CONSEQUÊNCIA: dada uma largura, qual faixa sai. As
+   * fronteiras `599/600` e `899/900` são os degraus do contrato; `823` é o meio
+   * real de tablet em retrato. Os limiares NÃO são escritos aqui — vêm de
+   * `tokens.breakpoints` pelo arnês, então mexer na fonte única move a bateria
+   * junto, em vez de deixá-la mentindo com números velhos.
+   *
+   * `TK-C-002` é CONFIRMAÇÃO, não criação: `G-RSP-1`, `G-RSP-3` e `G-RSP-7` já
+   * rodam acima (bloco `TK-A-094`) e varrem `src/` RECURSIVAMENTE — o hook novo
+   * entra na varredura no instante em que é salvo, sem nenhuma lista para
+   * atualizar à mão. `G-BP-1` permanece como está, não reescrito.
+   *
+   * Antitautologia: os três mutantes abaixo alteram o fonte REAL em memória e
+   * TÊM de quebrar a tabela. Se um deles sobreviver, o portão está dormindo.
+   * ────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-SG-C · TK-C-001: faixa de janela (TA-6 · faixas) ──');
+
+  {
+    const arnesFaixa = require('./testing/windowBandHarness');
+
+    // ── A política: largura → faixa, nas fronteiras que o produto precisa ver ──
+    const c01Fronteiras = arnesFaixa.executarFaixas();
+    const c01Maus = c01Fronteiras.filter((r) => !r.ok);
+
+    check(
+      'TA-6-FAIXAS [1/4]: `bandForWidth` classifica as 8 fronteiras (0 · 359 · 599 · 600 · 823 · 899 · 900 · 1280)',
+      c01Fronteiras.length === 8 && c01Maus.length === 0,
+      `larguras classificadas errado: ${c01Maus.map((m) => `${m.width}dp → ${m.obtido} (esperado ${m.esperado})`).join(' · ') || '(tabela vazia)'}`,
+    );
+
+    // ── O hook inteiro, não só o classificador: `{ width, height, isLandscape, band }` ──
+    const c01Hook = arnesFaixa.executarHook();
+    const c01HookMaus = c01Hook.filter((r) => !r.ok);
+
+    check(
+      'TA-6-FAIXAS [2/4]: `useWindowBand` devolve `{ width, height, isLandscape, band }` coerente nos quatro cenários',
+      c01Hook.length === 4 && c01HookMaus.length === 0,
+      `cenários incoerentes: ${c01HookMaus.map((m) => `${m.width}x${m.height} → ${JSON.stringify(m.obtido)}`).join(' · ') || '(bateria vazia)'}`,
+    );
+
+    /* Cardinalidade no CONSUMIDOR da política. `G-RSP-7` conta as faixas em
+     * `tokens.breakpoints`; esta conta as faixas que o hook realmente oferece.
+     * Um quarto valor aqui seria um breakpoint paralelo nascido no lado de fora
+     * dos tokens — exatamente a forma como o corte duplo de `P-30` apareceu. */
+    const c01Bands = arnesFaixa.lerBands();
+    const c01Valores = Object.values(c01Bands);
+
+    check(
+      'TA-6-FAIXAS [3/4]: `BANDS` oferece exatamente três faixas (compact · medium · expanded)',
+      c01Valores.length === 3 && c01Valores.join(',') === 'compact,medium,expanded',
+      `faixas oferecidas pelo hook: ${c01Valores.join(' · ') || '(nenhuma)'}`,
+    );
+
+    /* O hook não pode consultar o aparelho: `G-RSP-3` já varre `src/`, mas a
+     * regra é constitutiva DESTE módulo — se ela cair aqui, a cadeia inteira
+     * (largura → faixa → composição → superfície) passa a mentir na origem. */
+    const c01Fonte = codeOf('src/hooks/useWindowBand.js');
+
+    check(
+      'TA-6-FAIXAS [4/4]: a faixa vem da JANELA — zero `Dimensions.get`, `Platform.isPad` ou `expo-device` no hook',
+      !/\bDimensions\s*\.\s*get\s*\(/.test(c01Fonte)
+      && !/\bPlatform\s*\.\s*isPad\b/.test(c01Fonte)
+      && !/(?:from|require\()\s*['"]expo-device['"]/.test(c01Fonte)
+      && /useWindowDimensions/.test(c01Fonte),
+      'o hook decide faixa por idiom de aparelho ou por medida congelada em vez de `useWindowDimensions`',
+    );
+
+    // ── Mutantes mortos: sem isto, os quatro checks acima seriam decorativos ──
+    const c01Mutantes = [
+      {
+        nome: 'M-a · ordem invertida (média testada antes da expandida)',
+        mutar: (s) => s.replace(
+          'if (width >= breakpoints.tabletL) return BANDS.EXPANDED;\n  if (width >= breakpoints.tablet) return BANDS.MEDIUM;',
+          'if (width >= breakpoints.tablet) return BANDS.MEDIUM;\n  if (width >= breakpoints.tabletL) return BANDS.EXPANDED;',
+        ),
+      },
+      {
+        nome: 'M-b · corte exclusivo (`>` no lugar de `>=`): 600dp deixaria de ser média',
+        mutar: (s) => s.replace(
+          'if (width >= breakpoints.tablet) return BANDS.MEDIUM;',
+          'if (width > breakpoints.tablet) return BANDS.MEDIUM;',
+        ),
+      },
+      {
+        nome: 'M-c · literal `768` decidindo faixa em vez do token (parente de `MT-11`/`MT-22`)',
+        mutar: (s) => s.replace(
+          'if (width >= breakpoints.tablet) return BANDS.MEDIUM;',
+          'if (width >= 768) return BANDS.MEDIUM;',
+        ),
+      },
+    ];
+
+    for (const { nome, mutar } of c01Mutantes) {
+      let quebrou = false;
+      try {
+        quebrou = arnesFaixa.executarFaixas(mutar).some((r) => !r.ok);
+      } catch {
+        // `loadModule` lança quando a âncora não existe mais: mutante que não
+        // encontra onde morder é mutante morto por outro motivo — e é falha.
+        quebrou = false;
+      }
+      check(
+        `TA-6-FAIXAS (mutante morto): ${nome}`,
+        quebrou,
+        'a mutação não quebrou nenhuma fronteira — a bateria de faixas não está vigiando a política',
+      );
+    }
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
