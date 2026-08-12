@@ -2883,3 +2883,32 @@ token **`ALERTA_LOOP_INFRA`**.
 **[NORMA NOVA]** Nesse cenário, a **fronteira de perícia** é redesenhada — não se acrescenta
 *allowlist* arquivo a arquivo. A regra existe porque tolerância incremental sem limite converte o
 comparador num carimbo: cada `STOP` viraria uma exceção, e o instrumento deixaria de poder reprovar.
+
+---
+
+## 22. `RATIFICAÇÃO C14` — `AC-1`, `AC-3` e `AC-4` na janela do `CASO 14`
+
+> **Ratificação documental prospectiva.** Zero regra nova, zero alteração de regra anterior.
+> `compare_state.py` **não** é tocado. `CASO 15` **não** é reaberto.
+
+**[ANCORAGEM]** Na janela `<BASELINE_C14> × CK-C14` valem, **sem alteração de conteúdo**, `AC-1`
+(§18.8.2, sob a disciplina de *rowid* de §19.3), `AC-3` (§20.3) e `AC-4` (§21.1), com **todas** as
+invariantes já aprovadas — agora ancoradas nos valores medidos do baseline do `CASO 14`:
+
+```
+BASE_C14_MAX_ROWID              BASE_C14_WEBVIEW_PREFS_LENGTH
+BASE_C14_TOTAL_KEYS             BASE_C14_WEBVIEW_PREFS_SHA256
+BASE_C14_ORIENTATION_ROWID      BASE_C14_PHENOTYPE_LENGTH
+BASE_C14_ORIENTATION_VALUE      BASE_C14_PHENOTYPE_SHA256
+```
+
+**[ANCORAGEM]** As âncoras numéricas do `CASO 15` (`BASE_C15_*`, `BASE_C15_R2_*`) **não** são
+herdadas. O baseline do `CASO 14` é a **única** âncora numérica da sua janela.
+
+**[ANCORAGEM]** Permanecem exigidos `FILES_ADDED=0` e `FILES_DELETED=0`.
+
+**[ANCORAGEM]** Qualquer *writer* fora de `AC-1`/`AC-3`/`AC-4` ⇒ **`ALERTA_LOOP_INFRA`** e **`STOP`**,
+por §21.3. **`AC-5` não existe e não será criada.**
+
+**[ANCORAGEM]** O `PASS` do `CASO 15` **não** é prova sobre o eixo do `CASO 14`. A evidência do
+`CASO 14` é colhida **na sua própria execução**.
