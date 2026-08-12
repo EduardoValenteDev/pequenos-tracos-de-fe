@@ -52616,6 +52616,249 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     }
   }
 
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R1.2 · F6-SG-C · TK-C-004 — ARQUÉTIPOS POR FAMÍLIA (`TA-14`)
+   *
+   * O defeito que este bloco existe para impedir tem nome: "tablet = duas
+   * colunas". É a forma mais comum de fingir responsividade — a faixa vira uma
+   * regra universal de layout e o conteúdo real deixa de ter voz. `Q3` decidiu o
+   * contrário, e `D3` é explícito: a composição deriva da FAMÍLIA e do CONTEÚDO;
+   * a faixa é insumo. As quatro famílias precisam, portanto, ter políticas
+   * DIFERENTES — se as quatro respondessem igual, não haveria arquétipo nenhum,
+   * só um contêiner com quatro nomes.
+   *
+   * `TK-C-004` cria os quatro contratos e NENHUM consumidor. É a razão de este
+   * bloco provar política e não pixel: o `loadModule` apaga tudo a partir de
+   * `export default`, então o que roda aqui é a região pura de cada módulo. O
+   * componente (JSX) só ganha parse real de Metro quando o primeiro consumidor
+   * entrar no grafo — `C-C3` em diante. Nada aqui autoriza dizer que os quatro
+   * componentes já foram empacotados.
+   *
+   * Antitautologia: os sete mutantes abaixo alteram o fonte REAL em memória e
+   * TÊM de quebrar alguma linha. Um mutante vivo aqui significa que a família
+   * perdeu a política e ninguém percebeu.
+   * ────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-SG-C · TK-C-004: arquétipos por família (TA-14) ──');
+
+  {
+    const arnesArq = require('./testing/surfaceArchetypeHarness');
+    const FAMILIAS = Object.keys(arnesArq.ARQUETIPOS);
+    const arqFonte = (chave) => (srcExists(arnesArq.ARQUETIPOS[chave].arquivo) ? readSrc(arnesArq.ARQUETIPOS[chave].arquivo) : '');
+    const arqCodigo = (chave) => (srcExists(arnesArq.ARQUETIPOS[chave].arquivo) ? codeOf(arnesArq.ARQUETIPOS[chave].arquivo) : '');
+    /* A região que o arnês realmente executa: tudo ANTES de `export default`.
+     * Separar aqui é o que permite afirmar "a política não conhece X" sem que a
+     * afirmação seja diluída pelo componente logo abaixo. */
+    const arqPura = (chave) => arqCodigo(chave).split(/export default/)[0];
+
+    // ── [1] As quatro famílias existem e expõem política pura carregável ──
+    const c04Incompletas = arnesArq.familiasIncompletas();
+
+    check(
+      'TA-14 [1/11]: as quatro famílias existem (`HubSurface` · `EditorialSurface` · `ImmersiveSurface` · `GameSurface`) e expõem política pura',
+      c04Incompletas.length === 0,
+      `famílias ausentes ou sem política carregável: ${c04Incompletas.join(' · ') || '(nenhuma)'}`,
+    );
+
+    // ── [2] Hub: o inventário e o cabimento mandam, a faixa é teto ──
+    const c04Hub = arnesArq.executarHub();
+    const c04HubMaus = c04Hub.linhas.filter((l) => !l.ok);
+
+    check(
+      'TA-14 [2/11]: `HubSurface` compõe por inventário × cabimento × teto da faixa nos 7 cenários (média dá 1 coluna com cartão largo; expandida dá 2 com inventário pobre)',
+      !c04Hub.ausente && c04Hub.linhas.length === 7 && c04HubMaus.length === 0,
+      c04Hub.ausente
+        ? `arquétipo Hub indisponível: ${c04Hub.faltando.join('/') || '(arquivo ausente)'}`
+        : `cenários com composição errada: ${c04HubMaus.map((m) => `${m.nome} → ${m.obtido} (esperado ${m.esperado})`).join(' · ') || '(tabela vazia)'}`,
+    );
+
+    // ── [3] Hub: MESMO conteúdo, faixas diferentes ⇒ composições distintas (`SD-2`) ──
+    const c04Trav = c04Hub.travessia;
+    const c04TravMaus = c04Trav.filter((l) => !l.ok);
+    const c04TravDistintas = new Set(c04Trav.map((l) => l.obtido)).size;
+
+    check(
+      'TA-14 [3/11]: mesma família e MESMO conteúdo (9 itens de 220dp) produzem composições distintas nas três faixas — 1 · 2 · 3',
+      !c04Hub.ausente && c04Trav.length === 3 && c04TravMaus.length === 0 && c04TravDistintas === 3,
+      c04Hub.ausente
+        ? 'arquétipo Hub indisponível'
+        : `travessia: ${c04Trav.map((l) => `${l.faixa}→${l.obtido} (esperado ${l.esperado})`).join(' · ') || '(vazia)'}`,
+    );
+
+    // ── [4] Editorial: CAPACIDADE da faixa ≠ conteúdo trazido pelo chamador ──
+    const c04Ed = arnesArq.executarEditorial();
+    const c04EdMaus = c04Ed.linhas.filter((l) => !l.ok);
+
+    check(
+      'TA-14 [4/11]: `EditorialSurface` só abre região de apoio quando a faixa expandida E o chamador trazem conteúdo — a capacidade nunca inventa painel',
+      !c04Ed.ausente && c04Ed.linhas.length === 4 && c04EdMaus.length === 0,
+      c04Ed.ausente
+        ? `arquétipo Editorial indisponível: ${c04Ed.faltando.join('/') || '(arquivo ausente)'}`
+        : `cenários errados: ${c04EdMaus.map((m) => `${m.nome} → ${JSON.stringify(m.obtido)}`).join(' · ') || '(tabela vazia)'}`,
+    );
+
+    // ── [5] Imersiva: janela inteira nas três faixas, sem coluna e sem recorte ──
+    const c04Im = arnesArq.executarImersiva();
+    const c04ImMaus = c04Im.linhas.filter((l) => !l.ok);
+
+    check(
+      'TA-14 [5/11]: `ImmersiveSurface` entrega a janela inteira nas três faixas — zero coluna imposta, zero recorte da arte; só a expandida ganha CAPACIDADE acompanhante (`D10`, composição é `F9`)',
+      !c04Im.ausente && c04Im.linhas.length === 3 && c04ImMaus.length === 0,
+      c04Im.ausente
+        ? `arquétipo Imersivo indisponível: ${c04Im.faltando.join('/') || '(arquivo ausente)'}`
+        : `faixas erradas: ${c04ImMaus.map((m) => `${m.faixa} → ${JSON.stringify(m.obtido)}`).join(' · ') || '(tabela vazia)'}`,
+    );
+
+    // ── [6] Jogo: proporção preservada; o excedente é moldura, nunca distorção ──
+    const c04Jg = arnesArq.executarJogo();
+    const c04JgMaus = c04Jg.linhas.filter((l) => !l.ok);
+
+    check(
+      'TA-14 [6/11]: `GameSurface` preserva a proporção do tabuleiro nos 4 cenários — o excedente vira moldura simétrica e a área jogável nunca transborda nem distorce',
+      !c04Jg.ausente && c04Jg.linhas.length === 4 && c04JgMaus.length === 0,
+      c04Jg.ausente
+        ? `arquétipo de Jogo indisponível: ${c04Jg.faltando.join('/') || '(arquivo ausente)'}`
+        : `cenários errados: ${c04JgMaus.map((m) => `${m.nome} → ${JSON.stringify(m.obtido)}`).join(' · ') || '(tabela vazia)'}`,
+    );
+
+    /* ── [7] Cada família tem política PRÓPRIA ──
+     * Sem isto, os quatro arquivos poderiam ser cópias com nomes diferentes. A
+     * leitura é do FONTE, não da tabela do arnês: os nomes exportados na região
+     * pura precisam ser disjuntos entre as quatro. */
+    const c04Nomes = FAMILIAS.map((chave) => ({
+      chave,
+      nomes: [...arqPura(chave).matchAll(/export\s+(?:function|const)\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]),
+    }));
+    const c04Todos = c04Nomes.flatMap((f) => f.nomes);
+    const c04Repetidos = c04Todos.filter((n, i) => c04Todos.indexOf(n) !== i);
+    const c04SemPolitica = c04Nomes.filter((f) => f.nomes.length === 0).map((f) => f.chave);
+
+    check(
+      'TA-14 [7/11]: as quatro políticas são PRÓPRIAS — cada família exporta ao menos um contrato e nenhum nome se repete entre famílias',
+      c04SemPolitica.length === 0 && c04Repetidos.length === 0 && c04Todos.length >= 4,
+      `famílias sem política: ${c04SemPolitica.join(' · ') || '(nenhuma)'} · nomes compartilhados: ${c04Repetidos.join(' · ') || '(nenhum)'}`,
+    );
+
+    /* ── [8] Nenhuma regra universal de colunas ──
+     * Duas frentes. Textual: a expressão que a Conclusão de `TK-C-004` proíbe não
+     * aparece em nenhum dos quatro — nem em comentário, por isso a leitura é do
+     * fonte BRUTO. Estrutural: só o Hub conta colunas, e o teto dele deriva de
+     * `grid` (token), não de literal escrito no arquétipo. */
+    const c04ComFrase = FAMILIAS.filter((chave) => /duas\s+colunas/i.test(arqFonte(chave)));
+    const c04ComGrid = FAMILIAS.filter((chave) => /\bgrid\b/.test(arqCodigo(chave)));
+    const c04TetoHub = arqPura('hub');
+
+    check(
+      'TA-14 [8/11]: nenhuma regra universal de colunas — a expressão proibida não aparece nos quatro, só o Hub conta colunas e o teto dele vem de `grid` (token), não de literal',
+      c04ComFrase.length === 0
+      && c04ComGrid.length === 1 && c04ComGrid[0] === 'hub'
+      && /grid\s*\.\s*phone/.test(c04TetoHub) && /grid\s*\.\s*tablet\b/.test(c04TetoHub) && /grid\s*\.\s*tabletL\b/.test(c04TetoHub)
+      && !/(?:CEILING|teto|colunas?|columns?)\s*[:=]\s*[123]\b/i.test(c04TetoHub),
+      `famílias com a expressão proibida: ${c04ComFrase.join(' · ') || '(nenhuma)'} · famílias que consomem \`grid\`: ${c04ComGrid.join(' · ') || '(nenhuma)'}`,
+    );
+
+    /* ── [9] Zero breakpoint próprio e zero comparação livre de largura ──
+     * `G-RSP-1`/`G-RSP-3`/`G-RSP-7` já varrem `src/` inteiro; esta asserção é a
+     * constitutiva DOS ARQUÉTIPOS: eles são exatamente o lugar onde a tentação de
+     * reintroduzir um corte local é maior, porque é onde a composição é decidida.
+     * A faixa entra por `useWindowBand` — nunca por medida crua nem por literal. */
+    const ARQ_LITERAL = /(?:[A-Za-z_$][\w$]*\.)?\b\w*[Ww]idth\s*[<>]=?\s*\d{2,}\b|\b\d{2,}\s*[<>]=?\s*(?:[A-Za-z_$][\w$]*\.)?\w*[Ww]idth\b/;
+    const c04ComBreakpoint = FAMILIAS.filter((chave) => /\bbreakpoints\b/.test(arqCodigo(chave)));
+    const c04ComLiteral = FAMILIAS.filter((chave) => ARQ_LITERAL.test(arqCodigo(chave)));
+    const c04ComMedidaCrua = FAMILIAS.filter((chave) => /\bDimensions\s*\.\s*get\s*\(|\buseWindowDimensions\b/.test(arqCodigo(chave)));
+    const c04SemHook = FAMILIAS.filter((chave) => !/\buseWindowBand\b/.test(arqCodigo(chave)));
+
+    check(
+      'TA-14 [9/11]: os quatro arquétipos leem faixa só por `useWindowBand` — zero `breakpoints` próprio, zero comparação de largura contra literal, zero `Dimensions.get`/`useWindowDimensions` paralelo',
+      c04ComBreakpoint.length === 0 && c04ComLiteral.length === 0 && c04ComMedidaCrua.length === 0 && c04SemHook.length === 0,
+      `com \`breakpoints\`: ${c04ComBreakpoint.join(' · ') || '(nenhum)'} · com literal de largura: ${c04ComLiteral.join(' · ') || '(nenhum)'} · com medida crua: ${c04ComMedidaCrua.join(' · ') || '(nenhum)'} · sem \`useWindowBand\`: ${c04SemHook.join(' · ') || '(nenhum)'}`,
+    );
+
+    /* ── [10] A coluna editorial pertence a UMA família só ──
+     * `ImmersiveSurface` importando `ContentContainer` seria a obra sendo espremida
+     * numa coluna de leitura — o oposto exato da família. `GameSurface` idem: o
+     * tabuleiro não é texto. Só o Editorial compõe COM `ContentContainer`, e sem
+     * reimplementar `maxWidth`. */
+    const c04ComColuna = FAMILIAS.filter((chave) => /\bContentContainer\b|\bmaxContentWidth\b/.test(arqCodigo(chave)));
+    const c04EdReimplementa = /\bmaxContentWidth\b/.test(arqCodigo('editorial'));
+
+    check(
+      'TA-14 [10/11]: só `EditorialSurface` conhece a coluna de leitura — `ImmersiveSurface` e `GameSurface` não importam `ContentContainer` nem `maxContentWidth`, e o Editorial compõe COM `ContentContainer` sem reimplementar `maxWidth`',
+      c04ComColuna.length === 1 && c04ComColuna[0] === 'editorial' && !c04EdReimplementa,
+      `famílias que conhecem a coluna: ${c04ComColuna.join(' · ') || '(nenhuma)'}${c04EdReimplementa ? ' · o Editorial reimplementa `maxContentWidth` em vez de delegar' : ''}`,
+    );
+
+    /* ── [11] Oferecido, nunca imposto ──
+     * `TK-C-004` entrega contrato e NENHUM consumidor: a adoção Editorial é `C-C3`,
+     * a Hub é `C-C4`, a Imersiva é `C-C5` — e a de jogo é `F12A`, fase alheia. Um
+     * import de `GameSurface` nascendo aqui seria migração de tela por tabela. */
+    const ARQ_IMPORT = /(?:from|require\()\s*['"][^'"]*\/(?:HubSurface|EditorialSurface|ImmersiveSurface|GameSurface)['"]/;
+    const c04Consumidores = b1Arquivos.filter(
+      (rel) => !FAMILIAS.some((chave) => arnesArq.ARQUETIPOS[chave].arquivo === rel) && ARQ_IMPORT.test(codeOf(rel)),
+    );
+
+    check(
+      'TA-14 [11/11]: os quatro arquétipos são OFERECIDOS, nunca impostos — `TK-C-004` não tem consumidor em `src/` (adoção Editorial é `C-C3`, Hub é `C-C4`, Imersiva é `C-C5`, jogo é `F12A`)',
+      c04Consumidores.length === 0,
+      `consumidores prematuros: ${c04Consumidores.join(' · ') || '(nenhum)'}`,
+    );
+
+    // ── Mutantes mortos: sem isto, as onze asserções acima seriam decorativas ──
+    const c04Mutantes = [
+      {
+        nome: 'M-a · o Hub para de olhar o cabimento — cartão largo em faixa média voltaria a dar duas',
+        rodar: () => arnesArq.executarHub((s) => s.replace('Math.min(teto, cabimento, inventario)', 'Math.min(teto, inventario)')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-b · o Hub para de olhar o inventário — 2 itens na faixa expandida abririam três colunas',
+        rodar: () => arnesArq.executarHub((s) => s.replace('Math.min(teto, cabimento, inventario)', 'Math.min(teto, cabimento)')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-c · o teto da faixa expandida cai para o da média — "tablet é tablet", a regra universal de volta',
+        rodar: () => arnesArq.executarHub((s) => s.replace('[BANDS.EXPANDED]: grid.tabletL', '[BANDS.EXPANDED]: grid.tablet')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok) || r.travessia.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-d · o Editorial passa a inventar painel — capacidade da faixa virando conteúdo do nada',
+        rodar: () => arnesArq.executarEditorial((s) => s.replace('capacidade && hasSupport === true', 'capacidade')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-e · a capacidade de apoio vaza para a faixa média — `SD-3` reaberto por baixo',
+        rodar: () => arnesArq.executarEditorial((s) => s.replace('return band === BANDS.EXPANDED;', 'return band !== BANDS.COMPACT;')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-f · a Imersiva passa a impor coluna — a obra espremida em medida de leitura',
+        rodar: () => arnesArq.executarImersiva((s) => s.replace('imposesColumn: false', 'imposesColumn: true')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-g · o tabuleiro passa a esticar até a borda — distorção no lugar de moldura',
+        rodar: () => arnesArq.executarJogo((s) => s.replace('const width = cabeEmAltura ? availableWidth : availableHeight * aspectRatio;', 'const width = availableWidth;')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+    ];
+
+    for (const { nome, rodar, quebrou } of c04Mutantes) {
+      let matou = false;
+      try {
+        const r = rodar();
+        // Família ausente não conta como mutante morto: seria o portão comemorando
+        // o próprio buraco. `loadModule` também lança quando a âncora sumiu.
+        matou = !r.ausente && quebrou(r);
+      } catch {
+        matou = false;
+      }
+      check(
+        `TA-14 (mutante morto): ${nome}`,
+        matou,
+        'a mutação não quebrou nenhum cenário — o arquétipo perdeu a política e o portão não viu',
+      );
+    }
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
