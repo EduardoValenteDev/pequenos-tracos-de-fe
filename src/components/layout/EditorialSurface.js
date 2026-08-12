@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import ContentContainer, { contentColumnMaxWidth } from '../ui/ContentContainer';
+import { displayTypeSizes } from './displayType';
 import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
 
 /**
@@ -46,6 +47,13 @@ export function editorialSupportCapacity(band) {
  * Composição editorial: quem é dono da coluna, se a faixa comporta apoio, e se o
  * apoio de fato existe. `hasSupport` é o chamador dizendo que TEM conteúdo — só a
  * conjunção das duas coisas abre a região.
+ *
+ * [`TK-C-061`] `displayType` entra aqui, e não em `editorialLayout`, porque depende
+ * só da faixa — e daqui ele atravessa para o layout pela mesma difusão que já leva
+ * `columnOwner`. Esta família já era dona de uma decisão tipográfica (a medida da
+ * linha); o corpo do título é a outra metade da mesma pergunta. A conta vem de
+ * `displayType.js` — o auxiliar único que o Hub também consulta —, e é isso que
+ * impede a segunda primitiva: `P-30` foi exatamente duas respostas para uma decisão.
  */
 export function editorialComposition({ band, hasSupport = false }) {
   const capacidade = editorialSupportCapacity(band);
@@ -53,6 +61,7 @@ export function editorialComposition({ band, hasSupport = false }) {
     columnOwner: 'ContentContainer',
     supportCapacity: capacidade,
     support: capacidade && hasSupport === true,
+    displayType: displayTypeSizes(band),
   });
 }
 

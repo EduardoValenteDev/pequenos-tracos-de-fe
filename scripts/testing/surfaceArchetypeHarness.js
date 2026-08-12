@@ -53,16 +53,33 @@ const ARQUETIPOS = {
  * [`TK-C-005`] `contentColumnMaxWidth` é carregada do PRÓPRIO `ContentContainer`.
  * Se o arnês definisse a largura por conta própria, o teste passaria a provar a
  * cópia em vez do dono — que é justamente o defeito `P-30`.
+ *
+ * [`TK-C-061`] Pela mesma razão, `displayTypeSizes` é carregado do PRÓPRIO auxiliar,
+ * que por sua vez lê `displayScaleTablet` de `tokens.js`. A cadeia inteira é a real:
+ * um arnês que fixasse `1.10` aqui provaria o número do arnês, e o *token* poderia
+ * voltar a ser inerte sem ninguém notar.
  */
 function fontesCanonicas() {
   const { BANDS } = montarFaixa();
-  const { grid, maxContentWidth } = loadModule('src/theme/tokens.js', {}, ['grid', 'maxContentWidth']);
+  const { grid, maxContentWidth, font, fontSize, displayScaleTablet } = loadModule(
+    'src/theme/tokens.js',
+    {},
+    ['grid', 'maxContentWidth', 'font', 'fontSize', 'displayScaleTablet'],
+  );
   const { contentColumnMaxWidth } = loadModule(
     'src/components/ui/ContentContainer.js',
     { maxContentWidth, BANDS },
     ['contentColumnMaxWidth'],
   );
-  return { BANDS, grid, maxContentWidth, contentColumnMaxWidth };
+  const { displayTypeScale, displayTypeSizes } = loadModule(
+    'src/components/layout/displayType.js',
+    { BANDS, font, fontSize, displayScaleTablet },
+    ['displayTypeScale', 'displayTypeSizes'],
+  );
+  return {
+    BANDS, grid, maxContentWidth, contentColumnMaxWidth,
+    font, fontSize, displayScaleTablet, displayTypeScale, displayTypeSizes,
+  };
 }
 
 /**
@@ -73,14 +90,15 @@ function fontesCanonicas() {
 function carregarArquetipo(chave, mutate) {
   const meta = ARQUETIPOS[chave];
   if (!meta) throw new Error(`carregarArquetipo: família desconhecida "${chave}"`);
-  const { BANDS, grid, contentColumnMaxWidth } = fontesCanonicas();
-  const deps = { BANDS, grid, contentColumnMaxWidth };
+  const fontes = fontesCanonicas();
+  const { BANDS, grid, contentColumnMaxWidth, displayTypeSizes } = fontes;
+  const deps = { BANDS, grid, contentColumnMaxWidth, displayTypeSizes };
   try {
     const mod = loadModule(meta.arquivo, deps, meta.exports, mutate);
     const faltando = meta.exports.filter((n) => mod[n] === undefined);
-    return { ausente: false, faltando, mod, BANDS, grid, contentColumnMaxWidth };
+    return { ...fontes, ausente: false, faltando, mod };
   } catch (e) {
-    return { ausente: true, faltando: meta.exports.slice(), erro: e.message, BANDS, grid, contentColumnMaxWidth };
+    return { ...fontes, ausente: true, faltando: meta.exports.slice(), erro: e.message };
   }
 }
 

@@ -133,8 +133,15 @@ export const motion = {
 // segundo valor. O gate G-BP-1 no smoke trava esta regra.
 export const breakpoints = { phone: 0, tablet: 600, tabletL: 900 };            // dp
 export const maxContentWidth = { phone: '100%', tablet: 560, tabletL: 640 };   // conteúdo centralizado
-export const grid = { phone: 1, tablet: 2, tabletL: 3 };                        // colunas por breakpoint
-export const displayScaleTablet = 1.10;                                         // display +10% em ≥600
+// [Fase 6 · F6-SG-C · TK-C-015 + TK-C-061] `Q4` RESOLVIDA — os dois deixaram de ser
+// "declarados e inertes" (`P-82`/`P-148`) e ganharam consumidor NOMEADO, sem mudar de
+// nome nem de valor. `grid` é TETO de colunas, nunca ordem: o valor efetivo é
+// `min(grid[faixa], cabimento, inventário)` — ver `HubSurface.hubComposition`. E o
+// `+10%` vale nas faixas MÉDIA e EXPANDIDA (a forma de dois estados num sistema de três
+// faixas é intencional: a expandida ganha composição, não heróis maiores), aplicado
+// por um auxiliar ÚNICO que Hub e Editorial consultam. `G-RSP-2` trava as duas coisas.
+export const grid = { phone: 1, tablet: 2, tabletL: 3 };                        // colunas por faixa → HubSurface.js
+export const displayScaleTablet = 1.10;                                         // display +10% (média/expandida) → displayType.js
 
 // Agregador conveniente (uso opcional: `import tokens from '../theme/tokens'`).
 export const tokens = {

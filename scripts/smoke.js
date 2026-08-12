@@ -53335,6 +53335,119 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       g6Falhas.length === 0,
       g6Falhas.join(' · '),
     );
+
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('\n── Fase 6 · F6-SG-C · TK-C-061: portão G-RSP-2 (`Q4` passo 2) ──');
+
+    /* ── `G-RSP-2` [1/2] · `TA-8`: *token* declarado É *token* consumido ───────
+     * `P-82`/`P-148` têm um nome curto: declarado e inerte. `grid` e
+     * `displayScaleTablet` nasceram no A0.1 e atravessaram a Fase inteira sem um
+     * consumidor sequer — e um valor que ninguém lê não é decisão de design, é
+     * comentário com sintaxe. `TK-C-015` determinou por escrito que NENHUM dos
+     * dois é obsoleto (PLAN §17.2), e `TK-C-061` executa a consequência.
+     *
+     * "Consumidor" aqui não é "aparece no arquivo": é IMPORTAR o símbolo de
+     * `theme/tokens` E usá-lo em outro ponto. É por isso que a conta é de
+     * ocorrências ≥ 2 — a linha do import gasta a primeira. Um import decorativo,
+     * que traz o símbolo e não o usa, continua sendo inércia e continua vermelho.
+     *
+     * `codeOf` remove comentário, então nenhuma menção em prosa salva um *token*.
+     * É esta cláusula que `MT-8` viola ao remover o consumidor de `grid`. */
+    const R2_DONO = 'src/theme/tokens.js';
+    const R2_TOKENS = ['grid', 'displayScaleTablet'];
+    const r2Fonte = codeOf(R2_DONO);
+
+    const r2Consumidores = (simbolo) => {
+      const importa = new RegExp(`import\\s*\\{[^}]*\\b${simbolo}\\b[^}]*\\}\\s*from\\s*['"][^'"]*theme/tokens['"]`);
+      const ocorre = new RegExp(`\\b${simbolo}\\b`, 'g');
+      return b1Arquivos.filter((rel) => {
+        if (rel === R2_DONO) return false;
+        const src = codeOf(rel);
+        // Importa E usa: a linha do import é a primeira ocorrência; precisa haver outra.
+        return importa.test(src) && (src.match(ocorre) || []).length >= 2;
+      });
+    };
+
+    const r2Estado = R2_TOKENS.map((simbolo) => ({
+      simbolo,
+      declarado: new RegExp(`export const ${simbolo}\\b`).test(r2Fonte),
+      consumidores: r2Consumidores(simbolo),
+    }));
+    const r2Maus = r2Estado.filter((t) => !t.declarado || t.consumidores.length === 0);
+
+    check(
+      '`G-RSP-2` (`TK-C-061`) [1/2] — `TA-8`: `grid` e `displayScaleTablet` seguem declarados em `tokens.js` e cada um tem ao menos um consumidor REAL (importa de `theme/tokens` e usa) — nenhum *token* declarado e inerte (`P-82`/`P-148`)',
+      r2Maus.length === 0,
+      r2Maus
+        .map((t) => (t.declarado ? `\`${t.simbolo}\`: declarado e INERTE (zero consumidores)` : `\`${t.simbolo}\`: não declarado em ${R2_DONO}`))
+        .join(' · '),
+    );
+
+    /* ── `G-RSP-2` [2/2] · consumidor REAL, não decorativo ─────────────────────
+     * A cláusula [1/2] é estática e por isso tem um ponto cego: um consumidor que
+     * importe `displayScaleTablet` e o multiplique por zero passaria. Esta metade
+     * fecha isso pela CONSEQUÊNCIA — três coisas que só valem se o *token* estiver
+     * de fato governando o tipo de exibição:
+     *
+     * (A) a compacta usa a medida BASE de `tokens.fontSize`, sem escala;
+     * (B) média e expandida usam a MESMA escala, e ela é maior que a base — os dois
+     *     estados do PLAN §17.2, não três degraus e não zero;
+     * (C) Hub e Editorial devolvem resposta IDÊNTICA. Esta é a cláusula que prova
+     *     "um único auxiliar": duas contas separadas podem empatar hoje e divergir
+     *     no primeiro ajuste, e aí o app teria duas respostas para uma decisão só —
+     *     `P-30` de novo, em tipografia.
+     *
+     * Os valores esperados vêm de `tokens.js` pelo arnês, nunca escritos aqui: um
+     * portão que repetisse `1.10` na mão provaria o portão, não o *token*. */
+    const r2Hub = arnesArq.carregarArquetipo('hub');
+    const r2Ed = arnesArq.carregarArquetipo('editorial');
+    let r2Falhas = [];
+    if (r2Hub.ausente || r2Hub.faltando.length || r2Ed.ausente || r2Ed.faltando.length) {
+      r2Falhas = ['arquétipo Hub ou Editorial ausente/incompleto'];
+    } else {
+      const { BANDS, fontSize: tFont, font: tFamilia, displayScaleTablet: tEscala } = r2Hub;
+      const doHub = (band) => r2Hub.mod.hubComposition({
+        band, availableWidth: 1180, itemCount: 6, minItemWidth: 220, gap: 16,
+      }).displayType;
+      const doEd = (band) => r2Ed.mod.editorialComposition({ band, hasSupport: false }).displayType;
+      const umDecimal = (n) => Math.round(n * 10) / 10;
+
+      for (const faixa of ['COMPACT', 'MEDIUM', 'EXPANDED']) {
+        const band = BANDS[faixa];
+        const hub = doHub(band);
+        const ed = doEd(band);
+        const escala = faixa === 'COMPACT' ? 1 : tEscala;
+        const esperado = {
+          fontFamily: tFamilia.display,
+          scale: escala,
+          display: umDecimal(tFont.display * escala),
+          displayXL: umDecimal(tFont.displayXL * escala),
+        };
+        if (!hub || JSON.stringify(hub) !== JSON.stringify(esperado)) {
+          r2Falhas.push(`(A/B) Hub em ${faixa}: ${JSON.stringify(hub)} ≠ ${JSON.stringify(esperado)}`);
+        }
+        if (!ed || JSON.stringify(ed) !== JSON.stringify(hub)) {
+          r2Falhas.push(`(C) Editorial diverge do Hub em ${faixa}: ${JSON.stringify(ed)} ≠ ${JSON.stringify(hub)}`);
+        }
+      }
+
+      // A escala tem de MOVER o número: `1.0` no token passaria em tudo acima.
+      const base = doHub(BANDS.COMPACT);
+      const media = doHub(BANDS.MEDIUM);
+      const ampla = doHub(BANDS.EXPANDED);
+      if (!(media.display > base.display && media.displayXL > base.displayXL)) {
+        r2Falhas.push(`(B) a escala não move o tipo: compacta ${base.display} → média ${media.display}`);
+      }
+      if (media.display !== ampla.display) {
+        r2Falhas.push(`(B) terceiro degrau tipográfico na expandida: ${media.display} → ${ampla.display}`);
+      }
+    }
+
+    check(
+      '`G-RSP-2` (`TK-C-061`) [2/2]: o consumidor de `displayScaleTablet` é REAL — a compacta usa a medida base, média e expandida usam a MESMA escala maior (dois estados, PLAN §17.2), e Hub e Editorial respondem idêntico porque o auxiliar é um só',
+      r2Falhas.length === 0,
+      r2Falhas.join(' · '),
+    );
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────

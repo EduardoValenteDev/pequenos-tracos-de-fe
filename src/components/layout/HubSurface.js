@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { grid } from '../../theme/tokens';
+import { displayTypeSizes } from './displayType';
 import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
 
 /**
@@ -87,6 +88,12 @@ export function hubBalanced(columns, itemCount) {
  * declarado: se a faixa fosse a regra universal, ela responderia por tudo. A ordem
  * é a do mais específico para o mais genérico — inventário, largura, faixa —, de
  * modo que a razão relatada seja sempre a mais próxima do conteúdo.
+ *
+ * [`TK-C-061`] `displayType` entra na composição publicada em vez de virar um
+ * contrato à parte: o título de seção de um hub é decisão da MESMA pergunta que as
+ * colunas — "como esta superfície se compõe nesta faixa". A conta não é feita aqui;
+ * vem de `displayType.js`, o auxiliar único que o Editorial também consulta. Quem
+ * renderiza o título continua sendo a tela.
  */
 export function hubComposition({ band, availableWidth, itemCount, minItemWidth, gap = 0 }) {
   const teto = hubColumnCeiling(band);
@@ -113,6 +120,7 @@ export function hubComposition({ band, availableWidth, itemCount, minItemWidth, 
     fit: cabimento,
     inventory: inventario,
     limitedBy,
+    displayType: displayTypeSizes(band),
   });
 }
 
