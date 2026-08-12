@@ -1757,3 +1757,566 @@ em `377 B` / `4ddc9341…` e o comparador deve devolver `FILES_CHANGED=0`.
 | ⛔ | **Nenhuma** investigação ou normalização do `ACHADO-V1` |
 | ⛔ | **Nenhuma** exclusão, renomeação ou sobrescrita de artefato |
 | ⛔ | **Nenhum** `push`, `merge` ou alteração de código |
+
+---
+
+## 18. `EMENDA 6` — desambiguação normativa pré-`CASO 15`
+
+> **Rodada 100% documental.** Nenhum `ADB` executado, nenhuma interação com o tablet, nenhum
+> `Metro`, nenhum `raw3.log`, nenhum `CK-RESUME-01.tar`, nenhum `R-2''`, nenhum baseline, nenhum
+> `CASO 15`, nenhuma investigação de `ACHADO-V1`, nenhuma alteração de código executável.
+
+### 18.0 Natureza, vocabulário normativo e alcance
+
+Esta emenda **desambigua** o corpus antes do portão do `CASO 15`. Ela não reabre nenhum veredito
+já lavrado, não concede nenhum `PASS` novo e não encerra a `R2 · Sessão 2` — que segue **pausada**.
+
+Cada item abaixo é marcado por natureza, e as naturezas **não se convertem umas nas outras**:
+
+| Marca | Significado |
+|---|---|
+| **[FATO]** | Observação verificável no corpus, no disco ou no código do `HEAD`, com origem citada |
+| **[DECISÃO HUMANA]** | Ato ou declaração do fundador, com o alcance exato do que foi declarado |
+| **[INFERÊNCIA]** | Conclusão derivada de fatos, explicitamente rotulada como derivada |
+| **[NORMA NOVA]** | Regra vinculante criada por esta emenda |
+
+Relações normativas usadas por esta emenda — declaradas, nunca implícitas:
+
+| Relação | Efeito |
+|---|---|
+| **`SUPERSEDE`** | A regra nova substitui a anterior **no escopo declarado**. Fora desse escopo a anterior continua íntegra. |
+| **`RESTRINGE`** | A regra anterior permanece válida, porém com alcance **reduzido** ao escopo declarado. |
+| **`CLARIFICA`** | A regra anterior permanece válida e **inalterada**; a emenda apenas fixa a leitura correta, sem ampliar nem reduzir. |
+
+---
+
+### 18.1 **`V-01`** — conflito `PS3`: §7 e §11-5 × §17.9-`C`
+
+**[FATO]** §7 (l. 358): *"🔴 `PS3` não é fechado, não é limpo (`logcat -c`) e não é reiniciado no meio
+da sessão. Uma captura fragmentada não correlaciona. Se `PS3` cair ⇒ **`STOP`** e reinício do Bloco 0."*
+
+**[FATO]** §11, condição de `STOP` **5** (l. 643): *"`PS3` interrompido, fechado ou limpo **em qualquer momento**"*.
+
+**[FATO]** §17.9-`C` (l. 1736): *"Na retomada, **não reutilizar `raw2.log`**. Abrir **canal novo** (ex.:
+`raw3.log`), com `raw.log` **e** `raw2.log` preservados integralmente."*
+
+**[FATO]** Na retomada, `PS1`, `PS2` e `PS3` foram encontrados **todos mortos** (nenhum processo
+`node` ou `adb` vivo; portas 8081, 8082 e 8083 livres).
+
+**[FATO]** Valores provados dos dois canais fechados, canonizados aqui para que a fronteira seja
+verificável por terceiros:
+
+| Canal | `Length` | `SHA256` | Última escrita | Codificação |
+|---|---|---|---|---|
+| `raw.log` | `87632782` | `667DD63F6D628AE233A8D0C168FB2762682B54A8E3D1F5302C6A66AD9002D6FF` | `11/08/2026 20:29:13` | **`UTF-16LE`** (BOM `FF FE`) |
+| `raw2.log` | `41050931` | `22A0A08C77DB91A3DAACDAC2832819228D69287781DE9B9CE88599E086579348` | `11/08/2026 22:45:48` | sem BOM, fiel a byte |
+
+**[INFERÊNCIA]** Lida ao pé da letra, a condição §11-5 (*"em qualquer momento"*) transformaria a
+própria retomada exigida pela §17.9-`C` em `STOP` — o canal só pode ser **novo** porque o anterior
+**terminou**. As duas regras respondem a perguntas diferentes: §7 e §11-5 protegem a **correlação
+dentro de uma janela probatória**; §17.9-`C` governa a **fronteira entre janelas**.
+
+**[NORMA NOVA]** Relação normativa explícita:
+
+- §17.9-`C` **`SUPERSEDE`** §7 (l. 358) e §11-5 (l. 643) **exclusivamente na fronteira entre janelas
+  probatórias** — isto é, no encerramento de uma pausa formalmente registrada.
+- §7 (l. 358) e §11-5 **`RESTRINGE`**-se a **continuidade intrajanela**. A expressão *"no meio da
+  sessão"* passa a significar **dentro de uma mesma janela probatória**; a fronteira entre janelas
+  **não** é "meio da sessão".
+
+**[NORMA NOVA]** Permanecem `STOP`, sem exceção e sem leitura nova:
+
+1. `PS3` fechado, interrompido ou limpo **dentro** de uma janela probatória;
+2. `logcat -c` **em qualquer momento** — nenhuma cláusula desta emenda o autoriza;
+3. reutilizar, truncar, editar, renomear ou reaproveitar `raw.log` ou `raw2.log`;
+4. abrir a nova janela **sem** que os dois canais anteriores estejam íntegros nos valores da tabela acima.
+
+---
+
+### 18.2 **`V-02`** — extinção do dêitico "hoje"
+
+**[FATO]** §17.9-`G` (l. 1740): *"⛔ **Nenhum caso seguinte é iniciado fisicamente hoje.**"*
+
+**[FATO]** A `EMENDA 5` foi lavrada na sessão de **`11/08/2026`** — data ancorada nos carimbos
+verificáveis da própria janela (`TAR-1B-C1-POST.tar` em `11/08/2026 22:21:38`; `raw2.log` em
+`11/08/2026 22:45:48`). *"Hoje"*, ali, significava **`11/08/2026`**.
+
+**[INFERÊNCIA]** Um dêitico perde referente no instante em que o documento é lido em outra data. Em
+`12/08/2026`, *"hoje"* já autorizaria, por leitura literal, exatamente o que a `EMENDA 5` proibia.
+
+**[NORMA NOVA] — regra temporal absoluta.** Nenhum termo dêitico (*"hoje"*, *"ontem"*, *"agora"*,
+*"amanhã"*, *"nesta data"*, *"mais tarde"*) tem **força normativa** neste corpus. Toda condição
+temporal vinculante deve ser ancorada em **evento verificável** ou em **data absoluta**.
+
+**[NORMA NOVA]** §17.9-`G` é **`SUPERSEDE`**-ida pela formulação ancorada em evento:
+
+> ⛔ **Nenhum caso seguinte é iniciado fisicamente enquanto não estiverem satisfeitas, em ordem, as
+> duas condições:** (1) o portão de retomada adjudicado com **`RESUME_DELTA_RESULT=PASS`** (§18.5); e
+> (2) **autorização humana explícita** para abrir o portão do `CASO 15`. A passagem do tempo, por si,
+> **não** satisfaz nenhuma das duas.
+
+---
+
+### 18.3 **`V-03`** — `S-33` inexistente · `CASO 1` em fundamento positivo · discriminador por superfície
+
+**[FATO]** Confirmado independentemente por varredura do repositório: **`S-33` não possui definição
+versionada em lugar nenhum**. A sequência real de regras é `S-30` (l. 1400), `S-31` (l. 1401),
+`S-32` (l. 1402) e `S-34` (l. 1416, 1528, 1543, 1596, 1735). Entre `S-32` e `S-34` há **lacuna de
+numeração**, não regra perdida.
+
+**[NORMA NOVA]** `S-33` é declarada **lacuna permanente**. Não pode ser invocada, citada como
+fundamento, nem "reconstruída" por analogia. Toda regra futura recebe número **novo, ≥ `S-35`** —
+`S-33` fica **vaga em definitivo**, para que nenhum leitor futuro suponha uma regra que nunca existiu.
+
+**[FATO]** O `PASS` do `CASO 1` **não** dependia de `S-33`. Ele se sustenta em fundamento **positivo**
+próprio, registrado na `EMENDA 5`: `MAX_ROWID` `67 → 67`; **zero** *rowids* consumidos (§17.4);
+`W-2` (`@ptf_creation_colorir_invite_shown_v1`) ocorrido **antes** do baseline, no *rowid* 67; e `W-1`
+(`@ptf_entitlement_v1`) **ausente** (§17.5). O `PASS` do `CASO 1` permanece **íntegro e não reaberto**.
+
+#### 18.3.1 Discriminador por superfície — pré-registrado
+
+**[NORMA NOVA]** Duas superfícies distintas passam a ser julgadas por critérios distintos, e o
+resultado de uma **não** é evidência sobre a outra:
+
+| Superfície | Julgamento |
+|---|---|
+| **Cenas `5..10`** (imagens não carregadas na `FASE A`) | **`ACHADO-V1`** — permanece **congelado e não investigado**. Qualquer falha de carga de imagem nessa superfície é atribuída ao `ACHADO-V1` e **não julga** o `CASO 15`. |
+| **Superfície do Ateliê** (`Criar livre`) | Falha de **abrir**, **ler** ou **enquadrar** o *payload* legado é julgada **pelo `CASO 15`**, e nunca pelo `ACHADO-V1`. |
+
+**[NORMA NOVA] — proibição de salto causal.** É **vedado** afirmar relação causal entre as duas
+superfícies. Coocorrência **não** é causação. Nenhum desfecho de uma superfície pode ser usado como
+prova, indício ou atenuante a respeito da outra.
+
+**[FATO — discriminador observável no código do `HEAD`]** A superfície do Ateliê **relata o próprio
+ramo**, o que torna o discriminador acima verificável e não interpretativo:
+
+- `src/components/AtelierCanvas.js:694` — `STATE_BRANCH:` é emitido **antes de qualquer decisão**,
+  inclusive quando o ramo é terminal;
+- `src/components/AtelierCanvas.js:747` — `STATE_LOADED` é emitido **somente** no ramo de sucesso
+  (e em `:697`, no ramo `ausente`);
+- `src/components/AtelierCanvas.js:707` e `:756` — os ramos terminais emitem `LOAD_CORRUPTED` ou
+  `LOAD_INCOMPATIBLE` e **nunca** emitem `STATE_LOADED`;
+- `src/components/AtelierCanvas.js:739-745` — `STATE_AXES:` acompanha o ramo de sucesso.
+
+---
+
+### 18.4 **`V-04`** — reavaliação da §17.10 (`WebViewChromiumPrefs.xml`)
+
+**[FATO]** §17.10 (l. 1744-1748), verbatim: *"O cache de feature flags do `Chromium` **já está
+populado** neste processo. Portanto, nas próximas aberturas de `WebView` **sem cold start**,
+`shared_prefs/WebViewChromiumPrefs.xml` deve permanecer em `377 B` / `4ddc9341…` e o comparador deve
+devolver `FILES_CHANGED=0`. > 🔴 **Se voltar a mudar, a explicação da §17.3 está ERRADA e vira `STOP`.**"*
+
+**[FATO]** Valor de referência confirmado em `TAR1BC1POST-EXTRACTED`:
+`shared_prefs/WebViewChromiumPrefs.xml` = `377 B`, `SHA256 = 4DDC93412DF13B854DBBFCD8582A2B7E71CEDF5EFA1EE1A0519CFC679DB37282`.
+
+**[INFERÊNCIA]** O arquivo **inalterado** é compatível com pelo menos três mundos distintos:
+(a) mesmo processo, cache quente — a hipótese da §17.3; (b) *cold start* que simplesmente **não**
+reescreveu o arquivo; (c) **nenhuma** `WebView` aberta na janela nova. Os três produzem
+`FILES_CHANGED=0` para esse caminho.
+
+**[NORMA NOVA]** `shared_prefs/WebViewChromiumPrefs.xml` em `377 B` / `4DDC9341…` **nunca é, sozinho,
+prova de continuidade de processo.** A identidade do processo deve ser estabelecida por evidência
+**independente e anterior** (§18.6, passo 7). Esta norma **`CLARIFICA`** a §17.10 sem revogá-la.
+
+**[NORMA NOVA] — três desfechos inequívocos.** A §17.10 passa a ser adjudicada **exclusivamente** por
+um destes três, e por nenhum outro:
+
+| Desfecho | Antecedente exigido | Observação | Veredito |
+|---|---|---|---|
+| **`D1` — aplicável e satisfeita** | Identidade de processo provada **contínua** (sem *cold start*) **E** ao menos uma `WebView` aberta na janela nova | `377 B` / `4DDC9341…` mantidos | A explicação da §17.3 **sobrevive a este teste** (não é `PASS` de caso algum) |
+| **`D2` — aplicável e falsificada** | Idem `D1` | O arquivo **mudou** | A explicação da §17.3 está **ERRADA** ⇒ **`STOP`** (como a §17.10 já determina) |
+| **`D3` — NÃO aplicável** | Identidade de processo provada **descontínua** (*cold start*, `PID` novo, morte de processo) **OU** nenhuma `WebView` aberta na janela | Qualquer | A previsão **não foi testada**: nem confirmada, nem falsificada |
+
+**[NORMA NOVA]** É **proibido** registrar `D3` como `PASS` ou como `STOP` da §17.10 — `D3` é ausência
+de teste, não resultado de teste. E é **proibido** concluir `D1` sem antes provar o antecedente: a
+ordem (identidade de processo **primeiro**) é vinculante.
+
+---
+
+### 18.5 **`V-05`** — `ALLOWLIST-RESUME` e o token exclusivo `RESUME_DELTA_RESULT`
+
+#### 18.5.1 Por que um token novo é obrigatório
+
+**[FATO]** `compare_state.py` (selado em `G-03`, `SHA256 = A7649DD2B92C7877ADAF12635E032DBC559F4074558B572CA1EDF8A9821EFDFD`)
+**não possui mecanismo de allowlist**. A única tolerância embutida é `databases/RKStorage-journal`,
+excluída já no inventário (l. 7 e l. 16-17). O veredito `PASS` exige `limpo` (l. 98-99), isto é, os
+**sete contadores em zero**; qualquer diferença cai em `ENTRY_STATE_RESULT=STOP` (l. 108).
+
+**[INFERÊNCIA]** Logo, um delta de retomada **legítimo e saudável** — por exemplo, a única mutação
+prevista pela §17.9-`B` — produz `ENTRY_STATE_RESULT=STOP` **por construção**. Reaproveitar esse token
+para adjudicar a retomada obrigaria a uma de duas fraudes: declarar `PASS` contra a saída literal do
+comparador, ou afrouxar o comparador para "fazer passar".
+
+**[NORMA NOVA]** `compare_state.py` **não pode ser alterado** — o selo `G-03` é vinculante.
+`ENTRY_STATE_RESULT` responde **"os dois estados são idênticos?"** e mantém exatamente esse
+significado, sem reinterpretação.
+
+**[NORMA NOVA]** Cria-se o token **exclusivo**:
+
+```
+RESUME_DELTA_RESULT = PASS | STOP
+```
+
+- É **adjudicação**, calculada **fora** do comparador, sobre a **saída textual** dele, contra a
+  `ALLOWLIST-RESUME` de §18.5.2.
+- **Nunca** substitui, sobrescreve, renomeia ou reinterpreta `ENTRY_STATE_RESULT`.
+- Os **dois** tokens são reportados **lado a lado**, sempre. Relatar apenas um é `STOP`.
+- `RESUME_DELTA_RESULT` **só** existe para o par `TAR-1B-C1-POST × CK-RESUME-01`. Não é reutilizável
+  em nenhuma outra comparação.
+
+#### 18.5.2 `ALLOWLIST-RESUME` — lista **fechada**
+
+Aplicável **exclusivamente** ao par `TAR-1B-C1-POST × CK-RESUME-01`.
+
+| # | Diferença tolerada | Antecedente exigido | Invariante que deve valer junto | `STOP` |
+|---|---|---|---|---|
+| **`AR-1`** | `databases/RKStorage-journal` | Nenhum — já excluído no inventário (l. 7) | Não aparece em contador algum | — |
+| **`AR-2`** | `KEY_ADDED=@ptf_entitlement_v1` | O app retornou a `active` **E** `fetchEntitlement()` devolveu objeto não-nulo (§18.10) | `KEYS_ADDED=1` · `KEYS_CHANGED=0` · `KEYS_DELETED=0` · `KEYS_ROWID_MOVED=0` | Mais de uma chave adicionada; qualquer chave alterada, apagada ou com *rowid* movido |
+| **`AR-3`** | `FILE_CHANGED=databases/RKStorage` | **Exclusivamente** como consequência de `AR-2` | `FILES_CHANGED=1`, e o único caminho listado é `databases/RKStorage` · `FILES_ADDED=0` · `FILES_DELETED=0` | `FILES_CHANGED>1`; qualquer outro caminho em `FILE_CHANGED` |
+
+**[NORMA NOVA]** A ausência de `AR-2` **não** é `STOP` — ver §18.10: `W-1` é **esperável, nunca
+presumido**. `AR-3` só é tolerado **acompanhado** de `AR-2`; `databases/RKStorage` alterado **sem**
+chave alguma adicionada é `STOP` (mutação não atribuída).
+
+#### 18.5.3 Não tolerados — `STOP` duro, com motivo declarado
+
+| Caminho / chave | Por que **nunca** é tolerado |
+|---|---|
+| `shared_prefs/WebViewChromiumPrefs.xml` | É a **previsão falsificável** da §17.10. Mudança aqui é adjudicada por §18.4, jamais tolerada. |
+| `files/DevLauncherApp-BridgelessReactNativeDevBundle.js` | Mudança implica *refetch* de *bundle* do `Metro`. O `Metro` está morto e **não** será iniciado nesta janela. |
+| `shared_prefs/expo.modules.devlauncher.recentyopenedapps.xml` | Mudança implica abertura pelo *dev launcher* — indício direto de *cold start*. |
+| `files/profileInstalled` | **Sem antecedente sustentado no corpus.** Não há base para tolerar, e esta emenda não inventa uma. |
+| `files/ptf_blobs/**` | Mutação de obra ou desenho **durante uma pausa** é, por si só, evento probatório. |
+| `@ptf_criar_livre_orientation_seen_v1:star` | Pertence ao **`CASO 15`** (`ALLOWLIST-C15`, §18.8). Movimento **antes** do `CASO 15` significa Ateliê aberto fora do roteiro. |
+| `ptf_atelier_arts_v1_*` | Acervo de obras: nenhuma mutação é tolerável fora de um caso declarado. |
+
+**[NORMA NOVA] — a allowlist é FECHADA.** O que **não** está nomeado em §18.5.2 é `STOP` **por
+omissão**. É **proibido** tolerar item novo por analogia, semelhança, plausibilidade ou "mesma
+natureza". Ampliar a allowlist exige **emenda própria**, lavrada **antes** da observação — nunca
+depois dela.
+
+#### 18.5.4 `STOP`s duros do portão de retomada
+
+1. `ESCOPO_OK=NAO` ⇒ `STOP_ESCOPO_DIVERGENTE`. **Recusa de comparar**, não reprovação de estado
+   (§5.7): recapturar com o comando canônico único, **jamais** adjudicar sobre escopos divergentes.
+2. `ERRO=RKStorage ausente em um dos lados`.
+3. `TAR` truncado ou falha de `run-as` (§11-6).
+4. Qualquer diferença fora de `AR-1`, `AR-2` e `AR-3`.
+5. `AR-3` presente sem `AR-2`.
+6. Relatar `RESUME_DELTA_RESULT` sem relatar `ENTRY_STATE_RESULT` ao lado.
+
+---
+
+### 18.6 **`BLOCO B`** — ordem causal pré-registrada da retomada
+
+**[NORMA NOVA]** A retomada segue esta ordem. Cada passo é **condição do seguinte**; nenhum pode ser
+antecipado, fundido ou omitido.
+
+| # | Passo | Guarda vinculante |
+|---|---|---|
+| 1 | **`G-04`** | Exatamente **um** aparelho, serial **`RX2XC003LTJ`**, estado `device`. Zero, múltiplos, `unauthorized` ou serial divergente ⇒ `STOP`. |
+| 2 | **Serial explícito** | **Toda** invocação subsequente usa `adb -s RX2XC003LTJ …`. **[NORMA NOVA]** Um segundo aparelho surgindo no meio da janela redirecionaria comandos em silêncio — o serial explícito remove essa classe inteira de erro. |
+| 3 | **Guarda de pré-existência** | Provar que `raw3.log` e `acervo\CK-RESUME-01.tar` **não existem**, pelo padrão `HARD STOP` da §15.1: `$ErrorActionPreference='Stop'`, bloco `& { … }`, `throw` **antes** de qualquer redirecionamento. Se existir ⇒ `STOP`, sem sobrescrever. |
+| 4 | **Canal novo sem `logcat -c`** | Abrir `raw3.log` **sem** limpar o *buffer* (§18.1). `raw.log` e `raw2.log` preservados nos valores da tabela de §18.1. |
+| 5 | **Forma de criação fiel a byte** | Ver §18.6.1. |
+| 6 | **Novo `offset` de relógio (`G-05`)** | O `OFFSET_MS=+10799` pertence à janela **encerrada** e **não** é reaproveitável. Impossibilidade de medir ⇒ `STOP` (§11-16). |
+| 7 | **Identidade de processo** | Estabelecida **antes** de qualquer leitura da §17.10 (§18.4). Sem ela, o desfecho é `D3` — e `D3` **não** é resultado. |
+| 8 | **Separação retrospectivo × ao vivo** | Ver §18.6.2. |
+| 9 | **`CK-RESUME-01.tar`** | Capturado **antes** de qualquer navegação rumo ao caso seguinte. Navegar antes contamina o próprio estado que se pretende medir. |
+| 10 | **Comparação** | **Exclusivamente** `TAR-1B-C1-POST × CK-RESUME-01` (§17.9-`A` e `D`). Nenhum outro par. |
+| 11 | **Adjudicação integral** | `RESUME_DELTA_RESULT` lavrado **antes** de qualquer passo do baseline do `CASO 15`. Toda mutação da pausa **atribuída nominalmente**. |
+
+#### 18.6.1 Forma de criação do canal — o problema do `UTF-16LE`
+
+**[FATO]** `raw.log` está em **`UTF-16LE`** (BOM `FF FE`): a razão entre ele e sua conversão
+`UTF-8` (`raw-utf8-snapshot.txt`, `36479751 B`, `UTF-8 com BOM`) é **`2.4022`**. `raw2.log`, ao
+contrário, **não tem BOM** e é fiel a byte.
+
+**[INFERÊNCIA]** O canal do `raw.log` foi criado por uma rota do `PowerShell` que **reencoda** a saída
+(`Out-File`/redirecionamento nativo do `PowerShell 5.1`), inflando o arquivo e afastando os bytes do
+que o `logcat` realmente emitiu.
+
+**[NORMA NOVA]** O canal novo deve ser criado por rota **fiel a byte**, a mesma já canônica no corpus
+para saída binária — redirecionamento por `cmd.exe`:
+
+```
+cmd.exe /c "adb -s RX2XC003LTJ logcat -v threadtime > C:\tmp\ptf_evidencias\R2S2\raw3.log"
+```
+
+**[NORMA NOVA]** Ficam **proibidos** para este canal: `Out-File` (com ou sem `-Encoding utf8`),
+redirecionamento `>` do próprio `PowerShell`, e **`Start-Process`** (já vedado em
+`06_PROTOCOLO_VALIDACAO_FISICA_F6_SG_A.md`, l. 321-330). Antes de qualquer correlação, registrar os
+**quatro primeiros bytes** de `raw3.log`: presença de BOM ⇒ o canal foi criado pela rota errada.
+
+#### 18.6.2 Retrospectivo × ao vivo
+
+**[FATO]** §16.8: os primeiros ~`34,5 MB` de `raw2.log` são o **despejo retrospectivo do
+*ring buffer*** — não captura ao vivo.
+
+**[NORMA NOVA]** O segmento de abertura de `raw3.log` **deve ser declarado retrospectivo** antes de
+qualquer uso. A **fronteira** entre o despejo retrospectivo e a captura ao vivo deve ser marcada
+explicitamente. **Nenhuma** afirmação de temporalidade, ordem ou causalidade pode se apoiar no
+segmento retrospectivo sem essa marcação. Isso vale, em particular, para o evento de acordar a tela
+ao conectar o cabo: ele tende a ser **recuperável** no segmento de abertura — e, se recuperado ali,
+é evidência **retrospectiva**, jamais "ao vivo".
+
+#### 18.6.3 Proteção das árvores `*-EXTRACTED`
+
+**[FATO]** Árvores de extração existentes: `PRE-EXTRACTED`, `TAR1-EXTRACTED`, `CKC1-EXTRACTED`,
+`CKSC-EXTRACTED`, `TAR1BC1-EXTRACTED`, `TAR1BC1POST-EXTRACTED` e `REF-POST03`.
+
+**[NORMA NOVA]** **Nenhuma** árvore `*-EXTRACTED` pode ser reextraída por cima, apagada, renomeada,
+mesclada ou "atualizada". Cada árvore **é evidência**, não área de trabalho.
+
+**[NORMA NOVA]** `CK-RESUME-01.tar` extrai para árvore **nova e própria**: **`CKRESUME01-EXTRACTED`**.
+
+**[NORMA NOVA] — proveniência verificável.** Toda árvore de extração deve ser rastreável ao `TAR`
+selado que a originou: registrar o `SHA256` do `TAR` **antes** da extração e os `SHA256` por arquivo
+**depois**. Árvore sem proveniência registrada **não** é insumo admissível de comparação.
+
+---
+
+### 18.7 **`BLOCO C`** — classificação correta do `TAR-1B-C1-POST`
+
+**[FATO]** Carimbos reais do acervo:
+
+| Artefato | `Length` | Última escrita |
+|---|---|---|
+| `TAR-1.tar` | `17139712` | `11/08/2026 19:03:42` |
+| `CK-C1-ROUTE-BLOCKED.tar` | `17139712` | `11/08/2026 19:29:23` |
+| `CK-STORY-COMPLETE.tar` | `17139712` | `11/08/2026 21:07:33` |
+| `TAR-1B-C1.tar` | `17139712` | `11/08/2026 22:16:59` |
+| **`TAR-1B-C1-POST.tar`** | `17139712` | **`11/08/2026 22:21:38`** |
+
+**[FATO]** `raw2.log` teve última escrita em **`11/08/2026 22:45:48`**.
+
+**[INFERÊNCIA]** Houve, portanto, **no mínimo 24 minutos e 10 segundos** de atividade operacional
+**registrada em log após** o último *snapshot* de armazenamento da janela.
+
+**[NORMA NOVA] — correção classificatória.** `TAR-1B-C1-POST` é o **último *snapshot* de
+armazenamento da janela probatória do `CASO 1`** — **não** o último estado físico absoluto do
+aparelho. A expressão *"estado probatório final"* da §17.9-`A` deve ser lida **nesse sentido
+restrito**. Esta norma **`CLARIFICA`** a §17.9-`A`; não a revoga e não altera o marco de comparação,
+que continua sendo `TAR-1B-C1-POST`.
+
+**[FATO — NÃO DETERMINADO]** O momento exato do **`Voltar`** do `CASO 1` **não está determinado**
+pelos artefatos consultados. **Nenhum carimbo é fabricado, estimado ou interpolado para preencher
+essa lacuna.** Determiná-lo exigiria mineração do `raw2.log`, que produziria afirmação probatória
+nova — fora do alcance de uma rodada documental.
+
+**[EXPLÍCITO]** Nada nesta subseção reabre o `PASS` do `CASO 1`. O `PASS` se apoia nas propriedades
+**da janela** (§17.4 e §17.5: `MAX_ROWID` `67 → 67`, zero *rowids* consumidos, `W-2` anterior ao
+baseline, `W-1` ausente) — e não em qualquer afirmação sobre o último estado físico absoluto.
+
+---
+
+### 18.8 **`BLOCO D`** — `L-1`, `L-2`, `L-3` confirmados no código do `HEAD`
+
+Confirmações **independentes**, feitas por leitura direta do código em `HEAD =
+58080b48835fefea0538cb130ecc5c2e28e47209`. Nenhuma conclusão foi transcrita de auditoria externa.
+
+#### 18.8.1 `L-1` — rota `Início → Brincar → Minhas artes → ✏️ Editar` — **CONFIRMADA**
+
+| Elo | Evidência |
+|---|---|
+| Aba `Início` | `src/navigation/AppNavigator.js:139` — `TAB_DEFS[0]`, `HomeScreen` |
+| Aba visível **`Brincar`** | `src/navigation/AppNavigator.js:146` — `{ name: 'Ateliê', label: 'Brincar', component: BrincarScreen }` |
+| **`Minhas artes`** | `src/screens/BrincarScreen.js:333` (rótulo) e `:318` — `navigation.navigate(ROUTES.ATELIER_GALLERY)` |
+| Registro da rota | `src/navigation/AppNavigator.js:559-563` — `Stack.Screen name="AtelierGallery"` |
+| **`✏️ Editar`** | `src/screens/AtelierGalleryScreen.js:161` (cartão) e `:234` (visualizador) → `handleContinue(art)` |
+| Destino | `src/screens/AtelierGalleryScreen.js:55` — `navigation.navigate('AtelierCanvas', { artId: art.id })` |
+
+**[FATO — atenção operacional]** A **identidade de rota** da aba é `'Ateliê'`; o **rótulo visível** é
+`'Brincar'`. São coisas distintas e o corpus deve nomear a que for relevante em cada contexto.
+
+**[FATO]** Existem **duas** affordances `✏️ Editar` (cartão da grade, l. 161; e visualizador ampliado,
+l. 234). Ambas convergem em `handleContinue` e produzem o **mesmo** `routeArtId`. **[NORMA NOVA]** O
+roteiro do `CASO 15` deve **declarar qual das duas** foi usada: são equivalentes em destino, **não**
+em gesto.
+
+**[FATO]** **Não há gate de *paywall* dentro de `AtelierGalleryScreen`** — busca por
+`premium|Paywall|accessControl|isPremium` no arquivo retorna **zero** ocorrências. O texto premium do
+cartão em `BrincarScreen` (l. 335-337) é **rótulo**, não portão: `:318` navega incondicionalmente.
+
+#### 18.8.2 `L-2` — reescrita idempotente — **CONFIRMADA**, e mais forte que a hipótese
+
+Cadeia causal completa, elo a elo:
+
+| # | Elo | Arquivo:linha |
+|---|---|---|
+| 1 | `onCanvasReady` → se há `routeArtId`, `getArt(routeArtId)` e, havendo `art.stateJson`, `canvasRef.current?.loadState(...)` | `src/screens/AtelierCanvasScreen.js:200-209` |
+| 2 | Ponte injeta `window.loadState(...)` na `WebView` | `src/components/AtelierCanvas.js:870-871` |
+| 3 | Obra legível e **não vazia** popula `strokes`/`stamps` | `src/components/AtelierCanvas.js:724-725` |
+| 4 | Ramo de sucesso: `resetHist(); render(); notifyHist(); notify('STATE_LOADED');` | `src/components/AtelierCanvas.js:746-747` |
+| 5 | `notifyHist()` emite `HIST:` com `empty: isEmptyState()`, e `isEmptyState()` = `strokes.length===0 && stamps.length===0` ⇒ **`empty:false`** | `src/components/AtelierCanvas.js:213-217` e `:197` |
+| 6 | `HIST:` → `onHist?.(…)` | `src/components/AtelierCanvas.js:911-912` |
+| 7 | `onHist`: **`if (!empty) hideOrientation();`** | `src/screens/AtelierCanvasScreen.js:223` |
+| 8 | `hideOrientation`: guarda por `orientationHandledRef.current` (**`false` a cada montagem nova**) → `markOrientationSeen(profileId)` | `src/screens/AtelierCanvasScreen.js:192-197` |
+| 9 | `AsyncStorage.setItem('@ptf_criar_livre_orientation_seen_v1:' + profileId, '1')` | `src/services/criarLivreOrientation.js:29-34` e `:12-16` |
+
+**[FATO — decisivo]** A escrita **não** depende de o *overlay* ter sido exibido. `setShowOrientation(true)`
+exige `!seen && isBlank` (`AtelierCanvasScreen.js:187`), mas `hideOrientation` é guardado **apenas**
+por `orientationHandledRef.current`. Numa montagem nova, abrir obra **não vazia** dispara a escrita
+**independentemente** de a dica jamais ter aparecido.
+
+**[FATO]** A escrita ocorre **exatamente uma vez por montagem**: traços seguintes chamam
+`bump()` → `notifyHist()` → `onHist` com `empty:false` → `hideOrientation()` → **retorno imediato**
+pela guarda. A previsão é **um** movimento, não `N`.
+
+**[FATO — estado de referência em `TAR-1B-C1-POST`]** `MAX_ROWID = 67`, `TOTAL_KEYS = 27`,
+`@ptf_criar_livre_orientation_seen_v1:star` **presente** no ***rowid* `48`**, valor `'1'`. A única obra
+guardada é `ptf_atelier_arts_v1_art_1786479103982_6079` (*rowid* `49`, `len = 19590`) — **não vazia**.
+
+**[INFERÊNCIA]** `AsyncStorage` grava por `INSERT OR REPLACE`, que **consome *rowid* novo** mesmo com
+valor byte-idêntico. Logo a assinatura observável é **movimento de *rowid* com valor idêntico** —
+invisível a um diff que só compare valores, e exatamente por isso o comparador lê `rowid`.
+
+**`ALLOWLIST-C15`** — pré-registrada **antes** da execução, aplicável ao par
+`TAR-1B-C15 × CK` do `CASO 15`:
+
+| # | Diferença tolerada | Antecedente exigido | Invariante | `STOP` |
+|---|---|---|---|---|
+| **`AC-1`** | `KEY_ROWID_MOVED=@ptf_criar_livre_orientation_seen_v1:star 48->N valor_identico=True` | Ateliê montado com `routeArtId` **E** `STATE_LOADED` emitido **E** `HIST` com `empty:false` | **Exatamente um** movimento desta chave · `N > 67` · `valor_identico=True` · `KEYS_ADDED=0` · `KEYS_CHANGED=0` · `KEYS_DELETED=0` | `valor_identico=False`; mais de um movimento; movimento **sem** `STATE_LOADED` |
+| **`AC-2`** | `FILE_CHANGED=databases/RKStorage` | Consequência **exclusiva** de `AC-1` | `FILES_CHANGED=1` · `FILES_ADDED=0` · `FILES_DELETED=0` | Qualquer outro caminho em `FILE_CHANGED` |
+
+**[NORMA NOVA] — discriminador negativo.** Se a superfície do Ateliê **falhar** em abrir o *payload*
+(`LOAD_CORRUPTED` ou `LOAD_INCOMPATIBLE`, `AtelierCanvas.js:707` e `:756`), `strokes`/`stamps`
+permanecem vazios numa montagem nova ⇒ `notifyHist()` reporta `empty:true` ⇒ `hideOrientation()`
+**não** dispara ⇒ **não há movimento de *rowid***. Portanto:
+
+- **`AC-1` presente** ⇒ o *payload* foi lido com sucesso;
+- **`AC-1` ausente** com `LOAD_CORRUPTED`/`LOAD_INCOMPATIBLE` ⇒ falha de leitura, **julgada pelo
+  `CASO 15`** (§18.3.1) — e é resultado **legítimo** do caso, não defeito do protocolo;
+- **`AC-1` ausente** com `STATE_LOADED` **presente** ⇒ **contradição** entre código e observação ⇒ **`STOP`**.
+
+**[NORMA NOVA]** `AC-1` é tolerado **somente dentro** do `CASO 15`. O mesmo movimento observado no
+portão de retomada é `STOP` (§18.5.3).
+
+#### 18.8.3 `L-3` — `M+1` e ausência de remontagem — **CONFIRMADA**
+
+**[FATO]** `MainTabs` (`src/navigation/AppNavigator.js:237`) emite no **efeito de montagem**, com
+dependências vazias: `useEffect(() => { log(descreverShellLifecycle('MONTADO', notarMontagem('MainTabs'))); return () => { log(descreverShellLifecycle('DESMONTADO', notarDesmontagem('MainTabs'))); }; }, [])` (l. 256-259).
+
+**[FATO]** Formato da linha emitida (`src/services/shellLifecycleTrace.js:103-111`):
+`[shell] MainTabs MONTADO · montagens #N · vivos N/1 · pico N · desmontagens N · pareado`.
+`SHELL_MAX_VIVOS = 1` (l. 32); `vivos > 1` grava `anomalia = 'duas_arvores_vivas'` (l. 70).
+
+**[FATO]** `MainTabs` é o componente de `Stack.Screen name="Home"` (l. 378-379). `AtelierGallery`
+(l. 559-563) e `AtelierCanvas` (l. 468-472) são `Stack.Screen` **irmãs**, empilhadas **por cima**.
+
+**[INFERÊNCIA]** Um *push* de *stack* não desmonta a tela subjacente. Logo a rota inteira de `L-1`
+(`Início → Brincar → Minhas artes → ✏️ Editar`) **não** produz `montagem` nova de `MainTabs`.
+
+**[NORMA NOVA]** Durante o `CASO 15`, uma linha `[shell] MainTabs MONTADO` **nova não é esperada**.
+Se aparecer, o *shell* remontou — ou, pior, `vivos > 1` com `ANOMALIA: duas_arvores_vivas`. Em ambos
+os casos: **`STOP`**, porque a árvore mudou no meio do caso e o baseline deixa de descrever o que
+está sendo medido.
+
+---
+
+### 18.9 **`BLOCO E`** — nomes canônicos, ausência de colisão e ordem
+
+**[FATO]** §15.2 (l. 1237-1249) numera as tentativas de `R-2''` como `RK-A(n)` / `RK-B(n)`, máximo
+**3**, **nenhuma** apagada; os nomes sem índice da `EMENDA 2` estão **revogados**. `RK-A1` / `RK-B1`
+já foram **consumidos** na `FASE A` (l. 1521, `21:07:16`). A `FASE B`, passo `B4` (l. 1348), tem
+`RK-C(n)` / `RK-D(n)` **reservados**. `RK-PRE-WAKE.bin` e `RK-POST-WAKE.bin` foram reclassificados
+`Q-1` / `Q-2` (l. 1515-1516).
+
+**[NORMA NOVA] — nomes canônicos, sem colisão:**
+
+| Papel | Nome canônico | Regra |
+|---|---|---|
+| *Checkpoint* de retomada | **`CK-RESUME-01.tar`** | Estado de entrada da **janela de retomada**. **Nunca** substitui o baseline do `CASO 15`. |
+| Baseline do `CASO 15` | **`TAR-1B-C15.tar`** | Capturado **somente** após `RESUME_DELTA_RESULT=PASS` **e** após o novo `R-2''`. |
+| `R-2''` do portão do `CASO 15` | **`RK-E1.bin` / `RK-F1.bin`** (tentativas 2 e 3: `RK-E2`/`RK-F2`, `RK-E3`/`RK-F3`) | Série **`E`/`F`**: não colide com `A`/`B` (consumidas na `FASE A`) nem com `C`/`D` (reservadas à `FASE B`). Máximo 3 tentativas; **nenhuma** apagada. |
+
+**[NORMA NOVA]** `S-29` (l. 1399) estende-se integralmente aos nomes novos: nenhum `RK-*.bin` pode ser
+apagado, renomeado ou sobrescrito.
+
+**[NORMA NOVA] — ordem estrita, sem atalho:**
+
+```
+G-04  →  raw3.log  →  CK-RESUME-01.tar  →  comparação vs TAR-1B-C1-POST
+      →  RESUME_DELTA_RESULT  →  [só se PASS]  →  R-2'' (RK-E1/RK-F1)
+      →  TAR-1B-C15.tar  →  CASO 15
+```
+
+**[NORMA NOVA]** `CK-RESUME-01.tar` **não é** baseline e **não pode** ser usado como referência do
+`CASO 15`. Usar um no lugar do outro é `STOP`.
+
+---
+
+### 18.10 **`BLOCO F`** — a declaração humana do botão de energia e seu alcance exato
+
+**[DECISÃO HUMANA]** O fundador declarou, textualmente: **um único toque físico no botão de energia**
+ao encerrar a sessão, bloqueando a tela; o tablet **não** foi intencionalmente desligado nem
+reiniciado; a expectativa é que o app continue no estado em que foi deixado; **o momento exato da
+retirada do cabo `USB` não está sendo afirmado**; e **nada** além do explicitamente declarado pode ser
+inferido do relato.
+
+**[NORMA NOVA] — o que a declaração estabelece.** Ela satisfaz **exclusivamente** o **antecedente
+humano** da §17.9-`B`: o ato físico condicionante **ocorreu**. Em consequência, **`S-34` está
+extinta** a partir daquele ato.
+
+**[NORMA NOVA] — o que a declaração NÃO prova.** Sozinha, ela **não** prova:
+
+1. continuidade de `PID` ou identidade de processo;
+2. ausência de *cold start*;
+3. ocorrência de `W-1`;
+4. ausência de outras mutações de infraestrutura (atualização de sistema, manutenção de `ART`,
+   `Play Services`, coleta de lixo, *dev launcher*).
+
+Cada um desses pontos exige **evidência própria**. Relato humano é insumo **honesto** e **necessário**
+— mas é declaração sobre **intenção e ato**, nunca medição de estado interno do processo.
+
+#### 18.10.1 `W-1` é **condicional** — sustentação no código do `HEAD`
+
+**[FATO]** §17.9-`B` afirma que `W-1` *"passa a ser esperado, pois o retorno de `AppState` a `active`
+dispara `entitlementService.js:128-132`"*. O gatilho está **confirmado literalmente**:
+`src/services/entitlementService.js:130-131` — `AppState.addEventListener('change', (s) => { if (s === 'active') refreshEntitlement().catch(() => {}); })`.
+
+**[FATO]** A **escrita**, porém, é **condicional**:
+
+- `src/services/entitlementService.js:113-114` — `const clean = sanitizeEntitlement(await fetchEntitlement(), now); if (clean) { _snapshot = clean; await saveEntitlement(clean); }` — **grava só se `clean` for verdadeiro**;
+- `src/services/entitlementService.js:85` — `sanitizeEntitlement` devolve **`null`** para entrada que não seja objeto;
+- `src/services/entitlementService.js:99-101` — só então `AsyncStorage.setItem(STORAGE_KEYS.ENTITLEMENT, …)` grava em `@ptf_entitlement_v1`;
+- `entitlementSource.fetchEntitlement()` é **fail-closed** → `null` em falha (cabeçalho do módulo, l. 8-13).
+
+**[INFERÊNCIA]** Portanto, **a ausência de `W-1` é plenamente compatível com o código** — basta que a
+fonte real (`RevenueCat`) esteja inacessível para que `fetchEntitlement()` devolva `null`, e **nenhuma
+escrita ocorra**.
+
+**[NORMA NOVA]** `W-1` permanece **esperável, nunca presumido**. **Nem sua presença** (tolerada por
+`AR-2`, §18.5.2) **nem sua ausência** é `STOP`. Esta norma **`CLARIFICA`** a §17.9-`B`: a direção do
+enunciado está correta, mas a escrita é **condicional**, e o corpus não pode tratá-la como certa.
+
+**[FATO]** `@ptf_entitlement_v1` está **ausente** do estado de referência (27 chaves inventariadas em
+`TAR-1B-C1-POST`). Se `W-1` ocorrer, a assinatura é `KEY_ADDED` — **não** movimento de *rowid*.
+
+---
+
+### 18.11 Proveniência desta emenda e limites de autoria
+
+**[FATO]** Não existe, em disco, **nenhum artefato** de auditoria "Verde" ou "Âmbar": busca em
+`specs/`, `docs/` e `C:\tmp\ptf_evidencias` não retornou arquivo algum. A numeração `C-01..C-10`
+referida na instrução **nunca foi fornecida**. A **única** fonte recebida para essas condições é o
+**prompt do operador**.
+
+**[NORMA NOVA]** Conclusões de auditoria externa são **insumo**, jamais cânone por transcrição. Tudo
+o que esta emenda canoniza foi **confirmado independentemente** no corpus ou no código do `HEAD`, com
+arquivo e linha citados. O que **não** pôde ser confirmado foi registrado como **não determinado**
+(§18.7) ou como **lacuna permanente** (§18.3) — **nunca preenchido por invenção**.
+
+### 18.12 O que a `EMENDA 6` **NÃO** concede
+
+| | |
+|---|---|
+| ⛔ | **Nenhum** `PASS` a `CASO 15`, `14`, `16` ou `10` — seguem **não executados** |
+| ⛔ | **Nenhuma** conclusão sobre desenhar, salvar, girar ou recarregar obra legada |
+| ⛔ | **Nenhum** encerramento da `R2 · Sessão 2` — continua **pausa** |
+| ⛔ | **Nenhuma** investigação, normalização ou reclassificação do `ACHADO-V1` |
+| ⛔ | **Nenhuma** exclusão, renomeação ou sobrescrita de artefato |
+| ⛔ | **Nenhuma** reabertura do `PASS` do `CASO 1` |
+| ⛔ | **Nenhuma** alteração de `compare_state.py` — o selo `G-03` é vinculante |
+| ⛔ | **Nenhum** `push`, `merge` ou alteração de código executável |
