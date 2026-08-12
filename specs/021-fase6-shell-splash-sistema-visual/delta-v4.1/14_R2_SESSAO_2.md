@@ -2912,3 +2912,24 @@ por §21.3. **`AC-5` não existe e não será criada.**
 
 **[ANCORAGEM]** O `PASS` do `CASO 15` **não** é prova sobre o eixo do `CASO 14`. A evidência do
 `CASO 14` é colhida **na sua própria execução**.
+
+---
+
+## 23. `RATIFICAÇÃO C16` — `AC-3` e `AC-4` na janela do `CASO 16`
+
+> **Ratificação documental prospectiva.** Zero regra nova. `compare_state.py` **não** é tocado.
+> `CASO 14` e `CASO 15` **não** são reabertos.
+
+**[ANCORAGEM]** Na janela `TAR-1B-C16 × CK-C16` valem, **sem alteração de conteúdo**, **apenas**
+`AC-3` (§20.3) e `AC-4` (§21.1), ancoradas em `BASE_C16_WEBVIEW_PREFS_LENGTH`/`_SHA256` e
+`BASE_C16_PHENOTYPE_LENGTH`/`_SHA256`.
+
+**[ANCORAGEM]** **`AC-1` NÃO se transpõe.** O `CASO 16` espera **zero** escrita de produto e **zero**
+movimento de *rowid*: `KEYS_ADDED = KEYS_CHANGED = KEYS_DELETED = KEYS_ROWID_MOVED = 0` e
+`FILES_ADDED = FILES_DELETED = 0`.
+
+**[ANCORAGEM]** Qualquer *writer* de produto ⇒ **`STOP`**. Qualquer *writer* de infraestrutura fora
+de `AC-3`/`AC-4` ⇒ **`ALERTA_LOOP_INFRA`** e **`STOP`**, por §21.3. **`AC-5` não existe.**
+
+**[ANCORAGEM]** As âncoras dos casos `14` e `15` **não** são herdadas, e o `PASS` do `CASO 1` **não**
+é prova sobre o eixo do `CASO 16`. A evidência é colhida **nesta execução**.
