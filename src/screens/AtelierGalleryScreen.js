@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, FlatList, Image, Modal, StyleSheet, Alert,
 } from 'react-native';
@@ -15,6 +15,7 @@ import {
 } from '../services/atelierStorage';
 import { displayTitle } from '../services/atelierArtNaming';
 import { useHubComposition, hubRows } from '../components/layout/HubSurface';
+import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 
 /**
  * [F6-SG-C · TK-C-008] Largura mínima de uma arte guardada, medida no próprio cartão:
@@ -24,6 +25,18 @@ import { useHubComposition, hubRows } from '../components/layout/HubSurface';
  */
 const HUB_MIN_CARD = 320;
 const HUB_GAP = 12;
+
+/** O respiro lateral do conteúdo. Vive aqui porque a conta da largura da lista precisa
+ *  dele: descontar o que o padding já come é o que torna a medida REAL, e não uma
+ *  estimativa de janela que faria a grade prometer uma coluna que não cabe. */
+const CONTENT_PAD = 16;
+
+/**
+ * [F6-SG-C · TK-C-009] O painel de apoio mostra UMA obra, e a largura mínima de uma
+ * obra esta tela já declarou: é a mesma `HUB_MIN_CARD`. Inventar uma segunda medida
+ * seria criar um número sem dono.
+ */
+const PAINEL_LARGURA = HUB_MIN_CARD;
 
 function formatDate(iso) {
   try {
@@ -40,13 +53,38 @@ export default function AtelierGalleryScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [viewingArt, setViewingArt] = useState(null);
   const [viewingArtFull, setViewingArtFull] = useState(null);
+  /* [F6-SG-C · TK-C-009] Estado PRÓPRIO do painel, separado do visor de propósito: o
+     painel mostra sempre alguma obra, o visor só mostra o que a criança abriu. */
+  const [focoFull, setFocoFull] = useState(null);
+
+  /* [F6-SG-C · TK-C-009] A ÚNICA superfície Hub com hierarquia lista→detalhe real e
+     persistente (PLAN §18). Na faixa expandida o detalhe deixa de ser só modal e passa
+     a acompanhar a lista — o mesmo detalhe, o mesmo conteúdo, as mesmas duas ações.
+     Nada de destino novo para preencher vazio: `D4` proíbe, e a obra em foco é
+     informação que a tela já tem. Sem artes guardadas não há hierarquia, e sem
+     hierarquia não há painel — uma moldura vazia ao lado seria o defeito de volta. */
+  const { band, width } = useWindowBand();
+  const comPainel = band === BANDS.EXPANDED && arts.length > 0;
 
   // [F6-SG-C · TK-C-008] A galeria é HUB: um inventário para varrer e escolher. A
   // `FlatList` continua sendo a lista virtualizada de sempre — o que muda é que ela
   // passa a virtualizar LINHAS quando a largura comporta mais de uma arte, em vez de
-  // repetir um cartão largo e solitário numa tela de 1180dp.
-  const { columns } = useHubComposition({ itemCount: arts.length, minItemWidth: HUB_MIN_CARD, gap: HUB_GAP });
+  // repetir um cartão largo e solitário numa tela de 1180dp. A largura que entra na
+  // conta é a da LISTA, já sem o padding e já sem o painel: prometer colunas com a
+  // largura da janela seria compor sobre espaço que a tela não tem.
+  const larguraLista = width - CONTENT_PAD * 2 - (comPainel ? PAINEL_LARGURA : 0);
+  const { columns } = useHubComposition({
+    itemCount: arts.length, minItemWidth: HUB_MIN_CARD, gap: HUB_GAP, availableWidth: larguraLista,
+  });
   const emGrade = columns > 1;
+
+  /* A obra em foco é buscada NA LISTA por id, nunca guardada à parte: assim ela se
+     cura sozinha quando a arte aberta é apagada, e o painel cai para a mais recente
+     em vez de exibir um fantasma. O foco ACOMPANHA `viewingArt` mas não o define — se
+     definisse, girar o tablet de volta para a faixa compacta abriria o visor sozinho,
+     mostrando uma arte que ninguém pediu. */
+  const artaEmFoco = (viewingArt && arts.find((a) => a.id === viewingArt.id)) || arts[0] || null;
+  const idEmFoco = artaEmFoco ? artaEmFoco.id : null;
 
   useFocusEffect(
     useCallback(() => {
@@ -56,6 +94,23 @@ export default function AtelierGalleryScreen({ navigation }) {
       });
     }, []),
   );
+
+  /* O painel carrega a obra em resolução cheia pelo MESMO caminho do visor (`getArt`):
+     a miniatura é um JPEG pequeno, feito para caber num cartão de 110, e esticá-la num
+     painel de 320 numa tela densa mostraria a arte da criança borrada. Só busca quando
+     o painel existe — nas faixas sem painel isso seria leitura de disco à toa. */
+  useEffect(() => {
+    if (!comPainel || !idEmFoco) { return undefined; }
+    let vivo = true;
+    getArt(idEmFoco).then(full => { if (vivo) setFocoFull(full); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [comPainel, idEmFoco]);
+
+  /* Enquanto a resolução cheia não chega — e quando ela pertence à obra ANTERIOR — vale
+     a miniatura: trocar para a arte certa em baixa é melhor que insistir na arte errada
+     em alta. */
+  const uriEmFoco = (focoFull && focoFull.id === idEmFoco ? resolveArtPreviewUri(focoFull) : null)
+    || (artaEmFoco ? resolveArtThumbUri(artaEmFoco) : null);
 
   function handleViewArt(art) {
     setViewingArt(art);
@@ -166,57 +221,96 @@ export default function AtelierGalleryScreen({ navigation }) {
         </SoundButton>
       </View>
 
-      <FlatList
-        style={styles.container}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
-        showsVerticalScrollIndicator={false}
-        data={emGrade ? hubRows(arts, columns) : arts}
-        keyExtractor={(item, index) => (emGrade ? `row-${item[0] ? item[0].id : index}` : String(item.id))}
-        ListHeaderComponent={
-          /* Contador */
-          <View style={styles.counterRow}>
-            <Text style={styles.counterText}>
-              🖼️ {arts.length} de {ATELIER_FREE_SAVE_LIMIT} artes salvas
-            </Text>
-            <View style={styles.counterBar}>
-              <View style={[styles.counterBarFill, { width: `${Math.min(arts.length / ATELIER_FREE_SAVE_LIMIT, 1) * 100}%` }]} />
+      {/* [F6-SG-C · TK-C-009] Lista e painel dividem a faixa expandida; abaixo dela o
+          `corpo` é uma coluna só e a tela permanece exatamente a de sempre. */}
+      <View style={[styles.corpo, comPainel && styles.corpoComPainel]}>
+        <FlatList
+          style={styles.container}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+          showsVerticalScrollIndicator={false}
+          data={emGrade ? hubRows(arts, columns) : arts}
+          keyExtractor={(item, index) => (emGrade ? `row-${item[0] ? item[0].id : index}` : String(item.id))}
+          ListHeaderComponent={
+            /* Contador */
+            <View style={styles.counterRow}>
+              <Text style={styles.counterText}>
+                🖼️ {arts.length} de {ATELIER_FREE_SAVE_LIMIT} artes salvas
+              </Text>
+              <View style={styles.counterBar}>
+                <View style={[styles.counterBarFill, { width: `${Math.min(arts.length / ATELIER_FREE_SAVE_LIMIT, 1) * 100}%` }]} />
+              </View>
             </View>
-          </View>
-        }
-        ListEmptyComponent={
-          /* ── Empty state ── */
-          <View style={styles.emptyContainer}>
-            <BeniEmptyState
-              title="Suas artes ainda vão aparecer aqui"
-              message="Crie seu primeiro desenho para guardar aqui."
-              actionLabel="Começar a desenhar"
-              onPress={() => navigation.navigate('AtelierCanvas', {})}
-            />
-          </View>
-        }
-        renderItem={({ item }) => (
-          emGrade ? (
-            <View style={styles.gridRow}>
-              {item.map((art) => (
-                <View key={art.id} style={styles.gridCell}>{renderArt(art)}</View>
-              ))}
-              {/* Última linha curta: sem as células vazias a arte solitária se esticaria
-                  pela linha inteira e a miniatura de 110 ficaria perdida no meio. */}
-              {Array.from({ length: columns - item.length }, (_, i) => (
-                <View key={`gap-${i}`} style={styles.gridCell} />
-              ))}
+          }
+          ListEmptyComponent={
+            /* ── Empty state ── */
+            <View style={styles.emptyContainer}>
+              <BeniEmptyState
+                title="Suas artes ainda vão aparecer aqui"
+                message="Crie seu primeiro desenho para guardar aqui."
+                actionLabel="Começar a desenhar"
+                onPress={() => navigation.navigate('AtelierCanvas', {})}
+              />
             </View>
-          ) : renderArt(item)
-        )}
-        initialNumToRender={6}
-        maxToRenderPerBatch={6}
-        windowSize={7}
-        removeClippedSubviews
-      />
+          }
+          renderItem={({ item }) => (
+            emGrade ? (
+              <View style={styles.gridRow}>
+                {item.map((art) => (
+                  <View key={art.id} style={styles.gridCell}>{renderArt(art)}</View>
+                ))}
+                {/* Última linha curta: sem as células vazias a arte solitária se esticaria
+                    pela linha inteira e a miniatura de 110 ficaria perdida no meio. */}
+                {Array.from({ length: columns - item.length }, (_, i) => (
+                  <View key={`gap-${i}`} style={styles.gridCell} />
+                ))}
+              </View>
+            ) : renderArt(item)
+          )}
+          initialNumToRender={6}
+          maxToRenderPerBatch={6}
+          windowSize={7}
+          removeClippedSubviews
+        />
 
-      {/* ── VIEWER MODAL ── */}
+        {/* ── PAINEL DE APOIO — a MESMA obra, o MESMO detalhe e as MESMAS duas ações do
+            visor, agora ao lado da lista em vez de por cima dela. Nenhum texto novo,
+            nenhum destino novo: `CN-12` e `D4` proíbem preencher largura com invenção. */}
+        {comPainel && artaEmFoco && (
+          <View style={[styles.painel, { paddingBottom: insets.bottom + 24 }]}>
+            <View style={styles.painelObra}>
+              {uriEmFoco ? (
+                <Image source={{ uri: uriEmFoco }} style={styles.painelImagem} resizeMode="contain" />
+              ) : (
+                <Text style={styles.viewerPlaceholderEmoji}>🎨</Text>
+              )}
+            </View>
+            <Text style={styles.artTitle} numberOfLines={2}>{displayTitle(artaEmFoco.title)}</Text>
+            <Text style={styles.artDate}>{formatDate(artaEmFoco.createdAt)}</Text>
+            <View style={styles.btnRow}>
+              <SoundButton
+                style={styles.continueBtn}
+                onPress={() => handleContinue(artaEmFoco)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.continueBtnText}>✏️ Editar</Text>
+              </SoundButton>
+              <SoundButton
+                style={styles.deleteBtn}
+                onPress={() => handleDelete(artaEmFoco)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.deleteBtnText}>🗑️</Text>
+              </SoundButton>
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* ── VIEWER MODAL ──
+          Com o painel aberto o modal fica quieto: seria o MESMO detalhe duas vezes,
+          e a segunda por cima da primeira. */}
       <Modal
-        visible={!!viewingArt}
+        visible={!!viewingArt && !comPainel}
         transparent
         animationType="fade"
         statusBarTranslucent
@@ -291,7 +385,31 @@ export default function AtelierGalleryScreen({ navigation }) {
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 8 },
+  content: { paddingHorizontal: CONTENT_PAD, paddingTop: 8 },
+
+  // ── [F6-SG-C · TK-C-009] Corpo: lista + painel ──
+  // Sem painel o `corpo` é só um invólucro de altura cheia — uma coluna, como sempre.
+  corpo: { flex: 1 },
+  corpoComPainel: { flexDirection: 'row' },
+  painel: {
+    width: PAINEL_LARGURA,
+    paddingHorizontal: CONTENT_PAD,
+    paddingTop: 8,
+    borderLeftWidth: 1,
+    borderLeftColor: pt.border,
+  },
+  // A moldura é quadrada porque a arte pode ser de qualquer proporção: com `contain`
+  // dentro de um quadrado estável, trocar de obra não faz o painel inteiro pular.
+  painelObra: {
+    aspectRatio: 1,
+    borderRadius: radii.md,
+    backgroundColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  painelImagem: { width: '100%', height: '100%' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { fontFamily: 'Nunito', fontSize: 16, color: colors.textLight },
 
