@@ -21,6 +21,7 @@ import AtelierCanvas from '../components/AtelierCanvas';
 import CriarLivreIcon from '../components/criarLivre/CriarLivreIcon';
 import CriarLivreSlider from '../components/criarLivre/CriarLivreSlider';
 import AchievementUnlockModal from '../components/achievements/AchievementUnlockModal';
+import ImmersiveSurface from '../components/layout/ImmersiveSurface';
 import { useProgressContext } from '../context/ProgressContext';
 import { useProfile } from '../context/ProfileContext';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
@@ -405,7 +406,11 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.9] });
 
   return (
-    <View style={styles.wrapper}>
+    /* [F6-SG-C · TK-C-011] Família IMERSIVA: aqui a obra manda, e a janela é dela
+       inteira — nenhuma coluna de leitura, nenhum recorte. A adoção é de política, não
+       de pipeline: o motor do canvas segue intocado, porque mexer nele seria reabrir
+       `SD-8` para ganhar nada. */
+    <ImmersiveSurface style={styles.wrapper}>
       {/* ── CABEÇALHO compacto ── */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 8), height: CL.headerHeight + Math.max(insets.top, 8) }]}>
         {/* [P3J-R.1 FIX1] O rótulo do voltar vem do contrato de origem (`originBack.js`), a MESMA
@@ -610,7 +615,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
       {pendingAchievement && (
         <AchievementUnlockModal achievement={pendingAchievement} onDismiss={dismissAchievement} />
       )}
-    </View>
+    </ImmersiveSurface>
   );
 }
 

@@ -15,6 +15,7 @@ import SoundButton from '../components/SoundButton';
 // esta tela apenas deixou de usar as funções por cena junto com o ramo legado.
 import { hasMeaningfulPaint } from '../services/drawingStorage';
 import { useSurfaceLifecycle } from '../hooks/useSurfaceLifecycle';
+import ImmersiveSurface from '../components/layout/ImmersiveSurface';
 // [C60-P13-HEADER] §Parte 13 — sinal de "momento imersivo": recolhe os enfeites globais de
 // desenvolvimento (o selo MODO CRIADOR) enquanto os atos da celebração estão em cena.
 import { beginImmersiveMoment } from '../services/immersiveMoment';
@@ -1240,7 +1241,11 @@ function Coloring60ActivityScreen({ route, navigation }) {
 
   if (available) {
     return (
-      <View style={styles.container}>
+      /* [F6-SG-C · TK-C-011] Família IMERSIVA: o desenho da criança é o conteúdo, e a
+         janela é dele inteira. Adoção de POLÍTICA — `ColoringCanvas` e o ciclo de vida
+         de `useSurfaceLifecycle` seguem exatamente como estavam, sob a matriz de 17
+         casos que protege `SD-8`. */
+      <ImmersiveSurface style={styles.container}>
         <View
           style={[styles.topBar, { paddingTop: Math.max(insets.top, 8) }]}
           // [C60-P12R-HEADER] §Parte 5 · #4 (a11y) · durante os atos o cabeçalho inteiro (Voltar,
@@ -1486,7 +1491,7 @@ function Coloring60ActivityScreen({ route, navigation }) {
             onTertiary={handleC60Tertiary}
           />
         ) : null}
-      </View>
+      </ImmersiveSurface>
     );
   }
 

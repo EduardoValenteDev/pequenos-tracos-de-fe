@@ -13,6 +13,7 @@ import SoundButton from '../components/SoundButton';
 import AudioPlayer from '../components/AudioPlayer';
 import LockedStoryFallback from '../components/premium/LockedStoryFallback';
 import SafeScreenHeader from '../components/layout/SafeScreenHeader';
+import ImmersiveSurface from '../components/layout/ImmersiveSurface';
 import MagicBookEntrance from '../components/story/MagicBookEntrance';
 import { preloadStorySceneIllustrations } from '../services/storyImageService';
 import { resolveSceneImageForStory, useSandboxScenePackEntry } from '../hooks/useResolvedStoryMedia';
@@ -785,7 +786,12 @@ export default function StoryBookScreen({ route, navigation }) {
     : fallbackBookSize;
 
   return (
-    <View style={styles.bookPlayerRoot}>
+    /* [F6-SG-C · TK-C-011] Família IMERSIVA — e SÓ o estado de leitura. É aqui que a
+       ilustração é protagonista; a capa e o encerramento são páginas de texto e ficam
+       de fora. A composição da faixa expandida (livro aberto, `D10`) é entrega de
+       `F9`: este arquétipo declara a CAPACIDADE, e antecipar a composição seria
+       invadir fase alheia. */
+    <ImmersiveSurface style={styles.bookPlayerRoot}>
 
       {/* ── Header escuro seguro ── */}
       <SafeScreenHeader
@@ -896,7 +902,7 @@ export default function StoryBookScreen({ route, navigation }) {
           onDismiss={dismissAchievement}
         />
       )}
-    </View>
+    </ImmersiveSurface>
   );
 }
 
