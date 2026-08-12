@@ -53690,7 +53690,12 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
      * Origem única de cor E permanência dos alvos, numa asserção só, porque é
      * assim que o PLAN §26 a escreve. O defeito 3 era um tema legado CONCORRENTE:
      * enquanto os dois existirem no mesmo arquivo, "qual é a origem" vira questão
-     * de opinião por linha. */
+     * de opinião por linha.
+     *
+     * As duas metades têm NOME próprio no corpus, e é por isso que ambos aparecem
+     * no rótulo: `TA-10` é a prova de `TK-C-021` ("`TabletSidebar` não importa mais
+     * `theme/colors`", cujo Gate declarado é este), e `TA-9` é a de `TK-C-063`. Os
+     * mutantes miram uma metade cada — `MT-9` cita `TA-10`, `MT-10` cita `TA-9`. */
     const sid1 = [];
     if (!/from\s+['"]\.\.\/theme\/tokens['"]/.test(sidCodigo)) {
       sid1.push('`TabletSidebar.js` não importa `theme/tokens` — a origem canônica sumiu');
@@ -53703,7 +53708,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     });
 
     check(
-      '`G-SID-1` (`TK-C-023`, **novo**): `TabletSidebar.js` consome `theme/tokens` e **não** `theme/colors`, e mantém os **cinco** alvos de guia — origem única de cor e barra ainda mensurável pelo tour',
+      '`G-SID-1` (`TK-C-023`, **novo**): `TabletSidebar.js` consome `theme/tokens` e **não** `theme/colors` (`TA-10`), e mantém os **cinco** alvos de guia (`TA-9`) — origem única de cor e barra ainda mensurável pelo tour',
       sid1.length === 0,
       sid1.join(' · '),
     );
