@@ -51250,6 +51250,70 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   );
 
   /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R1.2 · F6-SG-C · TK-C-060 — `G-RSP-3` COMPLETO (emenda `A-05`)
+   *
+   * O portão canônico do PLAN §26 tem TRÊS asserções (`05_TASKS:2346`):
+   *   1. zero `Platform.isPad` em `src/`         ┐ já vivas no bloco `TK-A-094`
+   *   2. zero importação de `expo-device`        ┘ logo acima — CONFIRMADAS aqui,
+   *                                                não reescritas
+   *   3. nenhuma decisão de composição consulta MODELO DE APARELHO ← nasce agora
+   *
+   * `TK-C-060` "confirma e ESTENDE" (`05_TASKS:988`), e por isso 1 e 2 ficam onde
+   * estão: recopiá-las aqui duplicaria o lacre e faria `MT-31` (`TK-C-058`) contar
+   * DUAS falhas onde a task espera uma. Esta metade cobre o que elas não alcançam.
+   *
+   * O QUE AS DUAS PRIMEIRAS NÃO PEGAM. `Platform.isPad` é UMA porta; o quarto tem
+   * várias. `Device.modelName`, `react-native-device-info`, `Platform.constants.Model`,
+   * `Constants.deviceName` e `Platform.isTV` respondem à MESMA pergunta proibida —
+   * "que aparelho sou eu?" — e nenhuma delas escreve `isPad` nem importa `expo-device`.
+   * Sem esta asserção, `D2` seria contornável por SINÔNIMO.
+   *
+   * POR QUE ANTES DA ORIENTAÇÃO (subseção `7.6`). A rota (C) do PLAN §21 é preferida
+   * justamente por usar `smallestWidthDp` — a noção de idioma DO PRÓPRIO SISTEMA,
+   * resolvida em recurso nativo — em vez de perguntar "sou um tablet?" em código de
+   * tela (`PLAN:856`). A discussão de orientação é o momento de maior tentação de
+   * reintroduzir idioma de aparelho; o portão fecha a porta ANTES de ela abrir.
+   *
+   * FRONTEIRA — o que NÃO é proibido, e por quê:
+   *   · `Platform.OS` (7 usos legítimos hoje) diz SISTEMA, não modelo: não separa
+   *     iPad de iPhone, logo não pode decidir composição. Bani-lo seria inventar
+   *     política que nem o PLAN §11 nem `D2` pedem.
+   *   · `isTablet` derivado de `band` (`TK-C-003`) é NOME de faixa, não identidade:
+   *     a fonte continua sendo a largura da janela.
+   *   · Nome de modelo em literal de texto (log, cópia) não é CONSULTA — sozinho não
+   *     decide nada, e proibi-lo tornaria o portão frágil sem fechar buraco algum.
+   *
+   * Esta task CRIA; não prova. A prova vermelha é `MT-31` (`TK-C-058`).
+   * ────────────────────────────────────────────────────────────────────────── */
+  console.log('\n── Fase 6 · F6-SG-C · TK-C-060: G-RSP-3 completo (D2) ──');
+
+  // Cada entrada é uma forma REAL de perguntar "que aparelho sou eu?". `codeOf` (sem
+  // comentários) é obrigatório: a asserção é de AUSÊNCIA, e o comentário que explica
+  // por que o idioma saiu não pode derrubar o lacre que ele explica.
+  const C60_IDENTIDADE = [
+    ['expo-device (uso, mesmo sem import estático)', /\bDevice\s*\.\s*(?:modelName|modelId|deviceType|deviceName|brand|manufacturer|DeviceType)\b/],
+    ['react-native-device-info', /(?:from|require\()\s*['"]react-native-device-info['"]|\bDeviceInfo\s*\.\s*\w/],
+    ['Platform.constants (Model · Brand · Manufacturer)', /\bPlatform\s*\.\s*constants\b/],
+    ['PlatformConstants (módulo nativo)', /\bPlatformConstants\b/],
+    ['Platform.isTV / Platform.isTVOS', /\bPlatform\s*\.\s*isTV(?:OS)?\b/],
+    ['expo-constants → identidade de aparelho', /\bConstants\s*\.\s*(?:platform|deviceName|deviceYearClass)\b/],
+  ];
+
+  const c60Infratores = [];
+  b1Arquivos.forEach((rel) => {
+    const codigo = codeOf(rel);
+    C60_IDENTIDADE.forEach(([nome, padrao]) => {
+      if (padrao.test(codigo)) c60Infratores.push(`${rel} → ${nome}`);
+    });
+  });
+
+  check(
+    'G-RSP-3 (`TK-C-060` · D2): nenhuma decisão de composição consulta MODELO de aparelho em `src`',
+    c60Infratores.length === 0,
+    `consultas de identidade de aparelho: ${c60Infratores.join(' · ')}`,
+  );
+
+  /* ──────────────────────────────────────────────────────────────────────────
    * Fase 6 · F6-R3.5 · TK-A-007 — G-VER-1, G-VER-2 e G-VER-3
    *
    * Transforma as regras de §11.5 em asserção estática que falha SOZINHA. Esta
