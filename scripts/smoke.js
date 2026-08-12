@@ -53202,6 +53202,139 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         'a mutação não quebrou nenhum cenário — o arquétipo perdeu a política e o portão não viu',
       );
     }
+
+    /* ══════════════════════════════════════════════════════════════════════════
+     * `G-RSP-5` e `G-RSP-6` — Fase 6 · F6-R1.2 · F6-SG-C · `TK-C-014` (CRIAÇÃO)
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * IDs NOVOS E INÉDITOS, por exigência da própria task: `G-RSP-1` e `G-RSP-2`
+     * já têm significado canônico distinto no PLAN (`G-RSP-1` = zero
+     * `Dimensions.get`, criado em `TK-C-002`; `G-RSP-2` = `grid`/
+     * `displayScaleTablet` com consumidor, criado em `TK-C-015`). Reaproveitá-los
+     * seria dar dois sentidos ao mesmo lacre.
+     *
+     * Por que existem, se `TA-14` já tem vinte e uma asserções: `TA-14` descreve o
+     * que cada família FAZ. Estes dois descrevem o que NENHUMA delas pode fazer, e
+     * são invocados NOMINALMENTE pelos mutantes que vêm depois — `MT-19`
+     * (`TK-C-053`) e `MT-22` (`TK-C-056`) têm de deixar `G-RSP-5` vermelho, e
+     * `MT-20` (`TK-C-054`) tem de deixar `G-RSP-6` vermelho. Um portão sem nome
+     * não pode ser citado por uma prova vermelha.
+     *
+     * As provas vermelhas NÃO são criadas aqui: `TK-C-014` é criação, e mutar o
+     * próprio portão que se acabou de escrever é o portão provando a si mesmo. */
+    console.log('\n── Fase 6 · F6-SG-C · TK-C-014: portões G-RSP-5 e G-RSP-6 ──');
+
+    /* ── `G-RSP-5` · nenhuma regra universal de colunas ────────────────────────
+     * `Q3`/`SD-2`/`D3`: "tablet = duas colunas" é a regra que o subgate inteiro
+     * existe para matar. Dois eixos, porque o defeito tem duas portas de entrada.
+     *
+     * EIXO A — a política. A prova não é "a faixa expandida dá três": é que, DENTRO
+     * DA MESMA FAIXA e na MESMA largura de janela, mudar só o conteúdo muda a
+     * resposta. Uma regra universal responde o mesmo número sempre, e é exatamente
+     * isso que o conjunto de respostas denuncia: se a faixa sozinha decidisse, cada
+     * faixa teria UM valor só.
+     *
+     * Duas sondas por faixa, cada uma variando um eixo do conteúdo — a largura do
+     * cartão numa, o inventário na outra. Deliberadamente NÃO se reusa a tabela de
+     * `[2]`/`[3]`: um portão que só reexecuta o cenário de outro portão herda os
+     * pontos cegos dele.
+     *
+     * A faixa compacta fica de fora porque UMA coluna é a política dela — cobrar
+     * variação ali seria exigir do portão o oposto do que o produto quer.
+     *
+     * EIXO B — a porta dos fundos. Um arquétipo bem-comportado não impede uma TELA
+     * de decidir composição com `width > 900` na mão. `useWindowBand` é o único
+     * lugar do app autorizado a comparar largura com número; é isso que o eixo B
+     * cobra, e é o que `MT-22` vai violar. Hoje as seis ocorrências de comparação
+     * literal em `src/` estão todas em COMENTÁRIO, descrevendo a política revogada
+     * — e `codeOf` remove comentário, então a baseline é zero de verdade. */
+    const g5 = arnesArq.carregarArquetipo('hub');
+    const G5_SONDAS = {
+      MEDIUM: [
+        { nome: 'cartão de 320 em 700dp', largura: 700, itemCount: 12, minItemWidth: 320 },
+        { nome: 'MESMA janela, cartão de 400', largura: 700, itemCount: 12, minItemWidth: 400 },
+      ],
+      EXPANDED: [
+        { nome: '12 itens em 1180dp', largura: 1180, itemCount: 12, minItemWidth: 220 },
+        { nome: 'MESMA janela, só 2 itens', largura: 1180, itemCount: 2, minItemWidth: 220 },
+      ],
+    };
+    const g5Faixas = [];
+    if (!g5.ausente && !g5.faltando.length) {
+      for (const faixa of Object.keys(G5_SONDAS)) {
+        const respostas = G5_SONDAS[faixa].map((s) => g5.mod.hubComposition({
+          band: g5.BANDS[faixa],
+          availableWidth: s.largura,
+          itemCount: s.itemCount,
+          minItemWidth: s.minItemWidth,
+          gap: 16,
+        }).columns);
+        g5Faixas.push({ faixa, respostas, ok: new Set(respostas).size > 1 });
+      }
+    }
+    const g5Presas = g5Faixas.filter((f) => !f.ok);
+
+    // Comparação de largura contra literal — fora do dono da faixa, é composição na mão.
+    const G5_DONO_DA_FAIXA = 'src/hooks/useWindowBand.js';
+    const G5_LITERAL = /(?:[A-Za-z_$][\w$]*\.)?\b\w*[Ww]idth\s*[<>]=?\s*\d{2,4}\b|\b\d{2,4}\s*[<>]=?\s*(?:[A-Za-z_$][\w$]*\.)?\w*[Ww]idth\b/;
+    const g5PortaDosFundos = b1Arquivos.filter((rel) => rel !== G5_DONO_DA_FAIXA && G5_LITERAL.test(codeOf(rel)));
+
+    check(
+      '`G-RSP-5` (`TK-C-014`, **novo**): nenhuma regra universal de colunas — dentro da mesma faixa e da mesma janela, mudar só o conteúdo muda a composição; e nenhuma comparação literal de largura decide composição fora de `useWindowBand`',
+      !g5.ausente && !g5.faltando.length && g5Faixas.length === 2 && g5Presas.length === 0 && g5PortaDosFundos.length === 0,
+      `${g5.ausente ? 'arquétipo Hub ausente · ' : ''}faixas presas a um número só: ${g5Presas.map((f) => `${f.faixa} → sempre ${f.respostas[0]}`).join(' · ') || '(nenhuma)'} · largura literal fora do dono: ${g5PortaDosFundos.join(' · ') || '(nenhuma)'}`,
+    );
+
+    /* ── `G-RSP-6` · nenhuma coluna estreita cercada de vazio em `>=900dp` ──────
+     * `SD-3`. O defeito tem duas metades e as duas precisam de dente, porque cada
+     * uma sozinha deixa o outro lado passar:
+     *
+     * (A) a COLUNA não pode encolher por conta do arquétipo. Quem decide onde a
+     *     linha de leitura termina é `ContentContainer` — e o portão compara com o
+     *     valor do DONO, carregado à parte pelo arnês, não com uma cópia local. É
+     *     esta cláusula que `MT-20` viola ao fixar largura de conteúdo abaixo do
+     *     limiar de coerência.
+     * (B) a coluna não pode encolher quando a janela CRESCE. `medium → expanded`
+     *     só pode subir; uma coluna que diminui ao ganhar espaço é o `SD-3` em
+     *     movimento, e é o que a criança vê ao girar o tablet.
+     * (C) com material de apoio, o excedente da faixa expandida tem DESTINO: vazio
+     *     zero, vazio dominante falso. É a cura de `SD-3` — e `[14/21]` já obriga
+     *     as quatro telas de leitura a entregarem esse material.
+     * (D) o diagnóstico não pode ser cego. SEM material, a MESMA janela tem de
+     *     acusar `vazio dominante` — um portão que não enxerga o defeito aprovaria
+     *     um arquétipo vendado. É a preocupação de `M-h` promovida a cláusula.
+     *
+     * Largura de aparelho real (iPad paisagem, 1180dp), não número redondo. */
+    const g6 = arnesArq.carregarArquetipo('editorial');
+    const G6_JANELA = 1180;
+    let g6Falhas = [];
+    if (!g6.ausente && !g6.faltando.length) {
+      const comApoio = g6.mod.editorialLayout({ band: g6.BANDS.EXPANDED, availableWidth: G6_JANELA, hasSupport: true });
+      const semApoio = g6.mod.editorialLayout({ band: g6.BANDS.EXPANDED, availableWidth: G6_JANELA, hasSupport: false });
+      const media = g6.mod.editorialLayout({ band: g6.BANDS.MEDIUM, availableWidth: 823, hasSupport: true });
+      const donoExpandida = g6.contentColumnMaxWidth(g6.BANDS.EXPANDED);
+
+      if (comApoio.columnMaxWidth !== donoExpandida) {
+        g6Falhas.push(`(A) coluna ${comApoio.columnMaxWidth} ≠ ${donoExpandida} decidido por ContentContainer`);
+      }
+      if (!(comApoio.columnMaxWidth >= media.columnMaxWidth)) {
+        g6Falhas.push(`(B) a coluna encolheu ao crescer a janela: ${media.columnMaxWidth} → ${comApoio.columnMaxWidth}`);
+      }
+      if (!(comApoio.voidWidth === 0 && comApoio.dominantVoid === false)) {
+        g6Falhas.push(`(C) com apoio, sobrou vazio de ${comApoio.voidWidth} (dominante: ${comApoio.dominantVoid})`);
+      }
+      if (semApoio.dominantVoid !== true) {
+        g6Falhas.push('(D) sem apoio, o vazio de 540dp não foi acusado — o diagnóstico está cego');
+      }
+    } else {
+      g6Falhas = ['arquétipo Editorial ausente ou incompleto'];
+    }
+
+    check(
+      '`G-RSP-6` (`TK-C-014`, **novo**): nenhuma composição produz coluna estreita cercada de vazio em `>=900dp` — a coluna é a que `ContentContainer` decide, nunca encolhe ao crescer a janela, e o excedente vira apoio em vez de vazio',
+      g6Falhas.length === 0,
+      g6Falhas.join(' · '),
+    );
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
