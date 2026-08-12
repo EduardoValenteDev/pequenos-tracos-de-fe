@@ -2803,3 +2803,83 @@ Sem alteração de corpus: mecanismo físico exato da reativação · rolagem ev
 galeria · possibilidade **não provada** de `WebViewChromiumPrefs.xml` mudar no momento da morte do
 processo · demais observações não bloqueantes do Verde. Serão tratados **operacionalmente** quando
 relevantes.
+
+---
+
+## 21. `EMENDA 9` — `AC-4` pré-registrada e lacre anti-loop de infraestrutura
+
+> **Rodada 100% documental.** Zero `ADB`, tablet, `Metro`, *runtime*, evidência física nova,
+> `CASO 14` ou `ACHADO-V1`. `compare_state.py` **não** é tocado. **Nenhuma** regra anterior é
+> reaberta. `EMENDA 8` permanece integralmente válida.
+
+### 21.0 Alcance — correção **prospectiva única**
+
+**[NORMA NOVA]** Esta emenda vale **apenas** para execuções do `CASO 15` **posteriores** ao seu
+registro. É **vedado** reclassificar retroativamente a primeira execução.
+
+**[FATO]** A primeira execução fica **definitivamente** classificada como
+**`C15_ATTEMPT1 = STOP_INFRA_UNREGISTERED`**, com **resultado funcional positivo preservado**: obra
+aberta, mesma composição, enquadramento correto, `payload` e índice intactos, três *blobs* de produto
+idênticos por `SHA256`, `AC-1` satisfeita sob §19.3 (seis invariantes) e `AC-3` satisfeita sob §20.3.
+O `STOP` decorre **exclusivamente** de um *writer* de infraestrutura **não pré-registrado** —
+**descoberta empírica nova**, não falha funcional. Registro: `C15_LAUDO_PARCIAL.txt`.
+
+**[NORMA NOVA]** Somente uma execução **prospectiva**, sob esta emenda já registrada, pode produzir o
+`PASS` canônico do `CASO 15`.
+
+### 21.1 `AC-4` — `phenotype_storage_info`, tolerância **opcional**
+
+**[FATO]** Medido em `TAR-1B-C15 × CK-C15-OPEN`:
+`files/phenotype_storage_info/shared/storage-info.pb`, `137 → 137 B`, **cinco** bytes divergentes,
+contíguos, em `0x2B-0x2F` — um **único** varint, precedido do byte de tag `0x20` (campo 4, varint),
+decodificado como *timestamp* de última escrita (`1786415878405 → 1786552995414`), casando **ao
+segundo** com o *mtime* do próprio arquivo nos dois `tar`. Conteúdo ASCII **byte-a-byte idêntico**.
+*Bookkeeping* do cliente `Phenotype` do `Google Play Services`, executando *in-process* no diretório
+de dados do app. **Zero** byte de dado de produto.
+
+**[NORMA NOVA] — `AC-4`.** Entrada nova na `ALLOWLIST-C15`, válida **somente** na janela
+`TAR-1B-C15-* × CK-C15-*` e **somente** com **todas** as condições abaixo satisfeitas:
+
+| # | Condição |
+|---|---|
+| 1 | Arquivo **existe** no baseline **e** no pós |
+| 2 | `FILES_ADDED=0` |
+| 3 | `FILES_DELETED=0` |
+| 4 | Tamanho **exatamente** o mesmo |
+| 5 | Estrutura `protobuf` decodificada **idêntica** |
+| 6 | **Somente** o campo já identificado como *timestamp* de última escrita pode mudar |
+| 7 | **Todos** os demais campos e bytes semânticos **idênticos** |
+| 8 | *Timestamp* posterior **dentro** da janela temporal observável da execução do `CASO 15` |
+| 9 | *Timestamp* **causalmente compatível** com o *mtime* do arquivo |
+| 10 | **Nenhum** dado de produto muda fora de `AC-1`/`AC-3`, já aprovadas |
+
+**[NORMA NOVA] — opcionalidade.** `AC-4` é **opcional**: arquivo **inalterado** é aceitável; a
+transição **exata** acima é aceitável. **Qualquer outra** diferença no arquivo ⇒ **`STOP`**.
+
+**[NORMA NOVA] — proibição de uso probatório.** `storage-info.pb` **não** pode ser usado como prova
+de funcionamento do `CASO 15`, nem de identidade de processo. É **exclusivamente** tolerância de
+*bookkeeping* da plataforma.
+
+### 21.2 Registro obrigatório no baseline prospectivo
+
+**[NORMA NOVA]** Antes do primeiro toque da execução prospectiva, junto de §19.3 e §20.3, registrar:
+
+```
+BASE_C15_R2_PHENOTYPE_LENGTH
+BASE_C15_R2_PHENOTYPE_SHA256
+```
+
+mais a **estrutura decodificada** e o **valor do campo de *timestamp***, sem os quais `AC-4` é
+**inverificável** — e, sendo inverificável, **não** se aplica. Nenhum valor da primeira execução é
+herdado: **tudo** é medido de novo.
+
+### 21.3 `ALERTA_LOOP_INFRA` — lacre anti-loop
+
+**[NORMA NOVA]** Esta é a **única** correção prospectiva autorizada por esta descoberta. Se uma
+execução futura revelar **outro** *writer* de infraestrutura não pré-registrado, é **proibido** criar
+exceção nova: **`AC-5` não existe e não será criada**. O desfecho obrigatório é **`HARD STOP`** com o
+token **`ALERTA_LOOP_INFRA`**.
+
+**[NORMA NOVA]** Nesse cenário, a **fronteira de perícia** é redesenhada — não se acrescenta
+*allowlist* arquivo a arquivo. A regra existe porque tolerância incremental sem limite converte o
+comparador num carimbo: cada `STOP` viraria uma exceção, e o instrumento deixaria de poder reprovar.
