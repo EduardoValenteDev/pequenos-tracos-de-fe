@@ -53618,6 +53618,253 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     );
   }
 
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R1.4 · F6-SG-C · TK-C-063 — `TA-9` no significado CANÔNICO
+   *
+   * `TA-9` é, e sempre foi (PLAN §23): os **cinco** `registerGuideTarget` da barra
+   * lateral continuam registrados. Não é "o teste do *token*" — a r1 chegou a
+   * atribuir outros significados a este rótulo (`05_TASKS:212`), e por isso ele
+   * ganhou task própria em vez de virar um eixo diluído dentro de `G-SID-1`.
+   *
+   * CONTAGEM NOMINAL, nunca agregada. `TabletSidebar.js` tem cinco nomes distintos,
+   * e trocar um por outro manteria a contagem em cinco enquanto o tour perderia um
+   * alvo. Por isso cada nome é procurado por si.
+   *
+   * O que esta asserção NÃO alcança: a geometria REAL de cada alvo. Um alvo pode
+   * estar registrado e medir zero. A parte mensurável é aparelho (`TK-C-043`,
+   * §28 #16) — aqui só se prova que a barra continua sendo parte da geometria do
+   * tour, e não decoração.
+   * ────────────────────────────────────────────────────────────────────────── */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · TK-C-063: TA-9 — os cinco alvos de guia da barra lateral ──');
+
+    const ALVOS_SIDEBAR = [
+      'adventures.sidebarTab',
+      'home.sidebarTab',
+      'atelier.sidebarTab',
+      'stars.sidebarTab',
+      'profile.sidebarTab',
+    ];
+
+    const c63Codigo = codeOf('src/components/TabletSidebar.js');
+    const c63Ausentes = ALVOS_SIDEBAR.filter((nome) => !c63Codigo.includes(`'${nome}'`));
+
+    check(
+      '`TA-9` (`TK-C-063` · PLAN §23): os **cinco** `registerGuideTarget` da barra lateral continuam registrados — contados NOMINALMENTE, um a um, porque trocar um nome por outro manteria a contagem e perderia o alvo',
+      c63Ausentes.length === 0,
+      `alvos ausentes em \`TabletSidebar.js\`: ${c63Ausentes.join(' · ')}`,
+    );
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Fase 6 · F6-R1.4 · F6-SG-C · TK-C-023 — `G-SID-1`..`G-SID-4` (CRIAÇÃO)
+   *
+   * Os quatro portões da barra lateral. Esta seção **cria**; não prova nenhum
+   * deles. Cada prova vermelha é independente e mora em task própria:
+   *   `G-SID-1` ← `MT-9` (`TK-C-049`) e `MT-10` (`TK-C-050`) — dois defeitos
+   *                distintos, um por eixo da asserção
+   *   `G-SID-2` ← `MT-15` (`TK-C-024`)
+   *   `G-SID-3` ← `MT-16` (`TK-C-052`)
+   *   `G-SID-4` ← `MT-23` (`TK-C-057`)
+   *
+   * `G-SID-1` repete o eixo dos alvos que `TA-9` acabou de medir. A sobreposição é
+   * intencional e o corpus conta com ela: `MT-10` declara "Esperado: `G-SID-1`
+   * vermelho (`TA-9`)" — as duas asserções caem juntas, de propósito.
+   * ────────────────────────────────────────────────────────────────────────── */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · TK-C-023: portões G-SID-1, G-SID-2, G-SID-3 e G-SID-4 ──');
+
+    const { loadModule: loadSid } = require('./testing/packInstallHarness');
+    const SIDEBAR = 'src/components/TabletSidebar.js';
+    const sidCodigo = codeOf(SIDEBAR);
+
+    const ALVOS_G_SID_1 = [
+      'adventures.sidebarTab',
+      'home.sidebarTab',
+      'atelier.sidebarTab',
+      'stars.sidebarTab',
+      'profile.sidebarTab',
+    ];
+
+    /* ── G-SID-1 ────────────────────────────────────────────────────────────
+     * Origem única de cor E permanência dos alvos, numa asserção só, porque é
+     * assim que o PLAN §26 a escreve. O defeito 3 era um tema legado CONCORRENTE:
+     * enquanto os dois existirem no mesmo arquivo, "qual é a origem" vira questão
+     * de opinião por linha. */
+    const sid1 = [];
+    if (!/from\s+['"]\.\.\/theme\/tokens['"]/.test(sidCodigo)) {
+      sid1.push('`TabletSidebar.js` não importa `theme/tokens` — a origem canônica sumiu');
+    }
+    if (/theme\/colors/.test(sidCodigo)) {
+      sid1.push('`TabletSidebar.js` voltou a referenciar `theme/colors` — tema legado concorrente (defeito 3 de §19)');
+    }
+    ALVOS_G_SID_1.forEach((nome) => {
+      if (!sidCodigo.includes(`'${nome}'`)) sid1.push(`alvo de guia \`${nome}\` desapareceu`);
+    });
+
+    check(
+      '`G-SID-1` (`TK-C-023`, **novo**): `TabletSidebar.js` consome `theme/tokens` e **não** `theme/colors`, e mantém os **cinco** alvos de guia — origem única de cor e barra ainda mensurável pelo tour',
+      sid1.length === 0,
+      sid1.join(' · '),
+    );
+
+    /* ── G-SID-2 ────────────────────────────────────────────────────────────
+     * O portão que §19.1 escreve como negativa: renomear `width: 200` para
+     * `sidebarWidth: 200` NÃO cumpre `F6-R1.4`. Três condições, porque nenhuma
+     * sozinha fecha o buraco:
+     *
+     *   [a] a origem existe — o componente importa o *token*;
+     *   [b] a política REALMENTE lê o *token* — `sidebarWidth(faixa)` é comparada
+     *       com o valor lido de `tokens.js`, não com um número escrito aqui. Uma
+     *       cópia local com valor diferente (`const RAIL = 181`) morre aqui;
+     *   [c] nenhum literal do conjunto estrutural (os valores do *token* ∪ o
+     *       histórico `200`) aparece nos arquivos que compõem a navegação. Uma
+     *       cópia local com o valor CERTO (`const RAIL = 180`) morre aqui.
+     *
+     * O conjunto de [c] é LIDO do *token*, não escrito: se a captura física de
+     * `TK-C-019` mudar 180 para outro número, o portão acompanha sozinho.
+     *
+     * FRONTEIRA: `width` não é proibida no arquivo. `avatarCircle` mede 64,
+     * `navIcon` mede 26, `progressOuter` usa `'90%'` e `shadowOffset` tem um
+     * `width: 2` que nem é largura. O que se proíbe é a largura ESTRUTURAL da
+     * navegação nascer fora de `tokens.js`. */
+    const ARQUIVOS_G_SID_2 = [
+      SIDEBAR,
+      'src/navigation/AppNavigator.js',
+      'src/components/layout/HubSurface.js',
+      'src/components/layout/EditorialSurface.js',
+      'src/components/layout/ImmersiveSurface.js',
+      'src/components/layout/GameSurface.js',
+    ];
+
+    const sid2 = [];
+    let sidLargura = null;
+    let sidPolitica = null;
+    try {
+      const tok = loadSid('src/theme/tokens.js', {}, ['navSidebarRole', 'navSidebarWidth']);
+      const bandas = loadSid('src/hooks/useWindowBand.js', {}, ['BANDS']);
+      sidLargura = tok.navSidebarWidth;
+      sidPolitica = loadSid(
+        SIDEBAR,
+        { BANDS: bandas.BANDS, navSidebarRole: tok.navSidebarRole, navSidebarWidth: tok.navSidebarWidth },
+        ['sidebarRole', 'sidebarWidth'],
+      );
+      // [b] a política devolve o valor DO TOKEN em cada faixa lateral, e `null` na compacta.
+      const esperado = [
+        [bandas.BANDS.MEDIUM, tok.navSidebarWidth[tok.navSidebarRole.tablet]],
+        [bandas.BANDS.EXPANDED, tok.navSidebarWidth[tok.navSidebarRole.tabletL]],
+      ];
+      esperado.forEach(([faixa, valor]) => {
+        const obtido = sidPolitica.sidebarWidth(faixa);
+        if (obtido !== valor) sid2.push(`\`sidebarWidth('${faixa}')\` = ${obtido}, mas o *token* diz ${valor} — a largura não vem de \`tokens.js\``);
+      });
+      if (sidPolitica.sidebarWidth(bandas.BANDS.COMPACT) !== null) {
+        sid2.push('a faixa compacta recebeu largura lateral — restrição 6 de §19.1 (`CN-1`) violada');
+      }
+    } catch (e) {
+      sid2.push(`região pura de \`TabletSidebar.js\` não carregou: ${e.message}`);
+    }
+
+    if (!/navSidebarWidth/.test(sidCodigo)) {
+      sid2.push('`TabletSidebar.js` não consome `navSidebarWidth` — a largura estrutural voltou a nascer no componente');
+    }
+
+    // [c] literais do conjunto estrutural, lidos do *token* e nunca escritos aqui.
+    const ESTRUTURAIS = Array.from(new Set([...(sidLargura ? Object.values(sidLargura) : []), 200]));
+    ARQUIVOS_G_SID_2.forEach((rel) => {
+      const codigo = codeOf(rel);
+      ESTRUTURAIS.forEach((valor) => {
+        if (new RegExp(`(?<![\\w.])${valor}(?![\\w.])`).test(codigo)) {
+          sid2.push(`\`${rel}\` contém o literal de largura estrutural \`${valor}\``);
+        }
+      });
+    });
+
+    check(
+      '`G-SID-2` (`TK-C-023`, **novo**): nenhum literal de largura estrutural de navegação em `TabletSidebar.js`, `AppNavigator.js` ou nos arquétipos — a largura vem de `tokens.js` e DIFERE por faixa; renomear `width: 200` para `sidebarWidth: 200` não cumpre `F6-R1.4` (§19.1)',
+      sid2.length === 0,
+      sid2.join(' · '),
+    );
+
+    /* ── G-SID-3 ────────────────────────────────────────────────────────────
+     * Restrição 4 de §19.1: o *token* diz quanto a navegação OCUPA, não quanto
+     * sobra. Subtraí-lo da janela para inferir "espaço disponível" é geometria
+     * ESTIMADA — o mesmo defeito de classe que `R2.3` existe para corrigir, e que
+     * `RG-12` nomeia. Quem precisa do espaço MEDE (`onLayout`).
+     *
+     * Duas condições: nenhuma subtração envolvendo o *token* em `src/`, e um único
+     * consumidor. A segunda é a mais forte — enquanto só a barra lê a própria
+     * largura, ninguém MAIS pode derivar espaço a partir dela. Um consumidor novo
+     * e legítimo chega junto com a task que o cria, e atualiza este portão. */
+    const G_SID_3_SUBTRACAO = [
+      /-\s*navSidebarWidth\b/,
+      /-\s*sidebarWidth\s*\(/,
+      /\bnavSidebarWidth\s*(?:\.\w+|\[[^\]]*\])?\s*-\s/,
+      /\bsidebarWidth\s*\([^)]*\)\s*-\s/,
+    ];
+
+    const sid3 = [];
+    b1Arquivos.forEach((rel) => {
+      if (rel === 'src/theme/tokens.js') return;               // quem DECLARA não deriva
+      const codigo = codeOf(rel);
+      G_SID_3_SUBTRACAO.forEach((padrao) => {
+        if (padrao.test(codigo)) sid3.push(`${rel} → deriva espaço disponível subtraindo a largura da barra`);
+      });
+      if (rel !== SIDEBAR && /\bnavSidebarWidth\b/.test(codigo)) {
+        sid3.push(`${rel} → consome \`navSidebarWidth\` fora da própria barra lateral`);
+      }
+    });
+
+    check(
+      '`G-SID-3` (`TK-C-023`, **novo**): nenhum consumidor deriva "espaço disponível" subtraindo o *token* de largura da barra — quem precisa do espaço MEDE (`RG-12` · restrição 4 de §19.1)',
+      sid3.length === 0,
+      Array.from(new Set(sid3)).join(' · '),
+    );
+
+    /* ── G-SID-4 ────────────────────────────────────────────────────────────
+     * `D4` · `CN-5`: a barra lateral não ganha destino de navegação novo. O ponto
+     * não é estético — a barra é APRESENTAÇÃO das rotas do `Tab.Navigator`. Um
+     * destino que nasça aqui é um destino que o telefone não tem, e a Fase 6 já
+     * pagou esse preço uma vez (o catálogo próprio de abas, `P-27`).
+     *
+     * Quatro condições, todas sobre a MESMA ideia: o inventário vem de `items` e de
+     * nenhum outro lugar.
+     *   [a] `items` é lido em exatamente dois pontos — a prop e o único `.map` —
+     *       então `concat`, *spread* ou `push` de um sexto item aparecem;
+     *   [b] um único `TouchableOpacity`: o destino é renderizado num lugar só;
+     *   [c] `onTabPress` nunca recebe rota literal — quem navega recebe `tab.name`;
+     *   [d] exatamente cinco comparações `tab.name === '…'`: um sexto destino com
+     *       alvo de guia próprio precisaria de uma sexta.
+     * A correção do defeito 2 (`TK-C-020`) é de DISTRIBUIÇÃO; se tivesse trazido
+     * conteúdo junto, morreria aqui. */
+    const sid4 = [];
+    const ocorrenciasItems = (sidCodigo.match(/\bitems\b/g) || []).length;
+    if (ocorrenciasItems !== 2) {
+      sid4.push(`\`items\` aparece ${ocorrenciasItems}× (esperado 2: a prop e o único \`.map\`) — inventário manipulado`);
+    }
+    if (!/\(items \?\? \[\]\)\.map\(/.test(sidCodigo)) {
+      sid4.push('o inventário deixou de ser `(items ?? []).map(` — a barra pode ter catálogo próprio de novo (`P-27`)');
+    }
+    const ocorrenciasToque = (sidCodigo.match(/<TouchableOpacity\b/g) || []).length;
+    if (ocorrenciasToque !== 1) {
+      sid4.push(`${ocorrenciasToque} \`TouchableOpacity\` na barra (esperado 1) — destino renderizado fora do \`.map\``);
+    }
+    const literalNavegacao = sidCodigo.match(/onTabPress\(\s*['"]/g);
+    if (literalNavegacao) {
+      sid4.push(`\`onTabPress\` recebe rota LITERAL em ${literalNavegacao.length} ponto(s) — destino que o navegador não declarou`);
+    }
+    const comparacoesRota = (sidCodigo.match(/tab\.name === ['"]/g) || []).length;
+    if (comparacoesRota !== 5) {
+      sid4.push(`${comparacoesRota} comparações \`tab.name === '…'\` (esperado 5) — a barra reconhece um destino a mais ou a menos`);
+    }
+
+    check(
+      '`G-SID-4` (`TK-C-023`, **novo**): a barra lateral **não** ganha destino de navegação novo — o inventário vem das rotas do `Tab.Navigator` e de nenhum outro lugar (`D4` · `CN-5`)',
+      sid4.length === 0,
+      sid4.join(' · '),
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
