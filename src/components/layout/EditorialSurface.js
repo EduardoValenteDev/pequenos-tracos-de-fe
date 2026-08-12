@@ -75,9 +75,15 @@ export function editorialLayout({ band, availableWidth, hasSupport = false }) {
 
   const capacidadeOciosa = composicao.supportCapacity && !composicao.support;
 
+  // Onde o conteúdo de apoio VIVE — e a razão de existir um terceiro estado: se a
+  // faixa não abre a região, o material não pode simplesmente sumir. Ele volta para
+  // a coluna, acima do corpo de leitura. `'none'` é só a ausência de material.
+  const supportPlacement = composicao.support ? 'aside' : (hasSupport === true ? 'column' : 'none');
+
   return Object.freeze({
     ...composicao,
     columnMaxWidth,
+    supportPlacement,
     supportWidth: composicao.support ? excedente : 0,
     voidWidth: composicao.support ? 0 : excedente,
     dominantVoid: capacidadeOciosa && excedente > 0,
@@ -104,8 +110,12 @@ export default function EditorialSurface({
   const layout = editorialLayout({ band, availableWidth: largura, hasSupport: support != null });
 
   if (!layout.support) {
+    // Faixa que não abre a região: o apoio desce para dentro da coluna, no topo.
+    // É a mesma leitura de cima a baixo que a família sempre teve — e nenhum
+    // conteúdo se perde por mudança de faixa.
     return (
       <ContentContainer style={style} {...rest}>
+        {support}
         {children}
       </ContentContainer>
     );

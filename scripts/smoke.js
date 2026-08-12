@@ -52811,8 +52811,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const c05MedMaus = c05Med.linhas.filter((l) => !l.ok);
 
     check(
-      'TA-14 [12/13] (`TK-C-005`): a coluna editorial para na medida de leitura nas três faixas, e na expandida o excedente vira região de apoio — nunca vazio dominante (`SD-3`)',
-      !c05Med.ausente && c05Med.linhas.length === 4 && c05MedMaus.length === 0,
+      'TA-14 [12/13] (`TK-C-005`): a coluna editorial para na medida de leitura nas três faixas, o excedente da expandida vira região de apoio (nunca vazio dominante — `SD-3`) e o material de apoio NÃO some nas faixas que não abrem a região',
+      !c05Med.ausente && c05Med.linhas.length === 6 && c05MedMaus.length === 0,
       c05Med.ausente
         ? `medida editorial indisponível: ${c05Med.faltando.join('/') || '(arquivo ausente)'}`
         : `travessia errada: ${c05MedMaus.map((m) => `${m.nome} → ${JSON.stringify(m.obtido)}`).join(' · ') || '(tabela vazia)'}`,
@@ -52883,6 +52883,11 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       {
         nome: 'M-i · o Editorial reimplementa a largura em vez de perguntar ao dono — `P-30` de volta, com a coluna crescendo junto com a janela',
         rodar: () => arnesArq.executarEditorialMedida((s) => s.replace('contentColumnMaxWidth(band)', 'availableWidth')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
+        nome: 'M-j · a recolocação do apoio some — material entregue pela tela desapareceria no telefone, e girar o aparelho tiraria conteúdo da criança',
+        rodar: () => arnesArq.executarEditorialMedida((s) => s.replace("(hasSupport === true ? 'column' : 'none')", "'none'")),
         quebrou: (r) => r.linhas.some((l) => !l.ok),
       },
     ];

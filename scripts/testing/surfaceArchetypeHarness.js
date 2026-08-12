@@ -193,22 +193,32 @@ const TRAVESSIA_EDITORIAL = [
   {
     nome: 'compacta · 411dp — coluna fluida, sem sobra e sem apoio possível',
     band: 'compact', largura: 411, hasSupport: false,
-    coluna: '100%', apoio: 0, vazio: 0, vazioDominante: false,
+    coluna: '100%', apoio: 0, vazio: 0, vazioDominante: false, lugar: 'none',
+  },
+  {
+    nome: 'compacta · 411dp COM material de apoio — a faixa não abre região, e o material NÃO some: desce para a coluna',
+    band: 'compact', largura: 411, hasSupport: true,
+    coluna: '100%', apoio: 0, vazio: 0, vazioDominante: false, lugar: 'column',
   },
   {
     nome: 'média · 823dp — a coluna para em 560dp; a sobra ainda é margem legítima',
     band: 'medium', largura: 823, hasSupport: false,
-    coluna: 560, apoio: 0, vazio: 263, vazioDominante: false,
+    coluna: 560, apoio: 0, vazio: 263, vazioDominante: false, lugar: 'none',
+  },
+  {
+    nome: 'média · 823dp COM material de apoio — ainda sem região, e o material continua na coluna',
+    band: 'medium', largura: 823, hasSupport: true,
+    coluna: 560, apoio: 0, vazio: 263, vazioDominante: false, lugar: 'column',
   },
   {
     nome: 'expandida · 1180dp SEM apoio — coluna de 640dp cercada de 540dp de vazio (DEFEITO `SD-3`)',
     band: 'expanded', largura: 1180, hasSupport: false,
-    coluna: 640, apoio: 0, vazio: 540, vazioDominante: true,
+    coluna: 640, apoio: 0, vazio: 540, vazioDominante: true, lugar: 'none',
   },
   {
     nome: 'expandida · 1180dp COM apoio — mesma coluna de 640dp, e os 540dp viram região de apoio',
     band: 'expanded', largura: 1180, hasSupport: true,
-    coluna: 640, apoio: 540, vazio: 0, vazioDominante: false,
+    coluna: 640, apoio: 540, vazio: 0, vazioDominante: false, lugar: 'aside',
   },
 ];
 
@@ -227,6 +237,7 @@ function executarEditorialMedida(mutate) {
         Math.abs(r.supportWidth - c.apoio) < EPSILON &&
         Math.abs(r.voidWidth - c.vazio) < EPSILON &&
         r.dominantVoid === c.vazioDominante &&
+        r.supportPlacement === c.lugar &&
         r.columnOwner === 'ContentContainer',
     };
   });
