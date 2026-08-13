@@ -3656,6 +3656,62 @@ Logo, qualquer `R2` remanescente `B`..`E` só pode ser **prospectiva**, sobre bi
 > encerrada** no estado atual?
 >
 > **NÃO decidida aqui.** A resposta é do fundador, e será registrada nesta página quando existir.
+>
+> ✅ **RESPONDIDA em 2026-08-13** — ver [`D-FUND-R2-CONTINUITY-01`](#d-fund-r2-continuity-01--refundar-prospectivamente-a-r2-remanescente-blocos-be-2026-08-13),
+> logo abaixo. O texto acima **não é reescrito**: ele registra fielmente que, quando foi
+> escrito, a pergunta estava aberta.
+
+## `D-FUND-R2-CONTINUITY-01` — refundar prospectivamente a `R2` remanescente, Blocos `B`..`E` (2026-08-13)
+
+**DECISÃO DO FUNDADOR: REFUNDAR PROSPECTIVAMENTE A `R2` REMANESCENTE · BLOCOS `B`..`E`.**
+
+Responde a pergunta deixada em aberto por
+[`D-FUND-HISTORICAL-INSTALL-BASELINE-01`](#d-fund-historical-install-baseline-01--a-instalação-de-1308-foi-provada-a-baseline-canônica-avança-2026-08-13)
+§8. Baseline de entrada lacrada em
+[artefato `30`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/30_CURRENT_BASELINE_R2_PROSPECTIVE_ORIGIN.md).
+
+**1 · A campanha histórica permanece congelada.** A `R2` histórica fica **incompleta
+exatamente no estado em que ocorreu**. Não é retomada, não é completada, não é
+reinterpretada.
+
+**2 · Nenhum `PASS` histórico é criado retroativamente.**
+
+**3 · Nenhuma continuidade binária histórica é alegada.**
+
+**4 · A instalação de 13/08 rompeu a continuidade do binário** da campanha antiga. Esse é o
+fato que torna a refundação necessária — não uma preferência de método.
+
+**5 · A continuidade dos dados foi preservada**, e o estado atual foi **novamente medido**
+como íntegro: `CURRENT_ACERVO_INTEGRITY_PASS_IDENTICAL_TO_HISTORICAL_POST`, `14`/`14`
+arquivos, zero perda, zero corrupção, zero órfãos.
+
+**6 · Baseline de entrada da nova `R2`:** o `BUILD NATIVE 01` **já instalado**
+(`CURRENT_DEVICE_TARGET_BINARY_IDENTITY_PROVED`) **+** a baseline atual do artefato `30`.
+
+**7 · Os Blocos `B`..`E` serão executados com** nova origem prospectiva · novos *logs* ·
+novas evidências · novos *hashes* · novos *verdicts*.
+
+**8 · Nenhum `PASS` da campanha histórica é herdado automaticamente.**
+
+**9 · Uso permitido da evidência histórica:** **somente** como contexto e proveniência.
+**Nunca** apresentada como se tivesse sido produzida pela nova campanha.
+
+**10 ·** `R1-PEND-1`..`5` mantêm seus **estados próprios** — esta decisão não os altera.
+
+**11 ·** `F6-SG-A` permanece **NÃO CONCEDIDO**.
+
+**12 ·** `F6-SG-C` permanece **NÃO CONCEDIDO**.
+
+**13 ·** `SD-1` permanece **NÃO CONCEDIDO**.
+
+**14 ·** `ACHADO-V1` permanece **CONGELADO** até seu ponto causal.
+
+> ⛔ **Esta decisão autoriza a EXISTÊNCIA da campanha, não sua execução.** Os Blocos `B`, `C`,
+> `D` e `E` **não foram executados**. Nenhum `PASS` de caso, nenhum *log* físico, nenhum ADB.
+
+> 🔗 **Origem prospectiva.** A campanha nasce de `D-FUND-R2-CONTINUITY-01` **+** artefato `30`
+> **+** o `HEAD` canônico desta transição; o commit que introduz a decisão e o artefato é a
+> **âncora Git de origem**. *Timestamps* da campanha antiga **não** são reutilizados.
 
 ## `D-FUND-PREBUILD-01` — custódia do binário instalado no `SM-X510` (decisão anterior · **formalizada documentalmente em 2026-08-13**)
 
