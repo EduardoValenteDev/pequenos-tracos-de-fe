@@ -3527,6 +3527,48 @@ Protocolo executável em
 > `PASS` é concedido, **`F6-SG-A` = NÃO CONCEDIDO** (`R1-PEND-1..5` ABERTAS), e a execução depende de
 > **`HUMAN GATE` explícito**.
 
+## `D-FUND-BUILD-SEQUENCE-01` — o *build* nativo vai à frente; a campanha histórica **não** é refeita (2026-08-13)
+
+Decisão **do fundador**, tomada após o `PREBUILD_CUSTODY_HARD_STOP`
+([artefato `26`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/26_PREBUILD_CUSTODY_HARD_STOP.md)).
+
+**O que foi decidido.** **NÃO** retornar a `e393768` e **NÃO** reconstruir a campanha `R2`
+histórica antes do *build*. A rota de restauração medida em §9 do artefato `26` fica
+**registrada e não escolhida**.
+
+**O que a decisão NÃO faz.** Ela é de **sequenciamento**, não de mérito. A campanha histórica
+permanece exatamente como está:
+
+| Estado histórico | Continua |
+|---|---|
+| `BLOCOS B`..`E` (`CASOS 7, 8, 6, 11, 17, 12`) | **incompletos · NÃO EXECUTADOS** |
+| Veredito da campanha | **não-`PASS`** |
+| `R1-PEND-1..5` | **ABERTAS** — `PF6SGA-R2-GATE-SANEAMENTO` segue integralmente válida |
+| `F6-SG-A` | **NÃO CONCEDIDO** |
+
+> ⛔ **Nenhum `PASS` retroativo é concedido**, e esta decisão **sozinha não supersede** os
+> requisitos históricos. Os estados antigos são **preservados como históricos**, não apagados
+> nem convertidos.
+
+**Por que não bloqueia o *build*.** Porque a autorização não vem desta decisão: o **🟢 VERDE**
+auditou o corpus de forma independente e concluiu
+`SGC_FINAL_GATE_AUTOMATION_PASS_BUILD_AUTHORIZED` e `BUILD_NATIVE_AUTHORIZED`. A decisão do
+fundador **escolhe a ordem**; a autorização técnica já existia.
+
+**Efeito prospectivo.** O novo binário passa a ser a **base física prospectiva** para as provas
+atuais de `F6-R1`/`SG-C` e para a **futura campanha consolidada** prevista no roadmap. As provas
+históricas não migram para ele: o que for provado no binário novo é prova **do binário novo**.
+
+**Custódia reconciliada antes da decisão.** `CUSTODY_RKSTORAGE_AFTER_C10 = BYTE_IDENTICAL`
+(`SHA256 950D93D1…FFA1`, `49152` bytes, idêntico ao `TAR-C10-POST`) e `drawings60/` anterior à
+janela `F6-R1` — artefato `26` §4.2. O acervo do `SM-X510` está preservado **por identidade de
+conteúdo**.
+
+**Limite operacional que acompanha a decisão.** O *build* é **gerado e não instalado**. A troca
+do binário no `SM-X510` é **missão posterior**, com portão próprio para `applicationId`,
+assinatura, `versionCode`, capacidade real de *upgrade in-place*, *backup* final do acervo e
+*rollback*.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
