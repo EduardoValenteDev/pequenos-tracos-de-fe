@@ -82,8 +82,16 @@ para acertar a mira. **Nada em `BLOCO 6` autoriza confundir as duas.**
 ## 3. `TK-C-044` — verificação final dos ***tokens***
 
 **Executada.** *Diff* de `src/theme/tokens.js` entre `ffe856c` (último estado anterior a
-`F6-R1`) e `da16b18`: **+40 linhas, −2**, nenhuma remoção de símbolo, nenhuma mudança de
+`F6-R1`) e `da16b18`: **+44 linhas, −2**, nenhuma remoção de símbolo, nenhuma mudança de
 valor pré-existente.
+
+> **ERRATA (`TK-C-064`).** A primeira redação desta linha, commitada em `77e1e19`, dizia
+> **+40/−2**. `git diff --numstat ffe856c..da16b18 -- src/theme/tokens.js` devolve
+> `44 2`. O número corrigido é **+44/−2**; a mensagem de `77e1e19` carrega o número antigo
+> e **não** é reescrita (*commits* já criados não têm o histórico alterado). Nenhuma das
+> conclusões do parecer depende da contagem: o que sustenta `TK-C-044` é a tabela abaixo —
+> **nenhum símbolo removido, nenhum valor pré-existente alterado** —, e essas duas
+> propriedades foram verificadas item a item, não por soma de linhas.
 
 | Item | O que mudou | Parecer |
 |---|---|---|
