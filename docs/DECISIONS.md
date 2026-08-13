@@ -3598,6 +3598,65 @@ A supersessão é **de alcance**, não de mérito, e **não** toca o núcleo de 
 > `SD-1` = **NÃO CONCEDÍVEL**. `R1-PEND-1..5` = **ABERTAS**. `BLOCOS B`..`E` = **NÃO
 > EXECUTADOS**. A supersessão diz **o que se pode fazer**, não **o que está provado**.
 
+## `D-FUND-HISTORICAL-INSTALL-BASELINE-01` — a instalação de 13/08 foi provada; a baseline canônica avança (2026-08-13)
+
+Canonização retrospectiva de um evento **real**, autorizada pelo veredito
+`HISTORICAL_INSTALL_EVIDENCE_AUDIT_PASS_READY_FOR_CANONICAL_REPAIR`. Registro completo:
+[artefato `29`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/29_HISTORICAL_INSTALL_GATE_20260813.md).
+
+**1 · O que foi provado.** Em **13/08/2026, 02:00:59**, uma instalação `adb install -r` foi
+executada no `RX2XC003LTJ` (`SM-X510`), com saída literal `Performing Streamed Install` /
+`Success`, `exit 0`. A evidência **permaneceu fora do corpus** até esta reparação; a auditoria
+adversarial posterior a **provou**. O binário instalado é **bit a bit** o do `BUILD NATIVE 01`
+(`BUILD_ID a123250f-384e-4665-a443-2c783351aad0`, `SHA256 0273951…97262E`), houve
+***upgrade in-place*** (`firstInstallTime` inalterado, `codePath` novo, *past signatures* vazio) e
+o **acervo sobreviveu byte-idêntico** (`14`/`14` arquivos, `RKStorage` `SHA256 950D93D1…FFA1`).
+
+**2 · `SUPERSEDE` — de alcance cirúrgico.**
+
+> ### `SUPERSEDE PARCIAL`
+>
+> `D-FUND-HISTORICAL-INSTALL-BASELINE-01` **supersede EXCLUSIVAMENTE o item 1** de
+> `D-FUND-PREBUILD-01`.
+>
+> **Motivo:** aquele item descreve, **em tempo presente**, o binário "atualmente instalado" com
+> `firstInstallTime == lastUpdateTime == 2026-08-10 12:03:42`. Essa afirmação **ficou
+> desatualizada** em `2026-08-13 02:00:59`. Ela **não estava errada quando escrita** — ela
+> **expirou**.
+
+**3 · O que NÃO é superado.** Os **itens 2 a 7** de `D-FUND-PREBUILD-01` permanecem
+**integralmente vigentes**: **não instalar** · **não desinstalar** · **não substituir** · **não
+executar `pm clear`** · gerar binário não viola custódia · **qualquer instalação futura exige
+missão e gate próprios**. A supersessão é de **fato desatualizado**, não de **norma de custódia**.
+
+**4 · O artefato `26` NÃO é corrigido retroativamente.** Ele permanece byte-idêntico e canônico
+como registro da **baseline PRE**, válida de `2026-08-10 12:03:42` a `2026-08-13 02:00:59`
+(`HISTORICAL_BASELINE_VALID_UNTIL_INSTALL`). O passado documental não é reescrito.
+
+**5 · Nova baseline canônica.** A **baseline POST** do artefato `29` §11 passa a ser a **baseline
+canônica mais recente conhecida** do `SM-X510`.
+
+**6 · Limite duro que acompanha a baseline.**
+
+> ⛔ **`CURRENT_DEVICE_STATE_NOT_YET_MEASURED`.** A baseline POST é a última **conhecida**, não o
+> **estado presente**. O aparelho **não foi medido** desde `2026-08-13 02:00:59`, e nenhum
+> documento pode afirmar qual binário está nele **agora**.
+
+**7 · Nada é concedido.** `R1-PEND-1..5` = **ABERTAS** · `F6-SG-A` = **NÃO CONCEDIDO** ·
+`F6-SG-C` = **NÃO CONCEDIDO** · `SD-1` = **NÃO CONCEDIDO** · `BLOCOS B`..`E` = **NÃO EXECUTADOS**
+· `ACHADO-V1` = **CONGELADO**. Provar que uma instalação ocorreu **não** prova nenhum requisito de
+produto. Também não se declara *rollback* testado: `ROLLBACK_EXECUTION_NOT_TESTED`.
+
+**8 · Decisão futura pendente — `D-FUND-R2-CONTINUITY-01`.** A continuidade **de dados** foi
+preservada; a continuidade **do binário histórico** foi **rompida** em `2026-08-13 02:00:59`.
+Logo, qualquer `R2` remanescente `B`..`E` só pode ser **prospectiva**, sobre binário posterior.
+
+> 🟡 **PERGUNTA EM ABERTO (`D-FUND-R2-CONTINUITY-01`):** a `R2` remanescente `B`..`E` será
+> **refundada prospectivamente** sobre a baseline pós-instalação, ou a **campanha histórica será
+> encerrada** no estado atual?
+>
+> **NÃO decidida aqui.** A resposta é do fundador, e será registrada nesta página quando existir.
+
 ## `D-FUND-PREBUILD-01` — custódia do binário instalado no `SM-X510` (decisão anterior · **formalizada documentalmente em 2026-08-13**)
 
 > ⚠️ **Esta entrada é NOVA.** Não existia texto desta decisão em `docs/DECISIONS.md` antes de
