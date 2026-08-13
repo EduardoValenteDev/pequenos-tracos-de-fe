@@ -7235,8 +7235,13 @@ check(
     'UX2.4.4: overlay usa COMMIT MODEL (mede → comita índice+rect juntos), sem render provisório que pula',
     guideBase.includes('commitStep') &&
     /Promise\.resolve\(measure\(target\)\)\.then\(\(r\) => done\(r \|\| null\)\)/.test(guideBase) &&
-    /const finish = \(r\) =>[\s\S]{0,160}setIndex\(to\); setRect\(r \|\| null\); setBusy\(false\)/.test(guideBase) &&
-    !/setRect\(null\);[\s\S]{0,40}onStep\?\.\(step\.target\)/.test(guideBase) &&
+    // [F6-SG-C · TK-C-026 · D3] O estado passou a se chamar `rectWin` (rect em
+    // coordenadas de JANELA), porque agora existe um `rect` derivado em coordenadas
+    // do OVERLAY. Só o NOME mudou: este portão continua provando exatamente o mesmo
+    // — índice e rect comitados juntos, num único ponto, sem render provisório. A
+    // negativa acompanha o nome para não virar verdadeira por vacuidade.
+    /const finish = \(r\) =>[\s\S]{0,160}setIndex\(to\); setRectWin\(r \|\| null\); setBusy\(false\)/.test(guideBase) &&
+    !/setRectWin\(null\);[\s\S]{0,40}onStep\?\.\(step\.target\)/.test(guideBase) &&
     /commitStep\(index \+ 1\)/.test(guideBase) &&
     /commitStep\(index - 1\)/.test(guideBase),
     'overlay não comita índice+rect juntos (ainda há render provisório/pulo)',
@@ -7245,7 +7250,14 @@ check(
     'UX2.4.5: Card 2 realça CLARO a aba Aventuras — moldura (tabHalo c/ borda+pulso) no item + seta curta do card, véu leve, tab bar bloqueada',
     readSrc('src/data/beniGuides.js').includes("highlightTab: 'adventures'") &&
     // HOME 1.1: realce de aba generalizado (Início/Aventuras) por chave highlightTab.
-    /showTabGlow = phase === 'steps' && !!step\.highlightTab && !isTabletLayout/.test(guideBase) &&
+    // [F6-SG-C · TK-C-026 · D1] O predicado foi CINDIDO em duas metades nomeadas:
+    // `showNavGlow` (o passo realça um destino de navegação — vale nas duas
+    // composições) e `showTabGlow` (= `showNavGlow && !isTabletLayout`, a metade que
+    // é geometria de BARRA INFERIOR). As duas linhas são exigidas JUNTAS, e o par
+    // prova mais que a linha antiga: `!isTabletLayout` continua guardando
+    // `showTabGlow`, e agora `glowTabIndex != null` também está fixado.
+    /const showNavGlow = phase === 'steps' && !!step\.highlightTab && glowTabIndex != null/.test(guideBase) &&
+    /const showTabGlow = showNavGlow && !isTabletLayout/.test(guideBase) &&
     guideBase.includes('tabHalo') &&
     guideBase.includes('borderWidth: 2.5') &&
     guideBase.includes('else if (showTabGlow)') &&
@@ -7329,7 +7341,13 @@ check(
   check(
     'TABLET1.0: Card 2 NÃO desenha realce de tab bar no tablet (fallback honesto; sem seta errada)',
     overlaySrcTab.includes('isTabletLayout') &&
-    /showTabGlow = phase === 'steps' && !!step\.highlightTab && !isTabletLayout/.test(overlaySrcTab),
+    // [F6-SG-C · TK-C-026 · D1] Mesma cisão de UX2.4.5. O que ESTE portão prova é que
+    // a geometria de tab bar (halo de 5 itens, seta para baixo) não vale no tablet —
+    // e é exatamente `showTabGlow` que a governa (`:391 else if (showTabGlow)`,
+    // `:413 showTabHalo`). Ela segue amarrada a `!isTabletLayout`. O que passou a
+    // valer nas duas composições é `showNavGlow`, que NÃO desenha barra inferior.
+    /const showNavGlow = phase === 'steps' && !!step\.highlightTab && glowTabIndex != null/.test(overlaySrcTab) &&
+    /const showTabGlow = showNavGlow && !isTabletLayout/.test(overlaySrcTab),
     'Card 2 desenharia realce de 5 abas no tablet (sem tab bar)',
   );
   check(
@@ -7493,8 +7511,13 @@ check(
     tourSvc113.includes('export function setAdventureTabCalloutActive') &&
     tourSvc113.includes('export function getAdventureTabCalloutActive') &&
     tourSvc113.includes('export function subscribeAdventureTabCalloutActive') &&
-    // overlay liga o callout SÓ no passo que realça a aba (embedded && showTabGlow)
-    /const tabCalloutOn = embedded && showTabGlow/.test(overlaySrcTab) &&
+    // overlay liga o callout SÓ no passo que realça a aba (embedded && showNavGlow)
+    // [F6-SG-C · TK-C-026 · D1] Era `showTabGlow`, que carrega `!isTabletLayout` —
+    // por isso `calloutOn` NUNCA ligava na composição lateral (defeito D1). O que
+    // este portão prova é o ESCOPO POR PASSO (sinal de passo, não `tourActive`), e
+    // `showNavGlow` é por passo do mesmo jeito. Quem desenha a moldura em cada
+    // composição continua sendo a barra (`AppNavigator`), não o overlay.
+    /const tabCalloutOn = embedded && showNavGlow/.test(overlaySrcTab) &&
     overlaySrcTab.includes('onTabHighlight(tabCalloutOn)') &&
     mapSrcTab.includes('onTabHighlight={setAdventureTabCalloutActive}') &&
     // tab bar: assina o callout e desenha CAMADA decorativa (não tabBarItemStyle)
@@ -53867,6 +53890,144 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       '`G-SID-4` (`TK-C-023`, **novo**): a barra lateral **não** ganha destino de navegação novo — o inventário vem das rotas do `Tab.Navigator` e de nenhum outro lugar (`D4` · `CN-5`)',
       sid4.length === 0,
       sid4.join(' · '),
+    );
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Fase 6 · F6-R1.2 · F6-SG-C · TK-C-026 — `TA-15`
+   * Geometria do alvo de guia nas três faixas (a parcela automatizável)
+   *
+   * O corpus é explícito sobre o limite: "a parcela de geometria REAL exige
+   * aparelho (§11.11)". O que Node prova aqui é a POLÍTICA — as duas perguntas que
+   * a composição lateral respondia com a aritmética da barra inferior e que por
+   * isso não tinham resposta lá. O apontamento correto continua sendo `Física
+   * futura: sim (obrigatória)`, coberto pelo vídeo do tour em telefone E iPad.
+   *
+   * `G-RSP-4` NÃO nasce aqui: o dono é `TK-C-027`, ainda não executada.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · TK-C-026: TA-15 — geometria do alvo de guia nas três faixas ──');
+
+    const { loadModule: loadGuia } = require('./testing/packInstallHarness');
+    const OVERLAY = 'src/components/BeniGuideOverlay.js';
+    const NAV = 'src/navigation/AppNavigator.js';
+    const guiaCodigo = codeOf(OVERLAY);
+    const navCodigo = codeOf(NAV);
+
+    const faixas = loadGuia('src/hooks/useWindowBand.js', {}, ['BANDS']).BANDS;
+    const guia = loadGuia(OVERLAY, { BANDS: faixas }, ['guideBottomReserve', 'guideTargetInOverlay']);
+
+    /* ── [a] A faixa reservada ao pé da tela (defeito D2) ─────────────────────
+     * A reserva é da BARRA INFERIOR, e barra inferior só existe na composição
+     * compacta. Aplicada à lateral, ela fazia `inViewport` DESCARTAR EM SILÊNCIO
+     * o alvo mais baixo da barra — justamente onde `TabletSidebar` encosta os
+     * cinco destinos (`flexGrow: 1` + `justifyContent: 'flex-end'`).
+     *
+     * A altura entra como PARÂMETRO no teste (`999`) de propósito: o que se prova
+     * é a política — "reserva na compacta, não reserva na lateral" —, não um
+     * número. O número tem asserção própria, e ela é `CN-1`: o padrão continua
+     * sendo os 64dp de hoje, valor por valor. */
+    const ta15a = [];
+    if (guia.guideBottomReserve(faixas.COMPACT, 999) !== 999) {
+      ta15a.push('a faixa **compacta** deixou de reservar a altura da barra inferior — o card passaria por baixo dela');
+    }
+    [['MEDIUM', faixas.MEDIUM], ['EXPANDED', faixas.EXPANDED]].forEach(([nome, faixa]) => {
+      if (guia.guideBottomReserve(faixa, 999) !== 0) {
+        ta15a.push(`a faixa **${nome}** ainda reserva o pé da tela para uma barra inferior que não existe ali — o alvo mais baixo da barra lateral some sem anel nem seta`);
+      }
+    });
+    if (guia.guideBottomReserve(faixas.COMPACT) !== 64) {
+      ta15a.push(`o padrão da faixa compacta virou ${guia.guideBottomReserve(faixas.COMPACT)} (esperado 64, o \`TABBAR_APPROX\` de hoje) — \`CN-1\` violado`);
+    }
+
+    check(
+      '`TA-15` (`TK-C-026` · PLAN §19.1): a faixa reservada ao pé da tela é consequência da **composição** — a barra inferior existe na compacta e **não** existe nas duas faixas laterais, onde a navegação ocupa a esquerda',
+      ta15a.length === 0,
+      ta15a.join(' · '),
+    );
+
+    /* ── [b] A conversão janela → caixa do overlay (defeito D3) ───────────────
+     * `measureInWindow` devolve JANELA; o overlay embutido desenha na área de
+     * TELA, que na composição lateral começa depois da barra. A asserção decisiva
+     * é a de IDENTIDADE na faixa compacta: o alvo tem de sair o MESMO OBJETO, não
+     * um objeto igual. É `CN-1` provado por construção — nem uma soma acontece no
+     * telefone, mesmo que a origem medida venha suja. */
+    const ta15b = [];
+    const alvo = Object.freeze({ x: 300, y: 500, width: 88, height: 64 });
+    const origemSuja = { x: 77, y: 33 };
+
+    if (guia.guideTargetInOverlay(null, origemSuja, faixas.EXPANDED) !== null) {
+      ta15b.push('alvo ausente deixou de devolver `null` — o fallback honesto do tour depende disso');
+    }
+    if (guia.guideTargetInOverlay(alvo, origemSuja, faixas.COMPACT) !== alvo) {
+      ta15b.push('a faixa **compacta** passou a CONVERTER o alvo — no telefone as duas caixas coincidem e nada pode ser subtraído (`CN-1`)');
+    }
+    if (guia.guideTargetInOverlay(alvo, { x: 0, y: 0 }, faixas.EXPANDED) !== alvo) {
+      ta15b.push('origem medida em `(0, 0)` deixou de ser identidade — conversão que não converte nada não pode criar objeto novo');
+    }
+    if (guia.guideTargetInOverlay(alvo, null, faixas.MEDIUM) !== alvo) {
+      ta15b.push('origem ainda **não medida** deixou de devolver o alvo intacto — sem medição o correto é o comportamento de hoje, não um chute');
+    }
+    const lateral = guia.guideTargetInOverlay(alvo, { x: 180, y: 12 }, faixas.MEDIUM);
+    if (!lateral || lateral.x !== 120 || lateral.y !== 488) {
+      ta15b.push(`faixa média: alvo convertido para \`(${lateral && lateral.x}, ${lateral && lateral.y})\` (esperado \`(120, 488)\`) — a moldura sairia deslocada da barra lateral`);
+    }
+    if (!lateral || lateral.width !== 88 || lateral.height !== 64) {
+      ta15b.push('a conversão alterou o TAMANHO do alvo — ela translada, não redimensiona');
+    }
+    const expandida = guia.guideTargetInOverlay(alvo, { x: 240, y: 0 }, faixas.EXPANDED);
+    if (!expandida || expandida.x !== 60 || expandida.y !== 500) {
+      ta15b.push(`faixa expandida: alvo convertido para \`(${expandida && expandida.x}, ${expandida && expandida.y})\` (esperado \`(60, 500)\`)`);
+    }
+
+    check(
+      '`TA-15` (`TK-C-026` · §41.4): o alvo medido é trazido para a caixa do *overlay* pela origem **medida** — identidade na faixa compacta (`CN-1` por construção) e translação nas duas faixas laterais, sem mexer no tamanho',
+      ta15b.length === 0,
+      ta15b.join(' · '),
+    );
+
+    /* ── [c] As duas metades da moldura, cada uma na sua composição (D1) ──────
+     * A condicional `!isTablet` de `AppNavigator.js:345` não é o defeito: o defeito
+     * era ela ser a ÚNICA. A compacta continua posicionando por aritmética (`tabW`);
+     * a lateral ganha a irmã, posicionada pelo alvo MEDIDO — porque `flexGrow: 1` +
+     * `justifyContent: 'flex-end'` não produzem posição dedutível, e a restrição 4
+     * do §19.1 veda a largura estrutural como substituto de medição.
+     *
+     * O sinal também precisava atravessar: enquanto `tabCalloutOn` dependesse de
+     * `showTabGlow` (que carrega `!isTabletLayout`), `calloutOn` nunca ligaria na
+     * composição lateral e a moldura de lá não seria desenhada em passo nenhum. */
+    const ta15c = [];
+    if (!/\{!isTablet && calloutOn && advIndex >= 0 && \(/.test(navCodigo)) {
+      ta15c.push('a moldura da **barra inferior** mudou de forma — a faixa compacta tem de permanecer idêntica (`CN-1`)');
+    }
+    if (!/\{isTablet && calloutOn && calloutRect && \(/.test(navCodigo)) {
+      ta15c.push('a moldura da **composição lateral** desapareceu — a condicional `!isTablet` voltou a ser a única e a barra lateral ficou sem geometria de *callout*');
+    }
+    if (!/measureGuideTarget\(\s*'adventures\.sidebarTab'\s*\)/.test(navCodigo)) {
+      ta15c.push('a moldura lateral deixou de vir de `measureGuideTarget(\'adventures.sidebarTab\')` — sem medição ela só poderia vir de aritmética ou do *token* (`RG-12`)');
+    }
+    if (/calloutRect[\s\S]{0,200}TAB_DEFS\.length/.test(navCodigo)) {
+      ta15c.push('a moldura lateral passou a usar `TAB_DEFS.length` — aritmética de barra inferior aplicada onde não há barra inferior');
+    }
+    if (!/const tabCalloutOn = embedded && showNavGlow;/.test(guiaCodigo)) {
+      ta15c.push('o sinal da moldura voltou a ser condicionado à composição — a barra lateral não recebe aviso de realce em passo nenhum');
+    }
+    if (!/const tabTop = height - \(guideBottomReserve\(band\) \+ insets\.bottom\);/.test(guiaCodigo)) {
+      ta15c.push('`tabTop` voltou a subtrair a altura da barra inferior INCONDICIONALMENTE');
+    }
+    if (!/const anelForaDoAlcance = embedded && isSidebarTarget;/.test(guiaCodigo)) {
+      ta15c.push('o *overlay* embutido voltou a desenhar o anel do alvo lateral — ele vive dentro da tela e não alcança a barra, então o anel cairia sobre a tela');
+    }
+    [[OVERLAY, guiaCodigo], [NAV, navCodigo]].forEach(([rel, codigo]) => {
+      if (/\bnavSidebarWidth\b|\bsidebarWidth\s*\(/.test(codigo)) {
+        ta15c.push(`\`${rel}\` passou a consumir a largura estrutural da barra lateral — converter coordenada com o *token* é exatamente \`MT-16\` (restrição 4 do §19.1 · \`G-SID-3\`)`);
+      }
+    });
+
+    check(
+      '`TA-15` (`TK-C-026` · PLAN §19.1): a moldura do tour tem **as duas** metades — a compacta por aritmética e a lateral pelo alvo **medido** —, e o sinal que a liga alcança as duas composições',
+      ta15c.length === 0,
+      ta15c.join(' · '),
     );
   }
 

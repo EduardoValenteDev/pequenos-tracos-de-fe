@@ -39,6 +39,49 @@ const MEASURE_SETTLE_MS = 320; // espera o layout/scroll estabilizar antes de me
 // o passo comita SEM alvo — o tour NUNCA trava a tela. Vale para todos os tours.
 const MEASURE_TIMEOUT_MS = 1500;
 
+/* ── [F6-SG-C · TK-C-026 · `TA-15`] POLÍTICA PURA DA GEOMETRIA DO ALVO ───────────
+   As duas perguntas que a composição lateral respondia com a aritmética da barra
+   INFERIOR — e que por isso não tinham resposta lá. Ficam aqui, sem JSX, porque
+   geometria de guia é a única parte desta tela que Node consegue exercitar nas três
+   faixas; a geometria REAL continua exigindo aparelho (§11.11). */
+
+/**
+ * Faixa reservada ao PÉ da tela pela navegação.
+ *
+ * Só a composição compacta tem barra embaixo. Na lateral a navegação ocupa a
+ * esquerda e o pé da tela está livre — reservar altura ali fazia o alvo mais baixo
+ * da barra lateral cair fora da *viewport* e sumir EM SILÊNCIO (sem anel, sem seta),
+ * justamente onde `TabletSidebar` encosta os cinco destinos (`justifyContent:
+ * 'flex-end'`). O valor da faixa compacta não muda: `CN-1`.
+ */
+export function guideBottomReserve(band, tabBarHeight = TABBAR_APPROX) {
+  return band === BANDS.COMPACT ? tabBarHeight : 0;
+}
+
+/**
+ * O alvo medido, trazido para o espaço de coordenadas do *overlay*.
+ *
+ * `measureInWindow` devolve JANELA; o *overlay* desenha na sua própria caixa. Na
+ * faixa compacta as duas origens coincidem — a navegação está embaixo e a área de
+ * tela começa na janela —, então o alvo passa INTACTO, e é o mesmo objeto: `CN-1`
+ * por construção, não por medida feliz. Na composição lateral a área de tela começa
+ * depois da barra, e a diferença é subtraída.
+ *
+ * A diferença é sempre MEDIDA. A largura estrutural da barra lateral não entra aqui
+ * nem poderia: usá-la como substituto de medição é o que a restrição 4 do §19.1
+ * proíbe e o que `G-SID-3` (mutante `MT-16`) pega.
+ *
+ * O que a faixa decide é apenas SE as caixas coincidem — consequência de a navegação
+ * estar embaixo ou à esquerda, isto é, de composição. Nenhum número sai dela.
+ */
+export function guideTargetInOverlay(rect, origin, band) {
+  if (!rect || band === BANDS.COMPACT || !origin) return rect ?? null;
+  const dx = Number.isFinite(origin.x) ? origin.x : 0;
+  const dy = Number.isFinite(origin.y) ? origin.y : 0;
+  if (dx === 0 && dy === 0) return rect;
+  return { ...rect, x: rect.x - dx, y: rect.y - dy };
+}
+
 export default function BeniGuideOverlay({
   steps = [],
   measure,
@@ -62,7 +105,12 @@ export default function BeniGuideOverlay({
   const insets = useSafeAreaInsets();
   const [phase, setPhase] = useState(withAudioPrompt ? 'prompt' : 'steps');
   const [index, setIndex] = useState(0);
-  const [rect, setRect] = useState(null);
+  /* [F6-SG-C · TK-C-026 · D3] O alvo é guardado COMO MEDIDO, em coordenadas de
+   * janela; a conversão para a caixa deste overlay acontece na hora de desenhar
+   * (`guideTargetInOverlay`), com a origem MEDIDA logo abaixo. */
+  const [rectWin, setRectWin] = useState(null);
+  const overlayRef = useRef(null);
+  const [origem, setOrigem] = useState(null);
   const [busy, setBusy] = useState(false);
   const [voiceOn, setVoiceOn] = useState(true); // por-tour (o aviso de som define)
 
@@ -110,7 +158,7 @@ export default function BeniGuideOverlay({
     onStep?.(target);
     const finish = (r) => {
       if (watchdogTimer.current) { clearTimeout(watchdogTimer.current); watchdogTimer.current = null; }
-      setIndex(to); setRect(r || null); setBusy(false);
+      setIndex(to); setRectWin(r || null); setBusy(false);
     };
     if (target && typeof measure === 'function') {
       commitTimer.current = setTimeout(() => {
@@ -146,9 +194,9 @@ export default function BeniGuideOverlay({
   useEffect(() => {
     if (mapScrollNonce == null || phase !== 'steps') return undefined;
     const target = targetFor(safeSteps[index]);
-    if (!target || typeof measure !== 'function') { setRect(null); return undefined; }
+    if (!target || typeof measure !== 'function') { setRectWin(null); return undefined; }
     let alive = true;
-    measure(target).then((r) => { if (alive) setRect(r || null); }).catch(() => { if (alive) setRect(null); });
+    measure(target).then((r) => { if (alive) setRectWin(r || null); }).catch(() => { if (alive) setRectWin(null); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapScrollNonce]);
@@ -171,8 +219,8 @@ export default function BeniGuideOverlay({
     // DESTINO. Medir aqui escreveria o rect do passo de ORIGEM por cima.
     if (busy) return;
     const target = targetFor(safeSteps[index]);
-    if (!target || typeof measure !== 'function') { setRect(null); return; }
-    measure(target).then((r) => setRect(r || null)).catch(() => setRect(null));
+    if (!target || typeof measure !== 'function') { setRectWin(null); return; }
+    measure(target).then((r) => setRectWin(r || null)).catch(() => setRectWin(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, busy, index, safeSteps, measure, isTabletLayout]);
 
@@ -223,8 +271,30 @@ export default function BeniGuideOverlay({
   };
   const startNoVoice = () => { setVoiceOn(false); setPhase('steps'); };
 
+  /* ── [F6-SG-C · TK-C-026 · D3] A CAIXA DESTE OVERLAY × A JANELA ────────────────
+     Quem mede a diferença é o próprio overlay, medindo a si mesmo — nunca a largura
+     da barra lateral. `onLayout` é o sinal certo: a caixa muda exatamente quando a
+     composição muda (barra que aparece à esquerda, Split View arrastado, rotação).
+     Falha de medição deixa a origem desconhecida, e nada é convertido: o
+     comportamento de hoje, não um chute. */
+  const medirOrigem = useCallback(() => {
+    const no = overlayRef.current;
+    if (!no || typeof no.measureInWindow !== 'function') return;
+    try {
+      no.measureInWindow((x, y) => {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        setOrigem((a) => (a && a.x === x && a.y === y ? a : { x, y }));
+      });
+    } catch { /* origem desconhecida → alvo passa intacto */ }
+  }, []);
+
   // ── Realce (mobile=tab bar / tablet=sidebar) + posicionamento do card ─────────
-  const tabTop = height - (TABBAR_APPROX + insets.bottom);
+  // O alvo, no espaço de coordenadas deste overlay. Na faixa compacta é o MESMO
+  // objeto medido — daqui para baixo nada muda de valor no telefone (`CN-1`).
+  const rect = guideTargetInOverlay(rectWin, origem, band);
+  /* [F6-SG-C · TK-C-026 · D2] A faixa reservada embaixo é a da BARRA INFERIOR, e ela
+     só existe na composição compacta — ver `guideBottomReserve`. */
+  const tabTop = height - (guideBottomReserve(band) + insets.bottom);
   const ringPad = 6;
   const isBigArea = rect && rect.width > width * 0.85 && rect.height > height * 0.5;
   const inViewport = !!rect && rect.y + rect.height > insets.top && rect.y < tabTop;
@@ -247,10 +317,23 @@ export default function BeniGuideOverlay({
   // da tab bar e a SETA p/ baixo no item — vale nos dois modos. A MOLDURA do item,
   // porém, no modo EMBEDDED é desenhada pela PRÓPRIA tab bar (AppNavigator), pois o
   // overlay vive dentro da tela e não alcança a tab bar (ver `showTabHalo`).
-  const showTabGlow = phase === 'steps' && !!step.highlightTab && !isTabletLayout && glowTabIndex != null;
+  /* [F6-SG-C · TK-C-026 · D1] "O passo realça um destino de navegação" é pergunta que
+     independe de ONDE a navegação está — e era só isso que o sinal para a barra
+     precisava saber. `showTabGlow` continua sendo a metade de BARRA INFERIOR (card
+     acima, seta para baixo, moldura por aritmética); a composição lateral não ganha
+     geometria aqui, porque lá o alvo é MEDIDO pela própria barra. */
+  const showNavGlow = phase === 'steps' && !!step.highlightTab && glowTabIndex != null;
+  const showTabGlow = showNavGlow && !isTabletLayout;
   // Fase 1.1.4.2: a moldura pulsante na tab bar só é desenhada AQUI no modo modal;
   // no embedded (tour do mapa) quem desenha é a tab bar do AppNavigator.
   const showTabHalo = showTabGlow && !embedded;
+  /* [F6-SG-C · TK-C-026 · D3] Espelho exato de `showTabHalo`, pelo MESMO motivo e
+     para a outra composição: no modo embutido o overlay vive dentro da tela e não
+     alcança a barra lateral — que ali é IRMÃ da tela, não filha dela. Quem desenha a
+     moldura do item é o `AppNavigator`, como já fazia com a barra inferior. No modo
+     modal (Início, Conquistas, Perfil, Área dos Pais) o overlay é de janela, alcança
+     a barra, e continua desenhando o anel ele mesmo. */
+  const anelForaDoAlcance = embedded && isSidebarTarget;
   // A seta aparece para alvos medidos (ring, escondida ao rolar) OU para o realce de
   // tab no modo modal. Nunca aponta para alvo stale durante o scroll do mapa.
   const showArrow = targetVisible || showTabGlow;
@@ -258,7 +341,10 @@ export default function BeniGuideOverlay({
   // Fase 1.1.4.3: no embedded, a moldura da aba é desenhada pela tab bar. Avisamos a
   // tela SÓ no passo que realça a aba (showTabGlow) — não no tour inteiro, não no
   // aviso de som, não no card "Eu sou o Beni". Limpa (false) ao sair do passo/desmontar.
-  const tabCalloutOn = embedded && showTabGlow;
+  // [F6-SG-C · TK-C-026 · D1] `showNavGlow` no lugar de `showTabGlow`: o sinal passa a
+  // alcançar as DUAS composições. Antes, a lateral nunca o recebia — e era essa a
+  // condicional `!isTablet` que deixava a barra lateral sem moldura em passo nenhum.
+  const tabCalloutOn = embedded && showNavGlow;
   useEffect(() => {
     if (typeof onTabHighlight !== 'function') return undefined;
     onTabHighlight(tabCalloutOn);
@@ -318,7 +404,7 @@ export default function BeniGuideOverlay({
   // (pointerEvents none) e o conjunto é box-none → o mapa por baixo recebe pan/toque
   // fora do card; o card e as hit zones (auto) seguem capturando seus toques.
   const body = (
-    <View style={styles.overlay} pointerEvents="box-none">
+    <View style={styles.overlay} pointerEvents="box-none" ref={overlayRef} collapsable={false} onLayout={medirOrigem}>
       {/* Véu: bloqueante no modo modal; só visual (não bloqueia) no modo embedded. */}
       <View style={styles.veil} pointerEvents={embedded ? 'none' : 'auto'} />
 
@@ -357,7 +443,7 @@ export default function BeniGuideOverlay({
           </View>
         ) : (
           <>
-            {targetVisible && !hideRing && (
+            {targetVisible && !hideRing && !anelForaDoAlcance && (
               <Animated.View
                 pointerEvents="none"
                 style={[

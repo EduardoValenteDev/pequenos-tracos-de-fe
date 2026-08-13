@@ -16,6 +16,10 @@ import { log } from '../utils/logger';
 // (`{ screen: 'Aventuras' }` / state aninhado) e o foco vem do próprio navegador.
 // O sinal continua existindo para a TELA do mapa abrir o tour (AdventureMapScreen).
 import { isAdventureTourActive, getAdventureTabCalloutActive, subscribeAdventureTabCalloutActive } from '../services/beniTourService';
+// [F6-SG-C · TK-C-026] A moldura da composição LATERAL é posicionada por medição do
+// alvo que a própria barra registra — não há aritmética equivalente à da barra
+// inferior, e a restrição 4 do §19.1 proíbe a largura estrutural como substituto.
+import { measureGuideTarget } from '../services/guideTargetRegistry';
 // [F6-R3.x · A-05/D-10/F-C5/F-08/B-11] Registro de instâncias VIVAS do shell: separa
 // remontagem normal de duas árvores de `MainTabs` simultâneas. Só conta e descreve.
 import {
@@ -242,7 +246,7 @@ function MainTabs() {
    * Uma chamada só devolve as duas — nada de `useWindowDimensions` paralelo. E a
    * migração é NEUTRA: `isTablet` continua binário, então `MEDIUM`→`EXPANDED` não
    * inventa disparo nem linha de log novos (o efeito abaixo segue com `[isTablet]`). */
-  const { width, band } = useWindowBand();
+  const { width, height, band } = useWindowBand();
   const isTablet = band !== BANDS.COMPACT;
 
   /* [F6-R3.3 · TK-A-022 · ampliado em F6-R3.x] INSTRUMENTAÇÃO DE MONTAGEM — CN-6.
@@ -289,6 +293,31 @@ function MainTabs() {
   const tabW = width / TAB_DEFS.length;
   const calloutW = Math.min(tabW - 14, 88);
   const calloutLeft = tabW * (advIndex + 0.5) - calloutW / 2;
+
+  /* [F6-SG-C · TK-C-026 · D1] EQUIVALENTE LATERAL DA MOLDURA.
+     Na barra inferior a posição é DEDUTÍVEL: cinco itens iguais em linha, e `tabW`
+     resolve. Na barra lateral não existe divisão que a produza — `flexGrow: 1` com
+     `justifyContent: 'flex-end'`, alturas dependentes de rótulo e de inserção do
+     sistema. E a única saída aritmética restante está proibida: a restrição 4 do
+     §19.1 veda usar a largura estrutural como substituto de medição real (`G-SID-3`,
+     mutante `MT-16`). Então aqui se MEDE o alvo que a barra já registra.
+
+     Quem desenha é este shell, e não o overlay do guia, pelo mesmo motivo que já
+     valia para a barra inferior: no modo embutido o overlay vive DENTRO da tela e
+     não alcança a barra — que na composição lateral é irmã da tela, não filha dela.
+
+     Sem medição, nada é desenhado. Moldura errada é pior que moldura nenhuma. */
+  const [calloutRect, setCalloutRect] = useState(null);
+  useEffect(() => {
+    if (!isTablet || !calloutOn) { setCalloutRect(null); return undefined; }
+    let vivo = true;
+    Promise.resolve(measureGuideTarget('adventures.sidebarTab'))
+      .then((r) => { if (vivo) setCalloutRect(r || null); })
+      .catch(() => { if (vivo) setCalloutRect(null); });
+    return () => { vivo = false; };
+    // `width`/`height` entram como sinal de que a geometria mudou (rotação, Split
+    // View, travessia do corte): a medição velha descreve uma tela que já morreu.
+  }, [isTablet, calloutOn, width, height]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -348,6 +377,24 @@ function MainTabs() {
           style={[
             TOUR_TAB_CALLOUT,
             { left: calloutLeft, width: calloutW, bottom: insets.bottom + 5, height: tabBarH - insets.bottom - 9 },
+          ]}
+        />
+      )}
+      {/* Mesma moldura, mesma cor, mesmo `pointerEvents`: só a geometria vem de outro
+          lugar — do alvo MEDIDO, porque na barra lateral não há aritmética que a dê.
+          A folga de 6 é a mesma do anel do overlay (`ringPad`), para que a criança veja
+          a mesma moldura nas duas composições. */}
+      {isTablet && calloutOn && calloutRect && (
+        <View
+          pointerEvents="none"
+          style={[
+            TOUR_TAB_CALLOUT,
+            {
+              left: calloutRect.x - 6,
+              top: calloutRect.y - 6,
+              width: calloutRect.width + 12,
+              height: calloutRect.height + 12,
+            },
           ]}
         />
       )}
