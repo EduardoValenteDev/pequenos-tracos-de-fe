@@ -134,6 +134,43 @@ pelo `§7` da missão.
 > `e2702d2`, ou seja, nenhum build instalado contém hoje a rota (C)"*. O que é novo é que
 > agora ele **colide** com a continuidade de `src/`.
 
+### 3.5 `ERRATA` de `2026-08-13` — a caracterização de §3.4 era **ampla demais**
+
+> Errata acrescida em `DOC REPAIR 01`, na convenção já usada por §4.1 (`ADENDO`) e §4.2
+> (`ERRATA`): **acréscimo, nunca reescrita**. O texto de §3.4 acima fica **preservado como
+> está**, com a cronologia intacta.
+
+**a. A caracterização era ampla demais.** §3.4 escreve que um *build* nativo novo é
+*"proibido por `D-FUND-PREBUILD-01` e pelo `§7` da missão"*. A parte que atribui a
+`D-FUND-PREBUILD-01` uma proibição de **GERAR** é **larga demais** e não corresponde ao alcance
+da decisão.
+
+**b. O que `D-FUND-PREBUILD-01` de fato protege.** A **não substituição do binário instalado** no
+`SM-X510` — e, com ele, o acervo da criança e a linha de base probatória da `R2`. É custódia **do
+aparelho**. Formalizada em `docs/DECISIONS.md` em `2026-08-13`, com os sete itens de alcance.
+
+**c. De onde vinha, então, a proibição naquela missão.** Da **restrição operacional da própria
+missão** — o `§7` que §3.4 já cita, e que fechava o `PRE-BUILD CUSTODY GATE` em leitura e
+custódia, sem ato material de *build*. A proibição era **real e vigente naquele momento**; o que
+a errata corrige é **a quem ela foi atribuída**, não se existia.
+
+**d. Depois de `D-FUND-BUILD-SEQUENCE-01`.** **GERAR** o novo *build* está **autorizado**. A
+decisão do fundador de `2026-08-13` registra o `SUPERSEDE PARCIAL`: superada é apenas a leitura
+segundo a qual `D-FUND-PREBUILD-01` impediria gerar.
+
+**e. O que continua proibido.** **INSTALAR · DESINSTALAR · SUBSTITUIR · LIMPAR DADOS**
+(`pm clear`) o binário protegido — tudo isso segue **⛔ proibido até *gate* posterior próprio**,
+com `applicationId`, assinatura, `versionCode`, prova de *upgrade in-place*, *backup* do acervo e
+*rollback*. O ponto de §3.4 que **permanece inteiro**: a correspondência JS ↔ binário do aparelho
+**continua rota**, e só um binário novo **instalado** a restabeleceria — o que esta errata **não**
+autoriza.
+
+**f. Nenhum estado histórico é alterado.** O veredito `PREBUILD_CUSTODY_HARD_STOP` desta missão
+**permanece**. `STOP` #13 permanece **medido e válido** como causa da inexecutabilidade dos
+`BLOCOS B`..`E` naquela janela. `R1-PEND-1..5` permanecem **ABERTAS**. `F6-SG-A` e `F6-SG-C`
+permanecem **NÃO CONCEDIDOS**. `BLOCOS B`..`E` permanecem **NÃO EXECUTADOS**. **Nenhum `PASS`
+retroativo é concedido por esta errata** — ela corrige uma **atribuição de norma**, e nada mais.
+
 ---
 
 ## 4. Risco de custódia **ao vivo** — registrado, não atribuído

@@ -3569,6 +3569,103 @@ do binário no `SM-X510` é **missão posterior**, com portão próprio para `ap
 assinatura, `versionCode`, capacidade real de *upgrade in-place*, *backup* final do acervo e
 *rollback*.
 
+### `SUPERSEDE PARCIAL` sobre `D-FUND-PREBUILD-01` — acrescentado em `DOC REPAIR 01` (2026-08-13)
+
+Acréscimo posterior a esta decisão, para tornar a relação normativa **explícita** e encerrar a
+leitura ambígua que o artefato `26` §3.4 deixou aberta (*"proibido por `D-FUND-PREBUILD-01`"*).
+
+> ### `SUPERSEDE PARCIAL`
+>
+> `D-FUND-BUILD-SEQUENCE-01` **supersede parcialmente** `D-FUND-PREBUILD-01`.
+>
+> **A supersessão vale SOMENTE** para qualquer leitura anterior segundo a qual
+> `D-FUND-PREBUILD-01` impediria **GERAR** um novo *build*. Essa leitura está **superada**:
+> **GERAR está autorizado**.
+
+**Permanece integralmente válida** a proibição, sobre o binário protegido do `SM-X510`, de:
+
+| Ato | Estado | Sem o quê |
+|---|---|---|
+| **INSTALAR** | ⛔ **PROIBIDO** | *gate* posterior próprio |
+| **DESINSTALAR** | ⛔ **PROIBIDO** | *gate* posterior próprio |
+| **SUBSTITUIR** | ⛔ **PROIBIDO** | *gate* posterior próprio |
+| **LIMPAR DADOS** (`pm clear`) | ⛔ **PROIBIDO** | *gate* posterior próprio |
+
+A supersessão é **de alcance**, não de mérito, e **não** toca o núcleo de custódia de
+`D-FUND-PREBUILD-01`: gerar um artefato de *build* na máquina **não é** um ato sobre o aparelho.
+
+> ⛔ **Nada aqui concede `PASS`.** `F6-SG-A` = **NÃO CONCEDIDO**. `F6-SG-C` = **NÃO CONCEDIDO**.
+> `SD-1` = **NÃO CONCEDÍVEL**. `R1-PEND-1..5` = **ABERTAS**. `BLOCOS B`..`E` = **NÃO
+> EXECUTADOS**. A supersessão diz **o que se pode fazer**, não **o que está provado**.
+
+## `D-FUND-PREBUILD-01` — custódia do binário instalado no `SM-X510` (decisão anterior · **formalizada documentalmente em 2026-08-13**)
+
+> ⚠️ **Esta entrada é NOVA.** Não existia texto desta decisão em `docs/DECISIONS.md` antes de
+> `DOC REPAIR 01` (2026-08-13). A decisão do fundador **estava em vigor e era aplicada** — o
+> artefato [`26`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/26_PREBUILD_CUSTODY_HARD_STOP.md)
+> a invoca no cabeçalho, em §2 e em §3.4 — mas **nunca foi escrita aqui**. O que segue é a
+> **formalização documental do alcance** da decisão anteriormente usada pelo artefato `26`.
+> **Não** se finge que uma entrada escrita já existia antes; **não** se cria alcance novo além do
+> que o artefato `26` de fato aplicou.
+
+**Alcance canônico — inequívoco, item a item:**
+
+1. O **binário atualmente instalado** no `SM-X510` (*package* `com.valentedev.pequenostracosdefe`,
+   `versionCode 1` / `versionName 1.0.0`, assinatura `3351bd8d`, `firstInstallTime` ==
+   `lastUpdateTime` == `2026-08-10 12:03:42`) permanece **sob custódia**.
+2. **Não instalar** novo binário nesta etapa.
+3. **Não desinstalar** o atual.
+4. **Não substituir** o atual.
+5. **Não executar `pm clear`** — nem qualquer outra limpeza de dados do *package*.
+6. A **geração** de um novo binário, **por si só, não altera o aparelho e não viola esta
+   custódia**. Custódia é propriedade **do aparelho**, não da máquina de *build*.
+7. **Qualquer instalação futura exige missão e *gate* próprios** — com `applicationId`,
+   assinatura, `versionCode`, prova de *upgrade in-place*, *backup* final do acervo e *rollback*
+   declarado antes de começar.
+
+**O que a custódia protege, concretamente.** O acervo da criança e a linha de base probatória da
+`R2` vivem no mesmo aparelho: `databases/RKStorage` (`49152` bytes,
+`CUSTODY_RKSTORAGE_AFTER_C10 = BYTE_IDENTICAL`, `SHA256 950D93D1…FFA1`), a cadeia `MAX_ROWID`, o
+ponteiro e o *blob* do `C60`, e `files/ptf_blobs/drawings60/`. Uma desinstalação **destrói os
+dois de uma vez** — é irreversível e não tem *backup* equivalente.
+
+**Relação com `D-FUND-BUILD-SEQUENCE-01`.** Ver o bloco `SUPERSEDE PARCIAL` acima: **GERAR** está
+autorizado; **INSTALAR · DESINSTALAR · SUBSTITUIR · LIMPAR DADOS** seguem **proibidos** sem *gate*
+posterior próprio.
+
+## `D-FUND-R1-PEND5-01` — `R1-PEND-5` é insumo irrecuperável (decisão anterior · **formalizada documentalmente em 2026-08-13**)
+
+> ⚠️ **Esta entrada é NOVA.** Não existia texto desta decisão em `docs/DECISIONS.md` antes de
+> `DOC REPAIR 01` (2026-08-13). O artefato `26` §7 e §12 a invocam; o texto normativo nunca foi
+> escrito aqui. O que segue **formaliza documentalmente** o alcance já aplicado — **não** se
+> finge que uma entrada textual anterior tivesse existido.
+
+**Conteúdo normativo:**
+
+1. **`R1-PEND-5` permanece ABERTA.**
+2. O **`raw.log` original** exigido pela `R1` **não foi preservado e é irrecuperável** — artefato
+   `10` §186, literal: *"o `raw.log` da `R1` não foi preservado e é irrecuperável"*.
+3. É **proibido fabricar, sintetizar ou reconstruir retrospectivamente** esse `raw.log`. Nenhum
+   documento do corpus autoriza, e nenhum passará a autorizar por omissão.
+4. **Não existe saneamento administrativo** que transforme a ausência em evidência original —
+   `PF6SGA-R2-GATE-SANEAMENTO` já decidiu, com todas as letras: **NÃO PERMITE**.
+5. Se a pendência vier a ser perseguida futuramente, **somente uma repetição controlada da parcela
+   mínima necessária** poderá produzir **NOVA** evidência.
+6. Essa nova evidência **deve ser rotulada explicitamente como repetição posterior**, com a data e
+   o `HEAD` da repetição visíveis.
+7. Ela **não deve ser apresentada como o `raw.log` original**. São objetos distintos e o corpus
+   deve poder distingui-los à primeira leitura.
+8. Ela **não cria `PASS` retroativo por si só**.
+9. **Qualquer adjudicação futura** sobre o efeito dessa repetição **exige decisão explícita** — do
+   fundador, registrada aqui, nunca inferida por um agente.
+10. **`F6-SG-A` continua NÃO CONCEDIDO.**
+
+**Distinção que precisa sobreviver.** `PF6SGA-R1-VEREDITO` afirma que *"as 5 pendências são de
+ARQUIVO… nenhuma exige repetir a rodada"*. Isso é **verdadeiro para `R1-PEND-1..4`**, que são
+saídas de comando reobteníveis num pré-voo. É **falso para `R1-PEND-5`**: um insumo irrecuperável
+não se fecha por arquivamento posterior. As duas afirmações convivem porque tratam de objetos
+diferentes — e esta decisão existe para que a segunda não seja engolida pela primeira.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
