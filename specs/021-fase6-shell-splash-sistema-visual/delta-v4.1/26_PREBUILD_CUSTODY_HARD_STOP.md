@@ -52,8 +52,8 @@ Todas as linhas abaixo são leitura direta do aparelho `RX2XC003LTJ` (`SM-X510`)
 | `DEBUGGABLE` | sim | é *Development Build* — ver §4 |
 | `firstInstallTime` | `2026-08-10 12:03:42` | — |
 | `lastUpdateTime` | `2026-08-10 12:03:42` | **idêntico ao primeiro**: o binário **nunca** foi atualizado |
-| `databases/RKStorage` | `49152` bytes · *mtime* `2026-08-12 15:54` | **igual em duas leituras separadas por horas** |
-| Obra de referência do acervo | `files/ptf_blobs/drawings60/_ptf_drawing60_screation_alight.a.png` · `200565` bytes · *mtime* `2026-08-11 16:45` | íntegra |
+| `databases/RKStorage` | `49152` bytes · *mtime* `2026-08-12 15:54` | igual em **três** leituras separadas por horas — mas ver a ressalva de **§4.1.4** |
+| Obra de referência do acervo | `files/ptf_blobs/drawings60/_ptf_drawing60_screation_alight.a.png` · `200565` bytes · *mtime* `2026-08-11 16:45` | íntegra — e **anterior** ao Metro de `F6-R1` (§4.1.4) |
 
 **`firstInstallTime == lastUpdateTime`** é a prova forte: o APK presente hoje é
 **bit a bit** o que foi instalado em `2026-08-10 12:03:42`. `D-FUND-PREBUILD-01` está
@@ -157,6 +157,106 @@ leituras separadas por horas — **nenhuma escrita ocorreu** desde esse instante
 está ativo e que **enquanto ele estiver ativo, o acervo está exposto a escrita por código
 não validado**.
 
+> **ADENDO de `2026-08-13 00:37` — o §4 acima envelheceu em nove minutos.** Ver §4.1.
+
+---
+
+## 4.1 `ADENDO` — o risco **materializou-se**, o arranjo **caiu**, e a atribuição **mudou**
+
+Escrito depois do §4, com evidência que não existia quando o §4 foi redigido. **Não** substituo
+o texto acima: ele registra o que era verificável às `00:28`, e a diferença entre os dois
+momentos é ela própria parte da cadeia.
+
+### 4.1.1 O arranjo de risco terminou — sem intervenção
+
+Medição às `2026-08-13 00:37:55`:
+
+```
+porta 8081        : LIVRE — ninguém escutando
+processos expo    : nenhum vivo
+adb reverse --list: (vazio)
+pidof <package>   : (sem retorno) — o app NÃO está rodando
+```
+
+O Metro encerrou por conta própria (código de saída `255`). Com ele caíram o túnel e a sessão
+do app. **A janela de exposição está fechada.** Nada foi feito por mim para fechá-la.
+
+### 4.1.2 A atribuição do Metro **agora é conhecida** — e é minha
+
+O §4 disse *"não atribuo causa"*. Sobre o **Metro**, isso deixou de ser verdade: o processo que
+ocupava a `8081` era uma **tarefa de segundo plano desta própria sessão**, lançada num segmento
+anterior, e seu log é agora legível. A correspondência é direta: mesma árvore
+(`Starting project at C:\tmp\ptf_fase6_shell_splash_wt`), mesma porta
+(`Waiting on http://localhost:8081`), mesmo horário de início da `PID 22312`.
+
+Sobre **quem lançou o app no aparelho** (`pid 22707`, `00:24:58`) continuo sem atribuir —
+essa parte do §4 permanece válida.
+
+### 4.1.3 O aparelho **executou** o *bundle* de `F6-R1` — não era hipótese
+
+O log da tarefa registra, textualmente:
+
+```
+Android Bundled 32055ms index.js (2492 modules)
+[shell] MainTabs MONTADO · montagens #1 · vivos 1/1 · pico 1 · desmontagens 0 · pareado
+[AppNavigator] faixa = tablet (sidebar à esquerda) · largura=823dp · ainda na montagem #1
+[PTF_PERF_SAMPLE] {"terminal":"first_layout","route":"Home",...,"firstLayoutMs":3306,...}
+[AtelierCanvas] [COMPAT] STATE_BRANCH:{"ramo":"v2-legado","candidato":true}
+[ColoringCanvas WebView] initCanvas start uriLen=1149046
+[ColoringCanvas WebView] [COLORING_DEBUG] SET_COLOR received h=#F44336
+[ColoringCanvas] [COMPAT] LOAD_PAINT_BRANCH:{"ramo":"v2-legado","candidato":true}
+```
+
+O binário instalado **carregou e rodou o JS de `F6-R1`**, e as superfícies exercitadas foram
+justamente **Ateliê e Colorir** — as dos `CASOS 6`, `11`, `17` e `12`. O que o §4 chamou de
+*"pode estar rodando"* **aconteceu**.
+
+### 4.1.4 O acervo — o que está provado e o que **não** está
+
+Aqui o §4 foi otimista na redação, e a correção importa mais que o conforto:
+
+| Alvo | Medição | Leitura honesta |
+|---|---|---|
+| `files/ptf_blobs/drawings60/` | dir e blob com *mtime* `2026-08-11 16:45`; blob `200565` bytes | ✅ **anterior** ao Metro de `F6-R1` (`2026-08-12 13:26`) — os desenhos estão **definitivamente** intocados |
+| `databases/RKStorage` | `49152` bytes · *mtime* **`2026-08-12 15:54`** | ⚠️ a última escrita cai **DENTRO** da janela do Metro de `F6-R1` |
+
+O §4 escreveu *"o acervo está intacto **agora**"*. Preciso demais para o que a medição sustenta.
+O correto: **os desenhos estão intactos com certeza**; o `RKStorage` teve **uma escrita dentro
+da janela**, cujo conteúdo **não foi atribuído** — e não o atribuo, porque não existe *baseline*
+de conteúdo anterior contra o qual comparar, e inventar um seria fabricar evidência.
+
+Duas atenuantes, ambas medidas e nenhuma conclusiva sozinha:
+
+- a instrumentação do próprio app registra, nas duas superfícies, **`nenhuma escrita, nenhum
+  descarte`** e **`nenhuma gravação, nenhum descarte`**;
+- desde `2026-08-12 15:54` **nenhuma escrita ocorreu**, confirmado em **três** leituras
+  separadas por horas.
+
+**Se o fundador quiser fechar esse ponto**, o instrumento é uma auditoria de conteúdo do
+`RKStorage` — decisão dele, não minha, e fora do escopo desta missão.
+
+### 4.1.5 A cegueira do `M+`/`M−` está **empiricamente confirmada**
+
+O §5 derivou analiticamente que o aparato não distingue `F6-R1`. O log **prova**:
+
+```
+[ColoringCanvas WebView] [COLORING_STATE] load OK espacoLogico=1122x1402 origem=6,186 1428x1784
+```
+
+Isso é **`M+2`**. Nenhum `M−1` (`load OK W=`) aparece em lugar nenhum do log. Ou seja: sob o
+*bundle* de **`F6-R1`**, o par casado acendeu **positivo e limpo**. `G-12`/`G-13` teriam
+assinado *"canônico"*. **A previsão do §5 não é mais previsão — é observação.**
+
+### 4.1.6 O veredito **não muda**
+
+`STOP` #4 (porta ocupada) **cessou**. Os outros três continuam de pé, intocados:
+**#1** (`HEAD` não é descendente documental), **#2** (29 arquivos funcionais onde §1.1 exige
+lista vazia), **#13** (`app.json` e plugin divergentes do binário). Somam-se ao `HUMAN GATE`
+de `R1-PEND-1..4` (§7) e ao bloqueio de `R1-PEND-5` (§6).
+
+E o `STOP` #2 sai deste adendo **mais forte**, não mais fraco: agora há prova direta de que o
+aparelho executou a árvore divergente. **`PREBUILD_CUSTODY_HARD_STOP` mantido.**
+
 ---
 
 ## 5. Achado novo — o aparato `M+`/`M−` é **cego** a `F6-R1`
@@ -184,6 +284,10 @@ sessão, usar `G-12`/`G-13` verdes como prova de que o *bundle* correto está no
 eles não provam isso.** Não crio portão novo para cobrir a lacuna — `§9` da missão proíbe
 transformar o fechamento em nova auditoria, e o instrumento certo é restabelecer a
 continuidade, não instrumentar a quebra.
+
+> **Confirmado empiricamente em §4.1.5.** O que este parágrafo derivou por leitura de código
+> foi **observado** no log do Metro de `F6-R1`: `M+2` acendeu, nenhum `M−` apareceu. Deixou
+> de ser dedução.
 
 ---
 
