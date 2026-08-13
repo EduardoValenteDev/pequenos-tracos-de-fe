@@ -235,6 +235,11 @@ Duas atenuantes, ambas medidas e nenhuma conclusiva sozinha:
 **Se o fundador quiser fechar esse ponto**, o instrumento é uma auditoria de conteúdo do
 `RKStorage` — decisão dele, não minha, e fora do escopo desta missão.
 
+> **⚠️ SUPERADO em `2026-08-13` — ver §4.2.** A auditoria sugerida acima **foi executada pelo
+> fundador** e a incerteza deste §4.1.4 **não existe mais**. O texto fica **como está**: ele
+> registra o limite honesto do que eu podia provar naquele momento, e apagá-lo esconderia que
+> a dúvida foi real.
+
 ### 4.1.5 A cegueira do `M+`/`M−` está **empiricamente confirmada**
 
 O §5 derivou analiticamente que o aparato não distingue `F6-R1`. O log **prova**:
@@ -256,6 +261,61 @@ de `R1-PEND-1..4` (§7) e ao bloqueio de `R1-PEND-5` (§6).
 
 E o `STOP` #2 sai deste adendo **mais forte**, não mais fraco: agora há prova direta de que o
 aparelho executou a árvore divergente. **`PREBUILD_CUSTODY_HARD_STOP` mantido.**
+
+---
+
+## 4.2 `ERRATA` de `2026-08-13` — a escrita no `RKStorage` **está atribuída**
+
+Evidência **humana, somente-leitura**, produzida pelo fundador **depois** do
+`PREBUILD_CUSTODY_HARD_STOP`. Ela **supera** a incerteza de §4.1.4 — e é a única coisa deste
+artefato que ela supera.
+
+### 4.2.1 A comparação
+
+`RKStorage` extraído do `SM-X510` **×** `databases/RKStorage` extraído do *checkpoint*
+canônico `C:\tmp\ptf_evidencias\R2S2\acervo\TAR-C10-POST.tar`:
+
+| | Atual (`SM-X510`) | `TAR-C10-POST` |
+|---|---|---|
+| Tamanho | `49152` | `49152` |
+| `SHA256` | `950D93D13227E97F85E2FCBBD02B6918FBD07C13F136F37D405E4D4FE7B3FFA1` | `950D93D13227E97F85E2FCBBD02B6918FBD07C13F136F37D405E4D4FE7B3FFA1` |
+
+```
+RESULTADO                   = BYTE_IDENTICO_AO_TAR_C10_POST
+CUSTODY_RKSTORAGE_AFTER_C10 = BYTE_IDENTICAL
+```
+
+### 4.2.2 O que isso atribui
+
+O *mtime* medido é `2026-08-12 15:54:44.671482109 -0300`. O **`CASO 10`** registrou o ato do
+Ateliê **exatamente nesse instante**, e o `TAR-C10-POST` foi capturado **depois** dele.
+
+Logo a escrita que §4.1.4 não sabia atribuir **é o próprio `CASO 10`** — evento **legítimo,
+documentado e já arquivado** da campanha. E como o estado atual é **byte-idêntico** ao
+*checkpoint* pós-`C10`, segue que **o *bundle* posterior de `F6-R1` não alterou o conteúdo do
+`RKStorage` depois do `C10`**.
+
+Somado a `drawings60/`, cujo *mtime* (`2026-08-11 16:45`) já era comprovadamente **anterior** à
+janela `F6-R1`:
+
+> ✅ **O acervo protegido está preservado — agora por identidade de conteúdo, não apenas por
+> ausência de escrita.** É prova mais forte que a de §4.1.4: *mtime* mostra **quando**; `SHA256`
+> mostra **o quê**.
+
+### 4.2.3 O que isso **não** faz
+
+Três limites, para que a reconciliação não seja lida como mais do que é:
+
+| Não faz | Por quê |
+|---|---|
+| **Não** converte `R1-PEND-1..5` em fechadas | continuam **ABERTAS** — §6, §7 e `PF6SGA-R2-GATE-SANEAMENTO` seguem valendo, intactos |
+| **Não** concede `F6-SG-A` | as cinco condições de §8 continuam abertas, uma a uma |
+| **Não** transforma os `BLOCOS B`..`E` históricos em executados | continuam **NÃO EXECUTADOS** (§8, §9) |
+
+O que a errata fecha é **exatamente uma** frase — *"conteúdo da escrita não atribuído"* — e
+nada além dela. O veredito `PREBUILD_CUSTODY_HARD_STOP` desta missão **permanece como
+emitido**; o que muda o sequenciamento é a decisão registrada em
+`docs/DECISIONS.md` — **`D-FUND-BUILD-SEQUENCE-01`**.
 
 ---
 
