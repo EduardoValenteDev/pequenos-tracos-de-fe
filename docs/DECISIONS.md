@@ -3781,6 +3781,62 @@ saídas de comando reobteníveis num pré-voo. É **falso para `R1-PEND-5`**: um
 não se fecha por arquivamento posterior. As duas afirmações convivem porque tratam de objetos
 diferentes — e esta decisão existe para que a segunda não seja engolida pela primeira.
 
+## `D-FUND-R2P1-RETRY-ENTRY-BASELINE-01` — baseline operacional de entrada para *retries* do `R2P1` (2026-08-13)
+
+Decisão **do fundador**, tomada após o `STOP` de entrada da tentativa `R2P1_RETRY_01`.
+Registro técnico integral em
+[artefato `31`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/31_R2P1_RETRY_ENTRY_BASELINE_01.md).
+
+**Conteúdo normativo:**
+
+1. **`R2P1_RETRY_01` permanece definitivamente encerrada** como
+   `R2P1_STOP_ENTRY_BASELINE_DIVERGED`. Esse `STOP` **não** pode ser convertido em `PASS`, em
+   *retry* válido ou em tentativa descartada. A tentativa `R2P1` anterior permanece encerrada em
+   `R2P1_STOP_LOGCAT_DROPPED`. **Toda a evidência das duas permanece lacrada e intacta.**
+2. **O artefato `30` permanece IMUTÁVEL.** Ele segue sendo a baseline de **proveniência e
+   invariantes de produto**. **Nenhum arquivo dele pode ser regravado, substituído ou
+   atualizado** — e nenhum foi.
+3. **Fica criada a baseline operacional de entrada `R2P1_RETRY_ENTRY_BASELINE_01`**,
+   representando o estado estabilizado do aparelho **depois** da inicialização de
+   infraestrutura e **com o aplicativo parado**. Origem: o `TAR` do item `13` do pré‑voo de
+   `R2P1_RETRY_01` (`SHA256 DA87831C…AB81`, `17234944` *bytes*, `22` entradas), capturado
+   **antes** de qualquer nova abertura do aplicativo. Custódia:
+   `C:\tmp\ptf_evidencias\R2P1_RETRY_ENTRY_BASELINE_01\`.
+4. **As duas baselines têm funções distintas e não se substituem:**
+   `ARTEFATO 30 = proveniência e invariantes de produto` ·
+   `RETRY ENTRY BASELINE = igualdade física de entrada entre retries prospectivos`.
+5. **Isto NÃO é *allowlist*.** Os cinco arquivos infraestruturais divergentes **não** foram
+   declarados toleráveis e **não** ganharam permissão de mudar. **Nenhuma tolerância nova foi
+   criada. `AC-5` não foi criado**, nem explícita nem implicitamente. O `compare_state.py`
+   **não** foi editado.
+6. **O que houve foi congelamento, não liberação:** a inicialização **já ocorrida** ficou
+   fixada **dentro** da baseline, e cada um dos cinco arquivos passa a ter um **valor esperado
+   exato** (*hashes* em [artefato `31`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/31_R2P1_RETRY_ENTRY_BASELINE_01.md) §6).
+7. **O próximo item `14` continua sendo um *gate* de IGUALDADE ESTRITA**, agora contra esta
+   baseline: `ESCOPO_OK=SIM` **e** os **sete** contadores em **zero**. **Qualquer** divergência
+   volta a produzir **`STOP`**.
+8. **Tolerâncias admitidas:** **somente** as que já estivessem **formalmente aprovadas antes
+   desta decisão** — hoje, exclusivamente `databases/RKStorage-journal`.
+9. **A verificação das invariantes de produto contra o artefato `30` permanece obrigatória e
+   inalterada** (`RKStorage` · os três *blobs* de `ptf_blobs` · `storage-info.pb` · os três
+   `shared_prefs` do produto · `catalystLocalStorage` com `KEYS_ADDED`, `KEYS_CHANGED`,
+   `KEYS_DELETED` e `KEYS_ROWID_MOVED` em zero). Reconferidas em 2026-08-13: **`8`/`8`
+   arquivos idênticos e `4`/`4` contadores em zero**, com `RKStorage` = `950D93D1…FFA1`, o
+   mesmo valor de `CUSTODY_RKSTORAGE_AFTER_C10 = BYTE_IDENTICAL`.
+10. **Substituir esta baseline exige decisão explícita do fundador**, registrada aqui. Nenhum
+    agente a redefine por conveniência de *gate*.
+11. **Registro de custódia:** com o aplicativo **já parado** e o tablet na **Home do Android**,
+    ocorreram **dois toques humanos na tela**, feitos **exclusivamente** para evitar
+    bloqueio/apagamento. **Não** lhes é atribuída causalidade sobre as cinco divergências —
+    ficam registrados como intervenção física conhecida **fora da janela causal** e **fora da
+    janela probatória** da futura execução.
+12. **Esta decisão NÃO autoriza a execução de `R2P1_RETRY_02`.** Ela regulariza a **entrada**.
+    **`F6-SG-A` permanece NÃO CONCEDIDO.**
+
+> ⛔ **`READY` descreve a baseline, não autoriza a execução.** `R2P1_RETRY_02` **não** foi
+> iniciada: nenhum aplicativo aberto, nenhum *deep link*, nenhum Metro, nenhum `adb reverse`,
+> nenhum `TAR` restaurado, **nenhum comando emitido ao aparelho** nesta etapa.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
