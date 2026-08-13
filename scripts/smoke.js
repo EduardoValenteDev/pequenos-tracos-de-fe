@@ -54031,6 +54031,219 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     );
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Fase 6 · F6-R1.* · F6-SG-C · TK-C-027 — `G-RSP-4` (CRIAÇÃO) + `CN-5` + `CN-12`
+   *
+   * Esta seção **cria** `G-RSP-4` e **não** o prova: a prova vermelha é `MT-32`
+   * (`TK-C-059`), independente por emenda `A-09`/`A-10`. `G-SID-4` já existe desde
+   * `TK-C-023` e sua prova vermelha é `MT-23` (`TK-C-057`) — o que `TK-C-027`
+   * acrescenta ao eixo `D4` é o **inventário congelado** (`CN-5`), a metade que um
+   * portão estrutural não alcança: `G-SID-4` prova que a barra não INVENTA destino;
+   * `CN-5` prova QUAIS destinos são, pelo nome.
+   *
+   * O risco que `G-RSP-4` fecha tem nome no PLAN: `RG-3` — "arquétipos viram
+   * *design system* paralelo" —, mitigado por `RD-3` ("estender `AppScreen`;
+   * proibido duplicar *tokens*; portão estático em §26"). É a restrição 3 de `Q9`.
+   *
+   * ESCOPO DELIBERADO: o portão mira os valores de **§2.4 (responsividade)** —
+   * `breakpoints`, `maxContentWidth`, `grid`, `displayScaleTablet`,
+   * `navSidebarWidth`. Não mira cor, tipografia, sombra e movimento, e a razão é
+   * mensurável: `shadow.radius` vale `10` e `motion.fast` vale `180`, números que
+   * colidem com aritmética honesta (`Math.round(v * 10) / 10` em `displayType.js`)
+   * e com a largura já coberta por `G-SID-2`. Um portão que gritasse ali produziria
+   * ruído, não prova. Registro honesto do que fica FORA: `TabletSidebar.js:304`
+   * escreve `fontWeight: '600'`, valor que `tokens.fontWeight.display` também tem —
+   * duplicação de TIPOGRAFIA, anterior a `R1`, fora do arquivo e do escopo desta
+   * task (cujos arquivos declarados são `scripts/smoke.js` e o `git diff` do
+   * pacote). Não é varrido para baixo do tapete: está escrito aqui.
+   *
+   * `768` também fica de fora de propósito — o dono é `G-BP-1`/`P-30` (`CN-7`),
+   * executado por `TK-A-094` e `TK-C-051`. Duplicar aqui não somaria prova.
+   * ────────────────────────────────────────────────────────────────────────── */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · TK-C-027: G-RSP-4 (criação) + CN-5 + CN-12 ──');
+
+    const { loadModule: loadRsp4 } = require('./testing/packInstallHarness');
+    const TOKENS_REL = 'src/theme/tokens.js';
+    const NAV_REL = 'src/navigation/AppNavigator.js';
+    const SIDEBAR_REL = 'src/components/TabletSidebar.js';
+
+    /* Os módulos de LAYOUT — os quatro arquétipos, as primitivas que eles estendem
+     * (`RD-3`), a escala de display, o hook de faixa e as duas peças de navegação.
+     * É esta a lista que `RG-3` chama de "design system paralelo" se duplicar. */
+    const MODULOS_LAYOUT = [
+      'src/components/layout/HubSurface.js',
+      'src/components/layout/EditorialSurface.js',
+      'src/components/layout/ImmersiveSurface.js',
+      'src/components/layout/GameSurface.js',
+      'src/components/layout/AppScreen.js',
+      'src/components/layout/CenteredContent.js',
+      'src/components/layout/SafeScreenHeader.js',
+      'src/components/layout/displayType.js',
+      'src/hooks/useWindowBand.js',
+      SIDEBAR_REL,
+      NAV_REL,
+    ];
+
+    const rsp4 = [];
+    let tokensRsp4 = null;
+    try {
+      tokensRsp4 = loadRsp4(TOKENS_REL, {}, [
+        'breakpoints', 'maxContentWidth', 'grid', 'displayScaleTablet', 'navSidebarWidth', 'navSidebarRole',
+      ]);
+    } catch (e) {
+      rsp4.push(`\`${TOKENS_REL}\` não carregou pela região pura: ${e.message}`);
+    }
+
+    /* Sem literais: o conjunto proibido é LIDO do próprio *token*. Se a captura
+     * física de `TK-C-019` mudar 180 para outro número, o portão acompanha sozinho —
+     * mesmo desenho de `G-SID-2`.
+     *
+     * FILTRO, com critério declarado: inteiro < 10 é ambíguo (é `flex: 1`,
+     * `opacity: 2`, índice, contagem de colunas) e não identifica um *token*; valor
+     * FRACIONÁRIO identifica, porque ninguém escreve `1.1` por acaso num layout.
+     * Por isso `grid` (1, 2, 3) e `breakpoints.phone` (0) saem, e
+     * `displayScaleTablet` (1.1) fica. */
+    const VALORES_24 = tokensRsp4
+      ? Array.from(new Set([
+        ...Object.values(tokensRsp4.breakpoints),
+        ...Object.values(tokensRsp4.maxContentWidth),
+        ...Object.values(tokensRsp4.grid),
+        tokensRsp4.displayScaleTablet,
+        ...Object.values(tokensRsp4.navSidebarWidth),
+      ])).filter((v) => typeof v === 'number' && (!Number.isInteger(v) || v >= 10))
+      : [];
+
+    if (tokensRsp4 && VALORES_24.length === 0) {
+      rsp4.push('o conjunto de valores estruturais de §2.4 ficou vazio — o portão passaria por vacuidade');
+    }
+
+    /* Nomes que `tokens.js` exporta, lidos do arquivo e nunca escritos aqui. */
+    const NOMES_TOKEN = Array.from(
+      codeOf(TOKENS_REL).matchAll(/^export\s+const\s+(\w+)/gm),
+    ).map((m) => m[1]);
+
+    if (NOMES_TOKEN.length < 5) {
+      rsp4.push(`só ${NOMES_TOKEN.length} nomes de *token* foram lidos de \`${TOKENS_REL}\` — leitura do inventário falhou`);
+    }
+
+    /* Aspas fora antes de contar número: `fontWeight: '600'` é peso de fonte, não
+     * *breakpoint*, e um portão que confundisse os dois seria um portão mentiroso. */
+    const semTexto = (codigo) => codigo
+      .replace(/`(?:\\[\s\S]|[^\\`])*`/g, '``')
+      .replace(/'(?:\\[\s\S]|[^\\'])*'/g, "''")
+      .replace(/"(?:\\[\s\S]|[^\\"])*"/g, '""');
+
+    MODULOS_LAYOUT.forEach((rel) => {
+      const codigo = codeOf(rel);
+
+      // [a] nome de *token* redeclarado como export do módulo de layout → DS paralelo.
+      Array.from(codigo.matchAll(/^export\s+(?:const|function|let)\s+(\w+)/gm)).forEach((m) => {
+        if (NOMES_TOKEN.includes(m[1])) {
+          rsp4.push(`\`${rel}\` exporta \`${m[1]}\`, nome que \`tokens.js\` já exporta — *design system* paralelo por nome (\`RG-3\`)`);
+        }
+      });
+
+      // [b] literal numérico igual a um valor estrutural de §2.4 — comparação NUMÉRICA,
+      //     então `1.10`, `1.1` e `600.0` morrem junto com `600`.
+      const numeros = Array.from(semTexto(codigo).matchAll(/(?<![\w.])\d+(?:\.\d+)?(?![\w.])/g))
+        .map((m) => parseFloat(m[0]));
+      Array.from(new Set(numeros)).forEach((n) => {
+        if (VALORES_24.includes(n)) {
+          rsp4.push(`\`${rel}\` contém o literal \`${n}\`, valor que \`tokens.js\` já declara em §2.4 — cópia do *token* (restrição 3 de \`Q9\`)`);
+        }
+      });
+
+      // [c] tabela por faixa/papel com valor LITERAL. Tabela de TRADUÇÃO cujos valores
+      //     são referências ao *token* é o idioma documentado (`HUB_COLUMN_CEILING`) e
+      //     passa — o que morre aqui é a cópia renomeada.
+      Array.from(codigo.matchAll(/\{[^{}]*\}/g)).forEach((m) => {
+        const corpo = m[0];
+        const temForma = /(^|[^\w.])phone\s*:/.test(corpo) || /(^|[^\w.])rail\s*:/.test(corpo);
+        const temLiteral = /:\s*-?\d/.test(semTexto(corpo));
+        if (temForma && temLiteral) {
+          rsp4.push(`\`${rel}\` declara tabela por faixa/papel com valor LITERAL (\`${corpo.replace(/\s+/g, ' ').slice(0, 60)}\`) — é \`tokens.js\` copiado com outro nome`);
+        }
+      });
+    });
+
+    check(
+      '`G-RSP-4` (`TK-C-027`, **novo**): nenhum módulo de *layout* redeclara valor ou nome já presente em `tokens.js` — os arquétipos ESTENDEM as primitivas, não fundam *design system* paralelo (`Q9` restrição 3 · `RD-3` · `RG-3`)',
+      rsp4.length === 0,
+      Array.from(new Set(rsp4)).join(' · '),
+    );
+
+    /* ── CN-5 ───────────────────────────────────────────────────────────────
+     * PLAN §24, significado canônico: **nenhum destino novo aparece na barra
+     * lateral** (`D4`). `G-SID-4` prova a FORMA (o inventário vem de `items` e de
+     * nenhum outro lugar); `CN-5` congela o CONTEÚDO pelo nome, e exige que os dois
+     * lados coincidam — `TAB_DEFS` é quem declara, `TabletSidebar` é quem apresenta.
+     *
+     * A comparação ANTES/DEPOIS exigida pela task é evidência de `git` e está no
+     * artefato `19_...` (md5 de `TAB_DEFS` idêntico entre `04bd479` e este commit).
+     * Aqui mora o lado que sobrevive ao tempo: se um sexto destino nascer amanhã,
+     * este portão cai sem depender de ninguém lembrar de comparar com o passado. */
+    const DESTINOS_CONGELADOS = ['Início', 'Aventuras', 'Ateliê', 'Estrelinhas', 'Perfil'];
+
+    const cn5 = [];
+    const navCodigoCn5 = codeOf(NAV_REL);
+    const blocoTabDefs = navCodigoCn5.match(/const TAB_DEFS = \[[\s\S]*?\n\];/);
+    if (!blocoTabDefs) {
+      cn5.push('`TAB_DEFS` não foi encontrado em `AppNavigator.js` — o inventário de destinos deixou de ser declarável');
+    } else {
+      const declarados = Array.from(blocoTabDefs[0].matchAll(/\bname:\s*'([^']+)'/g)).map((m) => m[1]);
+      if (declarados.join('|') !== DESTINOS_CONGELADOS.join('|')) {
+        cn5.push(`\`TAB_DEFS\` declara [${declarados.join(', ')}] — o congelado é [${DESTINOS_CONGELADOS.join(', ')}]`);
+      }
+      const apresentados = Array.from(codeOf(SIDEBAR_REL).matchAll(/tab\.name === '([^']+)'/g)).map((m) => m[1]);
+      DESTINOS_CONGELADOS.forEach((nome) => {
+        if (!apresentados.includes(nome)) cn5.push(`a barra lateral deixou de reconhecer o destino \`${nome}\``);
+      });
+      apresentados.forEach((nome) => {
+        if (!declarados.includes(nome)) cn5.push(`a barra lateral reconhece \`${nome}\`, que o \`Tab.Navigator\` não declara — destino que o telefone não tem (\`P-27\`)`);
+      });
+    }
+
+    check(
+      '`CN-5` (`TK-C-027` · PLAN §24 · `D4`): a barra lateral tem **exatamente** os cinco destinos de sempre — `TAB_DEFS` declara e `TabletSidebar` apresenta o MESMO conjunto, congelado pelo nome',
+      cn5.length === 0,
+      Array.from(new Set(cn5)).join(' · '),
+    );
+
+    /* ── CN-12 ──────────────────────────────────────────────────────────────
+     * "Nenhuma funcionalidade nova entra pela porta dos fundos em `R1`." O pacote
+     * criou seis módulos — os quatro arquétipos, `displayType.js` e `useWindowBand.js`
+     * — e nenhuma tela. A asserção mira a porta dos fundos concreta: um módulo de
+     * layout que NAVEGA vira, na prática, destino novo sem passar pelo navegador.
+     * Fronteira honesta: `AppNavigator.js` e `TabletSidebar.js` ficam de fora desta
+     * varredura porque navegar é o trabalho DELES — `G-SID-4` e `CN-5` é que os
+     * cobrem. */
+    const MODULOS_DO_PACOTE = MODULOS_LAYOUT.filter((rel) => rel !== NAV_REL && rel !== SIDEBAR_REL);
+    const PORTA_DOS_FUNDOS = [
+      /\bnavigation\s*\.\s*navigate\s*\(/,
+      /\bnavigate\s*\(\s*['"]/,
+      /\buseNavigation\b/,
+      /<(?:Stack|Tab)\.Screen\b/,
+      /@react-navigation/,
+    ];
+
+    const cn12 = [];
+    MODULOS_DO_PACOTE.forEach((rel) => {
+      const codigo = codeOf(rel);
+      PORTA_DOS_FUNDOS.forEach((padrao) => {
+        if (padrao.test(codigo)) {
+          cn12.push(`\`${rel}\` navega ou declara destino (\`${padrao.source}\`) — funcionalidade nova por fora do \`Tab.Navigator\``);
+        }
+      });
+    });
+
+    check(
+      '`CN-12` (`TK-C-027`, **novo**): nenhuma funcionalidade nova entrou pela porta dos fundos em `R1` — os módulos criados pelo pacote são geometria e composição, não navegam e não declaram destino',
+      cn12.length === 0,
+      Array.from(new Set(cn12)).join(' · '),
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
