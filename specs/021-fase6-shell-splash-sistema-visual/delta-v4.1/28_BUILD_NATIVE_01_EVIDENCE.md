@@ -263,20 +263,49 @@ somente-leitura pela API `System.IO.Compression` já disponível, sem extrair na
 | `META-INF/` | `103` entradas |
 | `res/` | `1295` · `lib/` `96` · `META-INF/` `103` · `kotlin/` `8` · `assets/` `4` |
 
-### Assinatura — `NOT_MEASURED_WITH_AVAILABLE_TOOL`
+### Assinatura — `NOT_MEASURED`
 
-`APK_SIGNATURE_FINGERPRINT_NOT_MEASURED_WITH_AVAILABLE_TOOL`
+`APK_SIGNATURE_FINGERPRINT_NOT_MEASURED`
 
-`keytool` **não está instalado** neste ambiente (`Get-Command keytool` → não encontrado), e
-`apksigner`/`apkanalyzer` **não foram instalados** (proibido). Nenhuma *fingerprint* foi
-obtida.
+Nenhuma *fingerprint* do APK novo foi obtida. O motivo correto é **não ter sido executada
+uma ferramenta apropriada para inspeção de assinatura APK v2/v3** — `apksigner` não foi
+executado nem instalado (proibido), e `apkanalyzer` tampouco.
+
+Estado real do `keytool` neste host, conforme medido pela auditoria adversarial:
+
+| Sonda | Resultado |
+| --- | --- |
+| `Get-Command keytool` | **não encontrado no PATH** |
+| `Get-Command java` | `C:\Program Files\Common Files\Oracle\Java\javapath\java.exe` |
+| `JAVA_HOME` | `C:\Program Files\Java\jdk-21` |
+| `Test-Path "$env:JAVA_HOME\bin\keytool.exe"` | `True` |
+| `Test-Path "C:\Program Files\Java\jdk-21\bin\keytool.exe"` | `True` |
+
+Ou seja: **`keytool` ESTÁ INSTALADO**, em `C:\Program Files\Java\jdk-21\bin\keytool.exe`. O
+que faltava era **resolução pelo PATH** do ambiente medido — não o binário. Ele **não foi
+executado** nem na missão de build nem na de reparo documental.
 
 Observação estrutural que **é** medida, e que não substitui a *fingerprint*: entre as `103`
 entradas de `META-INF/` **não existe** nenhum `META-INF/*.RSA`, `*.DSA`, `*.EC`, `*.SF` nem
 `META-INF/MANIFEST.MF` na raiz — a única correspondência é
 `META-INF/versions/9/OSGI-INF/MANIFEST.MF`, que é recurso de biblioteca, não bloco de
-assinatura. Isto é consistente com assinatura **somente** em esquema v2/v3, e explica por
-que `-printcert -jarfile` não teria o que ler mesmo se `keytool` existisse.
+assinatura. A ausência desses artefatos clássicos é **compatível** com um APK assinado
+apenas por esquema v2/v3, e explica por que `keytool -printcert -jarfile` — que lê a
+assinatura clássica **v1** — não teria bloco algum para ler, mesmo se `keytool` estivesse no
+PATH. Isso é leitura de **estrutura do ZIP**, e **não prova criptográfica** da versão de
+assinatura: só uma ferramenta de verificação v2/v3 poderia estabelecer isso.
+
+> **ERRATA PÓS-AUDITORIA · `BUILD NATIVE 01` · FIX-1 (`keytool`).** A primeira versão deste
+> artefato, commitada em `891d702`, afirmava que "`keytool` **não está instalado** neste
+> ambiente". A auditoria adversarial verificou que a afirmação era **imprecisa**: o
+> executável existe em `C:\Program Files\Java\jdk-21\bin\keytool.exe`, e o que foi
+> efetivamente medido era **ausência no PATH**, não ausência do binário. Por isso o token
+> `APK_SIGNATURE_FINGERPRINT_NOT_MEASURED_WITH_AVAILABLE_TOOL` foi substituído por
+> `APK_SIGNATURE_FINGERPRINT_NOT_MEASURED`: a premissa "sem ferramenta disponível" era
+> falsa e não podia sobreviver dentro do token. **A conclusão técnica não muda** — a
+> *fingerprint* do APK novo **NÃO foi medida**, e a verificação de assinatura segue
+> pendência do `INSTALL GATE`. `BUILD_NATIVE_01_BUILD_PASS` permanece **inalterado**: a
+> correção é de custódia documental, não de mérito do build.
 
 Isto **não é STOP do build**. A verificação de assinatura permanece **pendência do
 `INSTALL GATE`**, que não existe ainda.
@@ -329,11 +358,32 @@ Este artefato registra um build. Ele **não** promove nada. Explicitamente:
 - **NÃO** investiga `ACHADO-V1`.
 
 **O build novo NÃO foi instalado.** O QR code e o link de instalação emitidos pela CLI
-foram deixados sem uso deliberadamente. **O `SM-X510` permaneceu intocado** — nenhum ADB foi
-executado nesta missão, nenhum toque no aparelho, nenhum `pm clear`. A custódia do binário
-descrita no artefato `26` e em `D-FUND-PREBUILD-01` permanece **integralmente vigente**:
-`GERAR` foi autorizado e feito; `INSTALAR`, `DESINSTALAR`, `SUBSTITUIR` e `LIMPAR DADOS`
-seguem proibidos sem gate próprio.
+foram deixados sem uso deliberadamente.
+
+**Nenhum comando ADB foi emitido durante `BUILD NATIVE 01`.** A sonda passiva de processos
+detectou um servidor `adb.exe` **pré-existente e residente no host**, `PID 24760`, linha de
+comando `adb -L tcp:5037 fork-server server --reply-fd 704`. Esse processo **não** foi
+iniciado, morto, reiniciado nem utilizado pela missão — foi apenas **observado**. Nenhuma
+operação foi enviada ao `SM-X510`, que **permaneceu intocado**: nenhum `adb devices`,
+nenhum `adb install`, nenhum `adb uninstall`, nenhum `pm clear`, nenhum toque no aparelho.
+
+Essa é a medição **daquela janela de execução**. Este artefato **não** afirma nada sobre o
+estado do daemon `adb` agora.
+
+A custódia do binário descrita no artefato `26` e em `D-FUND-PREBUILD-01` permanece
+**integralmente vigente**: `GERAR` foi autorizado e feito; `INSTALAR`, `DESINSTALAR`,
+`SUBSTITUIR` e `LIMPAR DADOS` seguem proibidos sem gate próprio.
+
+> **ERRATA PÓS-AUDITORIA · `BUILD NATIVE 01` · FIX-2 (ADB).** A primeira versão deste
+> artefato, commitada em `891d702`, dizia "nenhum ADB foi executado nesta missão". A
+> auditoria adversarial apontou que a frase era **ampla demais**: podia ser lida como
+> "não havia processo ADB algum no host", o que a medição não sustenta. O fato correto tem
+> duas metades, agora registradas acima: (1) **nenhum comando ADB foi emitido** pela missão;
+> (2) um **daemon ADB pré-existente**, `PID 24760`, foi **observado** pela sonda passiva de
+> processos — e deliberadamente não foi morto nem tocado. Nenhuma mutação do aparelho
+> ocorreu, e `D-FUND-PREBUILD-01` permaneceu **respeitada** o tempo todo.
+> `BUILD_NATIVE_01_BUILD_PASS` permanece **inalterado**: a correção é de custódia
+> documental, não de mérito do build.
 
 ---
 
