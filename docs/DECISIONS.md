@@ -4159,6 +4159,52 @@ Decisão **do fundador**, aplicável à campanha prospectiva `B`–`E`.
 4. **Se o Bloco `B` produzir alteração lógica de produto real e inesperada, o `CASO 6` NÃO é
    executado** — emite-se `STOP` antes dele.
 
+## D-FUND-R2-BE-CLOSURE-01 — encerramento da `R2` prospectiva `B`–`E` e transição para o fechamento da Fase 6
+
+**Decidido em 2026-08-14.** Fecha a campanha física prospectiva da `R2` e autoriza a transição para
+a reta de encerramento da Fase 6. Artefatos:
+[`35_R2_PROSPECTIVA_BE_FECHAMENTO.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/35_R2_PROSPECTIVA_BE_FECHAMENTO.md)
+e
+[`36_RECONCILIACAO_FECHAMENTO_FASE_6.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/36_RECONCILIACAO_FECHAMENTO_FASE_6.md).
+
+1. **`R2_PROSPECTIVE_BE = PASS`.** `CASO 7`, `CASO 8`, `CASO 6`, `CASO 11` (histórico **e**
+   reexecução causal), `CASO 17` e `CASO 12` = `PASS`. Nenhum `FAIL` aberto nos blocos `B`–`E`.
+2. **O `PASS` do `CASO 12` vale dentro da cobertura congelada `CASO12-PARCIAL-01`, estágio físico
+   `E0`** — *watcher* disparado pelo ✓ Pronto!, *kill* em `UP+117 ms`, salvamento iniciado, morte
+   antes de `T2`, última geração válida íntegra, `CK-E-C12` byte a byte idêntico a `CK-D-C17`,
+   nenhuma geração parcial promovida, amarelo não persistir compatível com `PASS`. **`E1` e `E2`
+   NÃO foram fisicamente exercitados** e os **quatro estágios injetados continuam `NÃO
+   EXECUTADOS`**. **É proibido ampliar esta conclusão para "todos os pontos de falha foram
+   testados".**
+3. **`CASE12_TWO_FILL_DEVIATION = SCOPE_DEVIATION_NONBLOCKING`** — ambos os preenchimentos
+   ocorreram antes do armamento, nenhum chegou ao disco, o disparo foi inequivocamente o ✓ Pronto!,
+   e o segundo foi induzido por instrução ambígua do painel.
+4. **`CASE12_PANEL_DEFECT = HOST_TOOL_DEFECT`** — defeito da ferramenta de condução
+   (`caso12_host_v3.ps1`), **não do produto**. A correção fica **especificada e NÃO aplicada**
+   (`PREPARAÇÃO` → `MÃOS FORA` → `VERMELHO / GATILHO ARMADO`; **nunca mais** instrução genérica de
+   "pode tocar na tela"). **Não gera requisito de produto, não reabre o `CASO 12` e não repete sua
+   execução.**
+5. **`CASO 9 = NÃO REPRODUZIDO` / `NÃO BLOQUEIA`.** `onRenderProcessGone` não ocorreu
+   espontaneamente. **Não provocar. Não inventar causa.**
+6. **Acervo lacrado** em `C:\tmp\ptf_evidencias\R2_PROSPECTIVE_BE_01\` com `SHA256` por arquivo.
+   **Nada foi movido, restaurado ou reescrito.** `compare_state.py` permanece lacrado e nunca
+   editado. Ressalva declarada: `raw_campaign.log` está **aberto para escrita** pelo `PS3` e possui
+   apenas **hash de prefixo** datado — seu lacre definitivo exige encerrar o `PS3`, ato não
+   autorizado nesta decisão.
+7. **`R2_PROSPECTIVE_BE = PASS` É DIFERENTE DE `F6-SG-A = PASS`.** Esta decisão **não concede**
+   `F6-SG-A`, `F6-SG-B`, `F6-SG-C`, `F6-SG-D`, `SD-1`, `R1` nem `F6_CLOSED`.
+8. **`F6_CLOSURE_RECONCILIATION_READY`.** A reconciliação fechada classifica cada obrigação
+   remanescente em `A`/`B`/`C`/`D`/`E` e produz a matriz e a sequência mínima até `F6_CLOSED`.
+   Regra aplicada: **não repetir prova válida apenas porque o `HEAD` mudou; executar somente gaps
+   causalmente reais.** Achados estruturais: **`F6-R2`/`F6-SG-B` não tem nenhum *commit* de
+   implementação** e vem **antes** de `F6-SG-C` na ordem obrigatória; **`B4` + `B5` são o critério
+   de saída literal** da Fase 6 no `v5` §3.
+9. **`F6_CLOSED` NÃO é `LAUNCH_READINESS_PASS`.**
+10. **Correção funcional do esquema permanece exclusivamente** no *commit*
+    `2ffcd829fe4f35d526bb643abc0cf4044346b238`, **não reescrito** por esta decisão. Este
+    encerramento é **documental**: sem alteração de código de produto, sem *push*, *merge*,
+    *amend*, *rebase* ou *squash*.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
