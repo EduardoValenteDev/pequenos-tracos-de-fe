@@ -1,10 +1,13 @@
 # `32` — `R2P1_ENTRY_RESET_DESIGN_01` — reset determinístico do estado de entrada
 
 **Data:** 2026-08-13 · **Área:** `F6_SG_A` / `R2P1` · **Estado:** **DESENHADO, NÃO EXECUTADO**
-**Versão:** **`DESIGN_02` — endurecida após `R2P1_ENTRY_RESET_MATERIALIZED_AUDIT_STOP`**
+**Versão:** **`DESIGN_03` — corrigida após `R2P1_ENTRY_RESET_HARDENED_FINAL_AUDIT_STOP`**
 **Decisão vinculante:** [`D-FUND-R2P1-ENTRY-RESET-01`](../../../docs/DECISIONS.md)
+**Plano companheiro:** [`33_R2P1_ULTRACODE_NEXT_EXECUTION_PLAN.md`](33_R2P1_ULTRACODE_NEXT_EXECUTION_PLAN.md)
 **Gate desta materialização:** `HUMAN_GATE_R2P1_ENTRY_RESET_HARDENING = CONCEDIDO`
-**Gate de execução:** `HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION` — **NÃO CONCEDIDO**
+**Gate de execução (tentativa `RETRY_03`):** `HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION` — **NÃO CONCEDIDO**
+**Gate de execução (tentativa `RETRY_04`):** `HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_04` — **NÃO CONCEDIDO**
+**Gate de execução (tentativa `RETRY_05`):** `HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_05` — **NÃO CONCEDIDO**
 
 ---
 
@@ -33,10 +36,37 @@ execução**, não por lacuna normativa: arquivos declarados como `EVIDÊNCIA` q
 gravava**; expressões nuas seguidas de comentários `DEVE` e `esperado` no lugar de condições;
 validação de lista **dentro** do laço destrutivo; sondas cujo resultado vazio produzia `PASS`;
 um teste de bit que aceitaria `4` onde exigia `6`; e uma instrução de idempotência que mandava
-o executor **editar comandos à mão**. Esta versão corrige **cada um deles literalmente** e
-acrescenta as três auditorias transversais de §`13.1`, §`13.2` e §`13.3` e o quadro de tokens de
+o executor **editar comandos à mão**. Aquela versão corrigiu **cada um deles literalmente** e
+acrescentou as três auditorias transversais de §`13.1`, §`13.2` e §`13.3` e o quadro de tokens de
 §`18`. **Nada da arquitetura foi reaberto, nenhum passo foi removido e nenhum comando novo ao
 aparelho foi introduzido.**
+
+**Terceira rodada de auditoria — e o que ela mudou.** O `DESIGN_02` foi selado no commit
+`a275ee6` (`SHA256` `2CB45E1B1A2E885652C0C8D91561B0BCF5284860F54EFE8E5D94125D635B3B44`) e voltou
+do `VERDE` com **`R2P1_ENTRY_RESET_HARDENED_FINAL_AUDIT_STOP`**. Pela **terceira** vez a
+arquitetura foi aceita e a execução foi bloqueada. Os achados eram, todos, do mesmo gênero:
+**afirmação sem implementação**. Especificamente: (a) `MTIME_CAN_STOP = NÃO` era verdadeiro para
+`E7C` mas **falso para `I9`**, porque `04B_MODE_PRE.txt` e `07B_MODE_POST.txt` gravavam a linha
+`stat` **inteira**, com `%Y`, e `I9` comparava essas linhas byte a byte entre as duas rodadas;
+(b) as duas rodadas de idempotência **compartilhavam** `$EXEC\reset\*.txt` e todos os escritores
+`-Append`, de modo que a rodada `02` acumularia `44` linhas sobre a rodada `01` — o teste de
+idempotência era **inalcançável**; (c) `E3` afirmava `22 entradas` numa tabela mas executava
+`Assert-Evidencia $RBLIST 1`; (d) `03_ROLLBACK_STDERR.txt` era lido com `-ErrorAction
+SilentlyContinue`, de modo que **arquivo ausente** virava coleção vazia e **`PASS`**; (e) `RB6` e
+`RB7` eram prosa **sem uma única linha executável**, e `$ROLLBACK_PASSO` / `$ROLLBACK_MOTIVO`
+**não tinham escritor** em lugar nenhum; (f) `Assert-Exit` estava definida e **nunca chamada**,
+enquanto §`2.6` afirmava "três funções obrigatórias … usadas por **todos** os passos";
+(g) `E7A`/`E7B` provavam `POST ⊆ PRE` e **cardinalidade**, mas não **identidade por `relpath`**
+contra o conjunto selado de 22; (h) o `HUMAN GATE` de primeira execução estava redigido de modo
+a poder ser lido como cobrindo `RETRY_04`, `RETRY_05` e seguintes.
+
+**Esta versão fecha os oito, mais os vetores latentes que a própria varredura desta emenda
+encontrou** (§`18.1`). As mudanças estruturais são quatro: **raízes de rodada independentes**
+(`$RST01` / `$RST02`, §`2.7`); **projeção estrutural de `stat` separada do bruto** (`$FMT_ARB`
+vs. `$FMT_BRUTO`, `E4B`); **`Assert-Stderr`** como único leitor autorizado de captura de *stderr*
+(§`2.6`); e **`Assert-Identidade`** como único comparador autorizado de conjuntos de `relpath`
+(§`2.6`). **Nada da arquitetura foi reaberto, nenhum passo foi removido, nenhuma barreira foi
+enfraquecida e nenhum comando novo ao aparelho foi introduzido.**
 
 > **Precisão de *hash* — registro de proveniência, não de custódia.** A versão auditada pelo
 > `VERDE` está lacrada em `C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_01\`, **intacta**. O
@@ -138,6 +168,14 @@ $CMP_SHA  = 'A7649DD2B92C7877ADAF12635E032DBC559F4074558B572CA1EDF8A9821EFDFD'
 # ---- raiz de evidência DESTA execução (nova, exclusiva, criada em E0)
 $EXEC     = 'C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01'
 $CMP      = "$EXEC\tools\compare_state.py"
+
+# ---- ESTE documento, nos dois lugares em que ele existe. Conferidos em E0.0.
+#      O SHA nao pode ser literal AQUI: um arquivo nao contem o proprio hash.
+#      $GATE_SHA e preenchido pelo operador com o SHA256 CITADO NO HUMAN GATE
+#      concedido -- se o gate nao citar SHA, nao ha o que preencher e E0.0 para.
+$DESIGN_REPO = 'C:\tmp\ptf_fase6_shell_splash_wt\specs\021-fase6-shell-splash-sistema-visual\delta-v4.1\32_R2P1_ENTRY_RESET_DESIGN_01.md'
+$DESIGN_CUST = 'C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_03\00_DESENHO_CANONICO.txt'
+$GATE_SHA    = ''      # <-- preenchido NO ATO da concessao do HUMAN GATE
 ```
 
 > **`O-1` (regra canônica do corpus, `14_R2_SESSAO_2` §`O-1`):** nunca depender de `adb` no
@@ -357,14 +395,38 @@ veem exatamente as mesmas palavras.
 > apareceria na execução. Está registrado aqui porque a auditoria estática servir para alguma
 > coisa significa exatamente isto.
 
-### 2.6 *Helpers* de asserção — evidência real, coleção vazia e código de saída
+### 2.6 *Helpers* de asserção — evidência real, coleção vazia, *stderr* e identidade
 
 **Origem:** os três defeitos estruturais apontados pela auditoria adversarial do `VERDE`
 (`R2P1_ENTRY_RESET_MATERIALIZED_AUDIT_STOP`) eram **o mesmo defeito** em três roupagens:
 (a) caminho declarado como `EVIDÊNCIA` cujo conteúdo só ia para o console; (b) coleção vazia
 cujo `Count = 0` era lido como `PASS`; (c) ferramenta cujo código de saída nunca era conferido.
-Em vez de remendar caso a caso, o desenho passa a ter **três funções obrigatórias**, definidas
-uma única vez e usadas por **todos** os passos.
+Em vez de remendar caso a caso, o desenho passou a ter funções de asserção definidas **uma única
+vez**.
+
+**A auditoria seguinte (`R2P1_ENTRY_RESET_HARDENED_FINAL_AUDIT_STOP`) mostrou que o inventário
+de funções ainda continha ficção e ainda deixava vetores abertos.** Cinco correções:
+
+1. **`Assert-Exit` foi REMOVIDA.** Ela estava definida e **nunca era chamada** — a frase "três
+   funções obrigatórias … usadas por todos os passos" era literalmente falsa. A arbitragem de
+   código de saída deste desenho é **inline**, por `if ($x -ne 0) { throw }` na linha seguinte à
+   captura, e §`13.3.1` a inventaria caso a caso. **Nenhuma barreira foi removida junto:** as
+   `33` arbitragens `inline` que já existiam continuam onde estavam, intactas.
+2. **`Assert-Stderr` foi CRIADA** e é agora o **único** leitor autorizado de captura de *stderr*.
+   Ela fecha o vetor `arquivo ausente → SilentlyContinue → coleção vazia → Count = 0 → PASS`,
+   distinguindo **captura existente com zero linhas** de **captura inexistente**, e gravando
+   prova positiva de materialização.
+3. **`Assert-Identidade` foi CRIADA** e é o **único** comparador autorizado de conjuntos de
+   `relpath`. Ela substitui, onde havia, a prova por cardinalidade: exige **mesma contagem, sem
+   duplicata, sem sobra e sem falta**, e nomeia cada divergência.
+4. **`Assert-RaizNova` foi CRIADA** e é a única forma de nascer uma raiz de evidência de rodada.
+   Preexistência é `STOP` — nenhuma raiz é limpa, truncada ou reaproveitada (§`2.7`).
+5. **`New-Projecao` / `Assert-Projecao` foram CRIADAS** e retiram `%s` e `%Y` de todo arquivo
+   árbitro de `stat`. O `mtime` continua sendo **capturado** — em `*_BRUTO.txt`, evidência
+   diagnóstica — mas deixa de ser **comparável**, porque nenhum consumidor de `STOP` o enxerga.
+
+As funções abaixo são definidas uma única vez, no início da execução, e valem para **todos** os
+passos — inclusive os do caminho de *rollback* e os das duas rodadas de idempotência.
 
 ```powershell
 # ---------------------------------------------------------------------------
@@ -398,14 +460,213 @@ function Assert-Colecao {
 }
 
 # ---------------------------------------------------------------------------
-# A3) Assert-Exit : registra SEMPRE o codigo de saida e aborta quando != 0.
-#     O codigo entra no arquivo de evidencia ANTES do throw, para que a
-#     custodia registre a falha e nao apenas a interrupcao.
+# A3) Assert-Stderr : UNICO leitor autorizado de captura de stderr.
+#
+#     Vetor fechado: 'arquivo ausente -> Get-Content -SilentlyContinue ->
+#     colecao vazia -> Count = 0 -> PASS'. A ausencia do arquivo passava a ser
+#     INDISTINGUIVEL de 'o comando nao emitiu nada'. Aqui as duas condicoes sao
+#     separadas ANTES de qualquer contagem:
+#
+#       captura INEXISTENTE  -> throw   (o canal de captura falhou)
+#       captura EXISTENTE    -> conta linhas uteis; != 0 -> throw
+#
+#     'Existente com zero bytes' e PASS legitimo: 'cmd.exe /c ... 2> arquivo'
+#     CRIA o arquivo mesmo quando nada e escrito nele. E exatamente por isso que
+#     a AUSENCIA do arquivo prova falha do redirecionamento, e nao silencio.
+#
+#     Prova positiva de materializacao: grava '<arquivo>_PROVA.txt' com o
+#     resultado da medicao. Nenhum passo declara stderr limpo sem esse arquivo.
 # ---------------------------------------------------------------------------
-function Assert-Exit {
-    param([int]$Codigo, [string]$Rotulo, [string]$Log)
-    "EXIT|$Rotulo|$Codigo" | Out-File -LiteralPath $Log -Append -Encoding utf8
-    if ($Codigo -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+function Assert-Stderr {
+    param([string]$Caminho, [string]$Rotulo)
+    if ([string]::IsNullOrEmpty($Caminho))      { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    if ([string]::IsNullOrEmpty($Rotulo))       { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+
+    # (1) MATERIALIZACAO -- ausencia e STOP, nunca vazio.
+    $existe = Test-Path -LiteralPath $Caminho -PathType Leaf
+    $prova  = "$Caminho.PROVA.txt"
+    if (-not $existe) {
+        @(
+          "STDERR_PROVA"; "ROTULO=$Rotulo"; "ARQUIVO=$Caminho"
+          "CAPTURA_EXISTE=NAO"; "BYTES=-1"; "LINHAS_STDERR=-1"
+          "CLASSIFICACAO=CAPTURA_INEXISTENTE"; "VEREDITO=STOP"
+        ) | Set-Content -LiteralPath $prova -Encoding utf8
+        throw 'R2P1_STOP_ENTRY_RESET_FAILED'
+    }
+
+    # (2) MEDICAO -- so agora, e SEM SilentlyContinue: o arquivo provadamente existe.
+    $bytes = (Get-Item -LiteralPath $Caminho).Length
+    $linhas = @()
+    if ($bytes -gt 0) {
+        $linhas = @(Get-Content -LiteralPath $Caminho |
+                    ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+    }
+    $classe = if ($linhas.Count -eq 0) { 'CAPTURA_EXISTENTE_SEM_LINHAS' }
+              else                     { 'CAPTURA_EXISTENTE_COM_LINHAS' }
+    @(
+      "STDERR_PROVA"; "ROTULO=$Rotulo"; "ARQUIVO=$Caminho"
+      "CAPTURA_EXISTE=SIM"; "BYTES=$bytes"; "LINHAS_STDERR=$($linhas.Count)"
+      "CLASSIFICACAO=$classe"
+      "VEREDITO=$(if ($linhas.Count -eq 0) { 'PASS' } else { 'STOP' })"
+    ) + $linhas | Set-Content -LiteralPath $prova -Encoding utf8
+    [void](Assert-Evidencia $prova 8)
+
+    if ($linhas.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    return $linhas.Count            # sempre 0 quando retorna
+}
+
+# ---------------------------------------------------------------------------
+# A4) Assert-Identidade : UNICO comparador autorizado de conjuntos de relpath.
+#
+#     Cardinalidade igual NAO e identidade. Dois conjuntos de 22 elementos podem
+#     divergir em 22 elementos. Esta funcao exige, na ordem:
+#       (1) as duas colecoes nao vazias;
+#       (2) contagem exata igual a $Esperado nos DOIS lados;
+#       (3) ZERO duplicatas em cada lado;
+#       (4) ZERO sobras (em A e nao em B);
+#       (5) ZERO faltas (em B e nao em A).
+#     Grava o veredito e NOMEIA cada divergencia. Retorna a contagem.
+# ---------------------------------------------------------------------------
+function Assert-Identidade {
+    param($A, $B, [int]$Esperado, [string]$Rotulo, [string]$Log)
+    $ca = @($A | ForEach-Object { "$_".Trim() } | Where-Object { $_ -ne '' })
+    $cb = @($B | ForEach-Object { "$_".Trim() } | Where-Object { $_ -ne '' })
+
+    [void](Assert-Colecao $ca $Esperado)                # (1) e (2), lado A
+    [void](Assert-Colecao $cb $Esperado)                # (1) e (2), lado B
+
+    $ua = @($ca | Sort-Object -Unique)
+    $ub = @($cb | Sort-Object -Unique)
+    $dupA = $ca.Count - $ua.Count                       # (3)
+    $dupB = $cb.Count - $ub.Count
+    $sobra = @($ua | Where-Object { $ub -notcontains $_ })   # (4)
+    $falta = @($ub | Where-Object { $ua -notcontains $_ })   # (5)
+
+    $ok = ($dupA -eq 0) -and ($dupB -eq 0) -and
+          ($sobra.Count -eq 0) -and ($falta.Count -eq 0)
+    @(
+      "IDENTIDADE"; "ROTULO=$Rotulo"
+      "ESPERADO=$Esperado"; "A_TOTAL=$($ca.Count)"; "B_TOTAL=$($cb.Count)"
+      "A_UNICOS=$($ua.Count)"; "B_UNICOS=$($ub.Count)"
+      "A_DUPLICATAS=$dupA"; "B_DUPLICATAS=$dupB"
+      "SO_EM_A=$($sobra.Count)"; "SO_EM_B=$($falta.Count)"
+      "VEREDITO=$(if ($ok) { 'PASS' } else { 'STOP' })"
+    ) + @($sobra | ForEach-Object { "SO_EM_A|$_" }) `
+      + @($falta | ForEach-Object { "SO_EM_B|$_" }) |
+        Set-Content -LiteralPath $Log -Encoding utf8
+    [void](Assert-Evidencia $Log 12)
+
+    if (-not $ok) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    return $ca.Count
+}
+
+# ---------------------------------------------------------------------------
+# A5) Assert-RaizNova : uma raiz de evidencia NASCE NOVA ou a execucao para.
+#
+#     Fecha o vetor de contaminacao entre rodadas. Se a raiz ja existir, existe
+#     evidencia anterior sob ela, e todo escritor '-Append' desta rodada estaria
+#     acumulando sobre a rodada anterior -- que foi, literalmente, o defeito
+#     apontado em 'IDEMPOTENCE_EVIDENCE_PATHS_UNIQUE'.
+#     A raiz NAO e limpa, NAO e truncada e NAO e sobrescrita: preexistencia e STOP.
+# ---------------------------------------------------------------------------
+function Assert-RaizNova {
+    param([string]$Raiz, [string]$Rotulo)
+    if ([string]::IsNullOrEmpty($Raiz)) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    if (Test-Path -LiteralPath $Raiz)   { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    New-Item -ItemType Directory -Path $Raiz | Out-Null
+    if (-not (Test-Path -LiteralPath $Raiz -PathType Container)) {
+        throw 'R2P1_STOP_ENTRY_RESET_FAILED'
+    }
+    $conteudo = @(Get-ChildItem -LiteralPath $Raiz -Recurse -Force)
+    if ($conteudo.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    return $Raiz
+}
+
+# ---------------------------------------------------------------------------
+# A6) Projecao estrutural de 'stat' -- o mtime NAO chega ao arbitro.
+#
+#     stat e chamado UMA vez por caminho, com $FMT_BRUTO (8 campos), porque a
+#     validacao de formato precisa de %s e %Y para provar que a ferramenta
+#     respondeu de verdade. Mas o arquivo ARBITRO -- o unico que I9 compara
+#     entre as duas rodadas -- recebe apenas a PROJECAO de 6 campos:
+#
+#         %n:%a:%u:%g:%U:%G      (caminho, modo, uid, gid, uname, gname)
+#
+#     %s (bytes) e %Y (mtime) ficam SOMENTE no arquivo *_BRUTO.txt, que e
+#     evidencia diagnostica e NAO e consumida por nenhum caminho de STOP.
+#
+#     New-Projecao   : constroi a linha do arbitro a partir dos 8 campos.
+#     Assert-Projecao: prova, LENDO O ARQUIVO GRAVADO, que toda linha tem
+#                      exatamente 6 campos. Uma linha de 8 campos -- isto e,
+#                      uma linha capaz de carregar mtime -- e STOP. E por isso
+#                      que 'MTIME_CAN_STOP = NAO' e verificavel no artefato, e
+#                      nao apenas prometido em prosa.
+# ---------------------------------------------------------------------------
+function New-Projecao {
+    param([string[]]$Campos)
+    if ($Campos.Count -ne 8) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    return (@($Campos[0], $Campos[1], $Campos[2],
+              $Campos[3], $Campos[4], $Campos[5]) -join ':')
+}
+
+function Assert-Projecao {
+    param([string]$Caminho, [int]$Esperado, [string]$Log)
+    [void](Assert-Evidencia $Caminho $Esperado)
+    $ln = @(Get-Content -LiteralPath $Caminho |
+            ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+    [void](Assert-Colecao $ln $Esperado)
+    $mal = @($ln | Where-Object { @($_.Split(':')).Count -ne 6 })
+    @(
+      "PROJECAO_ESTRUTURAL"; "ARQUIVO=$Caminho"
+      "LINHAS=$($ln.Count)"; "LINHAS_ESPERADAS=$Esperado"
+      "CAMPOS_POR_LINHA_EXIGIDOS=6"
+      "LINHAS_FORA_DE_6_CAMPOS=$($mal.Count)"
+      "CONTEM_BYTES=NAO"; "CONTEM_MTIME=NAO"
+      "VEREDITO=$(if ($mal.Count -eq 0) { 'PASS' } else { 'STOP' })"
+    ) + @($mal | ForEach-Object { "FORA|$_" }) |
+        Set-Content -LiteralPath $Log -Encoding utf8
+    [void](Assert-Evidencia $Log 9)
+    if ($mal.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    return $ln.Count
+}
+
+# ---------------------------------------------------------------------------
+# A7) Disciplina de rollback : ESCRITOR REAL de $ROLLBACK_PASSO / $ROLLBACK_MOTIVO.
+#
+#     Defeito corrigido: RB0 LIA as duas variaveis com Get-Variable
+#     -ErrorAction SilentlyContinue, e NENHUMA linha do documento as escrevia.
+#     O rollback registraria 'NAO_INFORMADO|NAO_INFORMADO' em 100% dos casos --
+#     uma evidencia que parece informacao e nao e.
+#
+#     Agora existe UM escritor, chamado de UM lugar: o 'catch' unico da janela
+#     destrutiva (secao 5.0). $PASSO_CORRENTE e mantido por UMA linha no topo de
+#     cada passo da janela (E5, E6, E7, E7A, E7B, E7C) -- linhas literais, nao prosa.
+# ---------------------------------------------------------------------------
+$PASSO_CORRENTE         = 'NAO_INICIADO'
+$ROLLBACK_PASSO         = ''
+$ROLLBACK_MOTIVO        = ''
+$ROLLBACK_JA_EXECUTADO  = $false      # ROLLBACK_ATTEMPTS = 1, imposto por variavel
+# Nasce no pior valor possivel. SO RB5 promove para 'RECUPERADO', e so depois de
+# comparar estrutura recuperada com a baseline. Se o rollback nunca chegar a RB5,
+# RB7 encontra 'INDETERMINATE' -- que e a leitura honesta de 'nao foi verificado'.
+$ROLLBACK_RESULT        = 'INDETERMINATE'
+
+function Set-Passo {
+    param([string]$Nome)
+    if ([string]::IsNullOrEmpty($Nome)) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    $script:PASSO_CORRENTE = $Nome
+    return $Nome
+}
+
+function Set-CausaRollback {
+    param([string]$Passo, [string]$Motivo)
+    $p = "$Passo".Trim()
+    $m = "$Motivo".Trim()
+    if ($p -eq '') { $p = 'NAO_INFORMADO' }
+    if ($m -eq '') { $m = 'NAO_INFORMADO' }
+    $script:ROLLBACK_PASSO  = $p
+    $script:ROLLBACK_MOTIVO = $m
+    return "$p|$m"
 }
 
 # Le a saida de compare_state.py como ESTRUTURA, nunca como texto exibido.
@@ -448,18 +709,70 @@ function Read-Comparador {
 }
 ```
 
-**Três regras normativas que decorrem destas funções:**
+**Sete regras normativas que decorrem destas funções:**
 
 | # | regra | motivo |
 |---|---|---|
 | `A-1` | **Todo caminho declarado como `EVIDÊNCIA` é gravado com `Out-File`/`Set-Content` e imediatamente validado por `Assert-Evidencia`.** `Tee-Object` conta como gravação; **console puro não conta.** | O `VERDE` encontrou três arquivos (`00_E0_INTEGRIDADE.txt`, `03_ROLLBACK_META.txt`, `13_TAR_META.txt`) declarados como evidência e **nunca escritos**. |
 | `A-2` | **Nenhuma comparação de conjunto, mapa, interseção ou lista roda antes de `Assert-Colecao` nos dois lados.** | `''` igual a `''`, interseção vazia e mapa vazio produzem `0 divergências` — o **falso `PASS` mais perigoso** deste desenho. |
-| `A-3` | **`$LASTEXITCODE` é registrado sempre e conferido onde o passo o declara como barreira.** Mas o código de saída é **barreira auxiliar, nunca prova**: `rm -f` devolve `0` para arquivo inexistente, e `$LASTEXITCODE` só atravessa `adb shell` com *shell protocol* `v2`. **A prova é sempre a medição de estado.** | **Ausência de exceção no *host* PowerShell NÃO é sucesso do comando remoto.** `& $ADB …` não lança exceção quando o binário remoto falha. |
+| `A-3` | **Todo comando externo tem seu `$LASTEXITCODE` capturado numa variável na linha imediatamente seguinte, e essa variável é arbitrada `inline` por `if (… -ne 0) { throw }`** — salvo nos **cinco** pontos que §`13.3.1` nomeia, declara e justifica um a um, e **todos os cinco gravam o código observado em arquivo de evidência**. **Não existe função `Assert-Exit`; a arbitragem é `inline`, e §`13.3.1` a inventaria captura a captura.** O código de saída é **barreira auxiliar, nunca prova**: `rm -f` devolve `0` para arquivo inexistente, e `$LASTEXITCODE` só atravessa `adb shell` com *shell protocol* `v2`. **A prova é sempre a medição de estado.** | **Ausência de exceção no *host* PowerShell NÃO é sucesso do comando remoto.** `& $ADB …` não lança exceção quando o binário remoto falha. A versão anterior desta regra prometia uma disciplina servida por uma função que **nunca era chamada**. |
+| `A-4` | **Toda captura de *stderr* é lida exclusivamente por `Assert-Stderr`.** É **proibido** ler arquivo de *stderr* com `Get-Content -ErrorAction SilentlyContinue`. **Ausência do arquivo é `STOP`, nunca coleção vazia.** | `2> arquivo` sob `cmd.exe /c` **cria** o arquivo mesmo sem conteúdo; portanto a ausência prova que o **redirecionamento falhou**, e ler isso como "sem erros" era um `PASS` fabricado. |
+| `A-5` | **Toda afirmação de identidade entre conjuntos de `relpath` usa `Assert-Identidade`.** Contagem igual **não** é identidade e **não** basta em nenhum ponto que decida `PASS`. | Dois conjuntos de `22` podem divergir em `22`. `POST ⊆ PRE` com `|POST| = |PRE|` só vira igualdade **depois** de provada a ausência de duplicata — o que a versão anterior não fazia. |
+| `A-6` | **Cada rodada de idempotência escreve numa raiz própria, criada por `Assert-RaizNova`, com preexistência proibida.** Nenhum escritor `-Append` de uma rodada toca arquivo produzido por outra. Nenhuma raiz é limpa, truncada ou reaproveitada. | Rodada `02` acumulando sobre rodada `01` produz `44` linhas onde o desenho afirma `22`. Resolver isso por truncamento silencioso apagaria a evidência da rodada `01`. |
+| `A-7` | **Nenhum arquivo árbitro de `stat` contém `%s` ou `%Y`.** O árbitro recebe a projeção `New-Projecao` (`6` campos) e é conferido por `Assert-Projecao`, que faz `STOP` em qualquer linha fora de `6` campos. `%s` e `%Y` existem **apenas** em `*_BRUTO.txt`, e `*_BRUTO.txt` **não é lido por nenhum consumidor de `STOP`**. | `mtime` **muda legitimamente** entre duas restaurações do mesmo TAR. Enquanto ele viajava dentro da linha árbitra, `I9` comparava `04B/07B` byte a byte entre rodadas e **derrubaria a execução por uma diferença esperada**. `MTIME_CAN_STOP = NÃO` passa a ser propriedade do artefato, não promessa de prosa. |
 
 > **`A-3`, dito de forma literal e sem eufemismo:** *stderr* do lado do aparelho chega ao
 > PowerShell como **texto na saída**, não como erro. Por isso **nenhum passo deste documento
 > conclui `PASS` por não ter havido exceção.** Todo `PASS` é a comparação explícita de um valor
 > medido contra um valor esperado.
+
+---
+
+### 2.7 Raízes de rodada — isolamento literal entre as duas restaurações
+
+**Defeito corrigido.** Até o `DESIGN_02`, `E4` … `E7C` gravavam sempre em `$EXEC\reset\`, com
+nomes fixos, e `I2`/`I5` **copiavam** o diretório para `…\rodadas\RESTORE01\` e `…\RESTORE02\`
+depois do fato. Copiar **não é isolar**: os originais continuavam lá, e a rodada `02` reencontrava
+`04A_SELINUX_PRE.txt`, `04B_MODE_PRE.txt`, `07A_SELINUX_POST.txt`, `07B_MODE_POST.txt`,
+`04A/04B/07A/07B_*_BRUTO.txt` e `07C_MTIME.txt` — **todos escritos com `Out-File -Append`** — e
+acumulava. `Assert-Colecao … 22` teria visto `44` e derrubado a execução no meio da rodada `02`:
+o teste de idempotência era, na prática, **inalcançável**.
+
+**Correção estrutural.** Cada rodada tem **raiz própria**, criada nova, com produtores e
+consumidores próprios. O bloco abaixo é a **citação** das linhas que `E0` executa — **não** um
+segundo ponto de execução: as raízes nascem **uma única vez**, em `E0` (`$RSTC` e `$RST01`) e em
+`I4.0` (`$RST02`), e `Assert-RaizNova` **para** se qualquer uma já existir:
+
+```powershell
+# ---- raizes fixas desta execucao (E0 as declara; nenhuma e reaproveitada) ----
+$RSTC   = "$EXEC\reset"            # COMUM: passos de execucao unica (E1, E2, E3, E3A, RB*)
+$RST01  = "$EXEC\round01\reset"    # RODADA 01: E4 .. E7C da primeira restauracao
+$RST02  = "$EXEC\round02\reset"    # RODADA 02: E4 .. E7C da segunda  restauracao
+
+# 'A rodada corrente'. E4..E7C escrevem SEMPRE em $RST -- nunca em caminho literal.
+$RODADA = '01'
+$RST    = $RST01
+
+[void](Assert-RaizNova $RSTC  'RESET_COMUM')
+[void](Assert-RaizNova $RST01 'RESET_RODADA_01')
+# $RST02 NAO nasce aqui: nasce em I4, imediatamente antes da rodada 02.
+```
+
+| propriedade exigida | como `$RST01` e `$RST02` a cumprem |
+|---|---|
+| **nascer nova** | `Assert-RaizNova` cria com `New-Item` e falha se `Test-Path` já era verdadeiro |
+| **preexistência proibida** | `if (Test-Path -LiteralPath $Raiz) { throw }` — **antes** do `New-Item` |
+| **produtores próprios** | `E4`…`E7C` escrevem em `$RST`; `$RST` vale `$RST01` na rodada `01` e `$RST02` na rodada `02`, atribuído por **linha literal** (`E0` e `I4`), nunca por edição manual |
+| **consumidores próprios** | `E7A`/`E7B` leem o `PRE` **da própria rodada**; `RB5` lê `04_ENUM_ARQUIVOS.txt` **da rodada em curso**; `I9` lê `$RST01` **e** `$RST02` e nunca mistura |
+| **nenhum `-Append` cruzado** | um escritor `-Append` só alcança `$RST`, e `$RST01` ≠ `$RST02` como *string*; a rodada `02` **não pode** abrir um arquivo da rodada `01` porque o caminho não existe sob a sua raiz |
+| **`I2`/`I5` não copiam mais nada** | o arquivamento por `Copy-Item` **foi removido**: a evidência já nasce separada. `I2`/`I5` apenas **conferem** a raiz da sua rodada |
+
+> **Por que não resolver por truncamento.** `Set-Content` no lugar de `Out-File -Append` faria a
+> rodada `02` **apagar** a evidência da rodada `01` dentro do mesmo arquivo. O documento passaria
+> na contagem e perderia a prova — trocaria um `STOP` visível por uma perda silenciosa. A
+> auditoria proibiu isso literalmente, e o desenho não o faz em ponto nenhum.
+
+**`IDEMPOTENCE_EVIDENCE_PATHS_UNIQUE = SIM`** · **`IDEMPOTENCE_DESIGN_COMPLETE = SIM`**
 
 ---
 
@@ -473,6 +786,9 @@ function Read-Comparador {
 | **`R2P1_STOP_ENTRY_BASELINE_DIVERGED`** | a restauração **terminou**, o item `13` capturou corretamente, o item `14` executou normalmente sobre um TAR íntegro **e o comparador encontrou divergência** | corpus vigente |
 | **`R2P1_STOP_BINARY_BASELINE_DIVERGED`** | identidade de instalação divergente no item `12` | corpus vigente |
 | **`R2P1_STOP_PORT_OCCUPIED`** | *listener* inesperado em `8081`/`8082`/`8083` | corpus vigente |
+| **`R2P1_STOP_EVIDENCE_ROOT_PREEXISTS`** | `$EXEC`, `$RSTC`, `$RST01` ou `$RST02` já existe antes de ser criada (regra `A-6`) | `D-FUND-R2P1-ENTRY-RESET-01` (novo) |
+| **`R2P1_STOP_GATE_SEM_SHA`** | `E0.0` — o `HUMAN GATE` concedido **não cita** um `SHA256` de `64` dígitos, ou `$GATE_SHA` chegou vazio | esta emenda (`_03`) |
+| **`R2P1_STOP_DESIGN_CUSTODY_DIVERGED`** | `E0.0` — o desenho no repositório, o da custódia `_03` e o citado no gate **não são o mesmo objeto** (*bytes* ou `SHA256`) | esta emenda (`_03`) |
 
 **Casos que produzem `R2P1_STOP_ENTRY_RESET_FAILED`:** falha de remoção · falha de extração ·
 `ADB` perdido durante mutação · estado parcial · *rollback* necessário · estrutura restaurada
@@ -597,15 +913,33 @@ inverteria a ordem elementar de segurança — é por isso que o reset vem **dep
 
 | campo | valor |
 |---|---|
-| **OBJETIVO** | Provar que o repositório, a baseline e o instrumento estão íntegros; criar raiz de evidência nova e exclusiva. |
+| **OBJETIVO** | Provar que **este documento** é o mesmo no repositório, na custódia `_03` e no `HUMAN GATE` concedido; que o repositório, a baseline e o instrumento estão íntegros; e criar raiz de evidência nova e exclusiva. |
 | **PRÉ-CONDIÇÃO** | `E-1` `PASS`. |
 | **TIPO** | `READ-ONLY` (no aparelho); escreve **apenas** no `HOST`, em raiz nova. |
-| **SAÍDA ESPERADA** | Branch/HEAD/status conforme; `$BASE_SHA` e `$BASE_LEN` conferem; `compare_state.py` = `$CMP_SHA`; `Test-Path $EXEC` = `False` antes da criação. |
+| **SAÍDA ESPERADA** | `SHA256` do desenho **idêntico** nos três lugares (`E0.0`); branch/HEAD/status conforme; `$BASE_SHA` e `$BASE_LEN` conferem; `compare_state.py` = `$CMP_SHA`; `Test-Path $EXEC` = `False` antes da criação. |
 | **PASS** | Todas as conferências batem. |
-| **STOP** | Qualquer *hash* divergente ⇒ **`STOP`** (fora da janela destrutiva: nada foi mutado). `Test-Path $EXEC` = `True` ⇒ `R2P1_STOP_EVIDENCE_ROOT_PREEXISTS`. |
+| **STOP** | `$GATE_SHA` vazio ou fora de `^[0-9A-F]{64}$` ⇒ `R2P1_STOP_GATE_SEM_SHA`. Desenho do repositório ≠ custódia, ou ≠ o `SHA256` citado no gate ⇒ `R2P1_STOP_DESIGN_CUSTODY_DIVERGED`. Qualquer outro *hash* divergente ⇒ **`STOP`** (fora da janela destrutiva: nada foi mutado). `Test-Path $EXEC` = `True` ⇒ `R2P1_STOP_EVIDENCE_ROOT_PREEXISTS`. |
 | **EVIDÊNCIA** | `$EXEC\00_E0_INTEGRIDADE.txt` |
 
 ```powershell
+# =========================================================================
+# E0.0  ESTE DOCUMENTO E O MESMO EM TRES LUGARES  (DESIGN_REPO_VS_CUSTODY)
+#       Repositorio, custodia _03 e HUMAN GATE precisam falar do MESMO objeto.
+#       Sem isto, o executor poderia rodar comandos auditados em outra versao.
+#       Roda ANTES de E0.1: e o primeiro ato do desenho, e e READ-ONLY.
+# =========================================================================
+if ([string]::IsNullOrWhiteSpace($GATE_SHA))            { throw 'R2P1_STOP_GATE_SEM_SHA' }
+if ($GATE_SHA -notmatch '^[0-9A-F]{64}$')               { throw 'R2P1_STOP_GATE_SEM_SHA' }
+if (-not (Test-Path -LiteralPath $DESIGN_REPO))         { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if (-not (Test-Path -LiteralPath $DESIGN_CUST))         { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+$d_len_repo = (Get-Item     -LiteralPath $DESIGN_REPO).Length
+$d_len_cust = (Get-Item     -LiteralPath $DESIGN_CUST).Length
+$d_sha_repo = (Get-FileHash -LiteralPath $DESIGN_REPO -Algorithm SHA256).Hash
+$d_sha_cust = (Get-FileHash -LiteralPath $DESIGN_CUST -Algorithm SHA256).Hash
+if ($d_len_repo -ne $d_len_cust)                        { throw 'R2P1_STOP_DESIGN_CUSTODY_DIVERGED' }
+if ($d_sha_repo -ne $d_sha_cust)                        { throw 'R2P1_STOP_DESIGN_CUSTODY_DIVERGED' }
+if ($d_sha_repo -ne $GATE_SHA)                          { throw 'R2P1_STOP_DESIGN_CUSTODY_DIVERGED' }
+
 # =========================================================================
 # E0.1  GIT  - medido em variavel, comparado, e depois GRAVADO
 # =========================================================================
@@ -647,7 +981,20 @@ New-Item -ItemType Directory -Force $EXEC             | Out-Null
 New-Item -ItemType Directory -Force "$EXEC\tools"     | Out-Null
 New-Item -ItemType Directory -Force "$EXEC\acervo"    | Out-Null
 New-Item -ItemType Directory -Force "$EXEC\preflight" | Out-Null
-New-Item -ItemType Directory -Force "$EXEC\reset"     | Out-Null
+
+# ---- RAIZES DE RODADA (regra A-6, secao 2.7). Cada uma NASCE NOVA ou e STOP.
+#      $RST02 NAO nasce aqui: nasce em I4, imediatamente antes da rodada 02.
+$RSTC  = "$EXEC\reset"
+$RST01 = "$EXEC\round01\reset"
+$RST02 = "$EXEC\round02\reset"
+New-Item -ItemType Directory -Force "$EXEC\round01" | Out-Null
+[void](Assert-RaizNova $RSTC  'RESET_COMUM')
+[void](Assert-RaizNova $RST01 'RESET_RODADA_01')
+
+# A rodada corrente. E4..E7C escrevem SEMPRE em $RST, nunca em caminho literal.
+$RODADA = '01'
+$RST    = $RST01
+if ($RST -ne $RST01) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
 # =========================================================================
 # E0.4  INSTRUMENTO SELADO - copiado da origem canonica, NUNCA recriado
@@ -665,6 +1012,14 @@ if ($c_sha -ne $CMP_SHA)                   { throw 'R2P1_STOP_ENTRY_RESET_FAILED
 $E0F = "$EXEC\00_E0_INTEGRIDADE.txt"
 @(
   "E0_INTEGRIDADE"
+  "DESIGN_REPO=$DESIGN_REPO"
+  "DESIGN_REPO_BYTES=$d_len_repo"
+  "DESIGN_REPO_SHA256=$d_sha_repo"
+  "DESIGN_CUSTODIA=$DESIGN_CUST"
+  "DESIGN_CUSTODIA_BYTES=$d_len_cust"
+  "DESIGN_CUSTODIA_SHA256=$d_sha_cust"
+  "DESIGN_SHA256_CITADO_NO_GATE=$GATE_SHA"
+  "DESIGN_REPO_VS_CUSTODY=IDENTICOS"
   "EXEC_ROOT=$EXEC"
   "EXEC_ROOT_PREEXISTIA=$e_preexistia"
   "GIT_BRANCH=$g_branch"
@@ -683,9 +1038,15 @@ $E0F = "$EXEC\00_E0_INTEGRIDADE.txt"
   "CMP_BYTES=$c_len"
   "CMP_SHA256=$c_sha"
   "CMP_SHA256_ESPERADO=$CMP_SHA"
+  "RESET_COMUM=$RSTC"
+  "RESET_RODADA_01=$RST01"
+  "RESET_RODADA_02=$RST02"
+  "RESET_RODADA_02_JA_CRIADA=NAO"
+  "RODADA_CORRENTE=$RODADA"
+  "IDEMPOTENCE_EVIDENCE_PATHS_UNIQUE=SIM"
   "TODAS_AS_ASSERCOES=PASS"
 ) | Set-Content -LiteralPath $E0F -Encoding utf8
-[void](Assert-Evidencia $E0F 20)
+[void](Assert-Evidencia $E0F 34)
 ```
 
 > **O que mudou aqui e por quê.** A redação anterior emitia `(Get-Item $BASE_TAR).Length` como
@@ -693,7 +1054,12 @@ $E0F = "$EXEC\00_E0_INTEGRIDADE.txt"
 > — é um número no console que ninguém obriga a conferir, e `00_E0_INTEGRIDADE.txt` era declarado
 > como `EVIDÊNCIA` **sem uma única linha que o escrevesse**. Agora cada valor é medido em
 > variável, **comparado por `if` com `throw`**, e **gravado no disco**. `Assert-Evidencia` fecha
-> o ciclo: se o arquivo não existir ou tiver menos de 20 linhas úteis, o passo **falha**.
+> o ciclo: se o arquivo não existir ou tiver menos de **26** linhas úteis, o passo **falha**.
+>
+> **Emenda `DESIGN_03`:** `E0.3` deixou de criar `$EXEC\reset` com `-Force` e passa a criar as
+> **raízes de rodada** por `Assert-RaizNova` (§`2.7`, regra `A-6`). `$EXEC\round02\reset` **não**
+> nasce aqui — nasce em `I4` —, e `RESET_RODADA_02_JA_CRIADA=NAO` é gravado justamente para que
+> a criação antecipada seja detectável na custódia.
 
 ---
 
@@ -707,10 +1073,10 @@ $E0F = "$EXEC\00_E0_INTEGRIDADE.txt"
 | **SAÍDA ESPERADA** | `pidof` **sem saída**. |
 | **PASS** | Nenhum PID. |
 | **STOP** | Qualquer PID ⇒ **`STOP`**. **É proibido emitir `force-stop` neste ponto para mascarar atividade inesperada** (regra literal do item `13`). |
-| **EVIDÊNCIA** | `$EXEC\reset\01_PIDOF_ANTES.txt` |
+| **EVIDÊNCIA** | `$RSTC\01_PIDOF_ANTES.txt` |
 
 ```powershell
-$E1F = "$EXEC\reset\01_PIDOF_ANTES.txt"
+$E1F = "$RSTC\01_PIDOF_ANTES.txt"
 
 (& $ADB -s $SERIAL shell pidof com.valentedev.pequenostracosdefe) |
     Out-File -LiteralPath $E1F -Encoding utf8
@@ -759,10 +1125,10 @@ if ($e1_pids.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 | **SAÍDA ESPERADA** | `0` *listeners* em `8081`/`8082`/`8083`; `0` processos `node`; `adb reverse --list` **vazio**; nenhuma captura de `logcat` viva; `logcat` **ainda não limpo**. |
 | **PASS** | Todas as contagens em zero. |
 | **STOP** | *Listener* inesperado ⇒ `R2P1_STOP_PORT_OCCUPIED`. **Não matar processo automaticamente.** |
-| **EVIDÊNCIA** | `$EXEC\reset\02_INFRA_AUSENTE.txt` |
+| **EVIDÊNCIA** | `$RSTC\02_INFRA_AUSENTE.txt` |
 
 ```powershell
-$E2F = "$EXEC\reset\02_INFRA_AUSENTE.txt"
+$E2F = "$RSTC\02_INFRA_AUSENTE.txt"
 
 $e2_portas = @(Get-NetTCPConnection -State Listen -LocalPort 8081,8082,8083 -ErrorAction SilentlyContinue)
 $e2_node   = @(Get-Process node -ErrorAction SilentlyContinue)
@@ -795,7 +1161,7 @@ if ($e2_portas.Count -ne 0)  { throw 'R2P1_STOP_PORT_OCCUPIED' }
 > `@(...)` é obrigatório: em PowerShell 5.1 um resultado único de `Where-Object`/cmdlet retorna
 > escalar e `.Count` mediria caracteres, não elementos.
 
-> ⛔ **Correção de auditoria.** `E2` declarava `$EXEC\reset\02_INFRA_AUSENTE.txt` como
+> ⛔ **Correção de auditoria.** `E2` declarava `$RSTC\02_INFRA_AUSENTE.txt` como
 > **EVIDÊNCIA** e o bloco de comandos **não continha um único `Out-File`**: as três contagens
 > eram impressas no console e o arquivo **nunca existia**. Pior, `PASS` era *"todas as contagens
 > em zero"* sem nenhuma comparação — três números rolando na tela. Agora as três medições são
@@ -812,16 +1178,17 @@ if ($e2_portas.Count -ne 0)  { throw 'R2P1_STOP_PORT_OCCUPIED' }
 | **OBJETIVO** | Produzir o **único** artefato que torna `E5` reversível. Também é a medição do estado físico atual, hoje `NÃO COMPROVADO`. |
 | **PRÉ-CONDIÇÃO** | `E2` `PASS`. |
 | **TIPO** | `READ-ONLY` (captura por `stdout`; **nenhum TAR dentro do aparelho**) |
-| **SAÍDA ESPERADA** | TAR íntegro no `HOST`; `tar -tf` lista o conteúdo; presença de `databases/`, `files/`, `shared_prefs/`. |
-| **PASS** | `EXIT = 0` · tamanho medido e gravado · `SHA256` medido e gravado · listagem gravada · **`03_ROLLBACK_META.txt` existente e validado**. |
-| **STOP** | Falha de captura ⇒ **`STOP` antes de qualquer remoção**. Sem `E3` válido, `E5` **não pode começar** (§3.4). |
-| **EVIDÊNCIA** | `$EXEC\reset\TAR-ROLLBACK-PRE-RESET.tar` · `…\03_ROLLBACK_META.txt` · `…\03_ROLLBACK_LISTAGEM.txt` · `…\03_ROLLBACK_STDERR.txt` |
+| **SAÍDA ESPERADA** | TAR íntegro no `HOST`; `tar -tf` lista o conteúdo; **exatamente 22 entradas**, cujo conjunto de caminhos é **idêntico** ao conjunto selado de §`2.2`. |
+| **PASS** | `EXIT = 0` · *stderr* **materializado** e sem linhas (`Assert-Stderr`) · tamanho medido e gravado · `SHA256` medido e gravado · **`$rb_itens = 22` provado ANTES da primeira mutação** · identidade de conjunto provada (`Assert-Identidade`) · **`03_ROLLBACK_META.txt` existente e validado**. |
+| **STOP** | Falha de captura · *stderr* ausente **ou** com qualquer linha · contagem ≠ `22` · qualquer divergência de conjunto ⇒ **`STOP` antes de qualquer remoção**. Sem `E3` válido, `E5` **não pode começar** (§3.4). |
+| **EVIDÊNCIA** | `$RSTC\TAR-ROLLBACK-PRE-RESET.tar` · `…\03_ROLLBACK_META.txt` · `…\03_ROLLBACK_LISTAGEM.txt` · `…\03_ROLLBACK_STDERR.txt` · `…\03_ROLLBACK_STDERR.txt.PROVA.txt` · `…\03_ROLLBACK_IDENTIDADE.txt` |
 
 ```powershell
-$RB     = "$EXEC\reset\TAR-ROLLBACK-PRE-RESET.tar"
-$RBMETA = "$EXEC\reset\03_ROLLBACK_META.txt"
-$RBLIST = "$EXEC\reset\03_ROLLBACK_LISTAGEM.txt"
-$RBERR  = "$EXEC\reset\03_ROLLBACK_STDERR.txt"
+$RB     = "$RSTC\TAR-ROLLBACK-PRE-RESET.tar"
+$RBMETA = "$RSTC\03_ROLLBACK_META.txt"
+$RBLIST = "$RSTC\03_ROLLBACK_LISTAGEM.txt"
+$RBERR  = "$RSTC\03_ROLLBACK_STDERR.txt"
+$RBIDN  = "$RSTC\03_ROLLBACK_IDENTIDADE.txt"
 
 # --- carimbo de tempo: DIAGNOSTICO APENAS. Nunca e criterio de PASS/STOP.
 $rb_ts = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss')
@@ -840,16 +1207,35 @@ if ($rb_exit -ne 0)   { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 if ($rb_len  -le 0)   { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 if ($rb_sha -notmatch '^[0-9A-F]{64}$') { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
-# --- stderr: gravado SEMPRE; qualquer conteudo e STOP (regra A-3)
-$rb_err = @(Get-Content -LiteralPath $RBERR -ErrorAction SilentlyContinue |
-            ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
-if ($rb_err.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+# --- stderr: UNICO leitor autorizado (regra A-4). Arquivo AUSENTE e STOP, nao
+#     colecao vazia. Assert-Stderr grava '03_ROLLBACK_STDERR.txt.PROVA.txt' com
+#     CAPTURA_EXISTE/BYTES/LINHAS_STDERR e distingue 'existente com zero linhas'
+#     de 'inexistente'. Retorna sempre 0 -- ou nao retorna.
+$rb_err_n = [int](Assert-Stderr $RBERR 'E3.ROLLBACK_TAR')
 
 # --- listagem: GRAVADA e contada; colecao vazia NAO passa (regra A-2)
 tar -tvf $RB | Out-File -LiteralPath $RBLIST -Encoding utf8
 $rb_ec_list = $LASTEXITCODE
 if ($rb_ec_list -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-$rb_itens = [int](Assert-Evidencia $RBLIST 1)
+
+# =========================================================================
+# CARDINALIDADE EXATA DO ROLLBACK -- 22, provada AQUI, ANTES DE E5.
+# Homologa a guarda ja existente no item 13 ('Assert-Evidencia $T_LIST 22'
+# seguida de 'if ($t_itens -ne 22)'). A redacao anterior exigia apenas '1'
+# linha: um TAR truncado com 1 entrada teria passado, e o unico artefato de
+# reversao da janela destrutiva estaria vazio no momento em que fosse preciso.
+# =========================================================================
+$rb_itens = [int](Assert-Evidencia $RBLIST 22)
+if ($rb_itens -ne 22) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+
+# --- IDENTIDADE de conjunto, nao apenas contagem (regra A-5).
+#     'tar -tvf' emite uma linha longa por entrada; o caminho e o ULTIMO campo.
+#     Diretorios saem com barra final: a normalizacao a remove, como em E4C.
+$rb_paths = @(Get-Content -LiteralPath $RBLIST |
+              ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } |
+              ForEach-Object { ($_ -split '\s+')[-1].TrimEnd('/') })
+$rb_esp   = @($MODO_ESPERADO.Keys | ForEach-Object { $_.TrimEnd('/') })
+[void](Assert-Identidade $rb_paths $rb_esp 22 'E3.ROLLBACK_TAR_22' $RBIDN)
 
 # --- as tres raizes PRECISAM aparecer na listagem
 $rb_txt = (Get-Content -LiteralPath $RBLIST) -join "`n"
@@ -867,12 +1253,16 @@ foreach ($r in $RAIZES) {
   "ROLLBACK_TAR_BYTES=$rb_len"
   "ROLLBACK_TAR_SHA256=$rb_sha"
   "ROLLBACK_TAR_ENTRADAS=$rb_itens"
+  "ROLLBACK_TAR_ENTRADAS_ESPERADAS=22"
+  "ROLLBACK_TAR_IDENTIDADE=PASS"
   "ROLLBACK_TAR_EXIT=$rb_exit"
-  "ROLLBACK_STDERR_LINHAS=0"
+  "ROLLBACK_STDERR_ARQUIVO=$RBERR"
+  "ROLLBACK_STDERR_PROVA=$RBERR.PROVA.txt"
+  "ROLLBACK_STDERR_LINHAS=$rb_err_n"
   "ROLLBACK_CAPTURA_TS=$rb_ts"
   "ROLLBACK_TS_CLASSIFICACAO=DIAGNOSTICO_APENAS"
 ) | Set-Content -LiteralPath $RBMETA -Encoding utf8
-[void](Assert-Evidencia $RBMETA 10)
+[void](Assert-Evidencia $RBMETA 14)
 ```
 
 > **O que mudou aqui e por quê.** `03_ROLLBACK_META.txt` era declarado como `EVIDÊNCIA` e
@@ -900,15 +1290,15 @@ foreach ($r in $RAIZES) {
 | **SAÍDA ESPERADA** | `8/8` invariantes de produto idênticas ao artefato `30`; `KEYS_ADDED = KEYS_CHANGED = KEYS_DELETED = KEYS_ROWID_MOVED = 0`. |
 | **PASS** | **`PRE_RESET_PRODUCT_INVARIANTS = PASS`** |
 | **STOP** | Qualquer invariante de produto divergente ⇒ **`STOP` ANTES DA REMOÇÃO**. Não restaurar. Não mascarar. Não modificar o aparelho. |
-| **EVIDÊNCIA** | `$EXEC\reset\03A_PRE_RESET_vs_ARTEFATO30.txt` · `…\03A_VEREDITO.txt` |
+| **EVIDÊNCIA** | `$RSTC\03A_PRE_RESET_vs_ARTEFATO30.txt` · `…\03A_VEREDITO.txt` |
 
 ```powershell
-$A3A     = "$EXEC\reset\03A_PRE_RESET_vs_ARTEFATO30.txt"
-$A3A_VER = "$EXEC\reset\03A_VEREDITO.txt"
-$RBX     = "$EXEC\reset\ROLLBACK-EXTRACTED"
+$A3A     = "$RSTC\03A_PRE_RESET_vs_ARTEFATO30.txt"
+$A3A_VER = "$RSTC\03A_VEREDITO.txt"
+$RBX     = "$RSTC\ROLLBACK-EXTRACTED"
 
 New-Item -ItemType Directory -Force $RBX | Out-Null
-tar -xf "$EXEC\reset\TAR-ROLLBACK-PRE-RESET.tar" -C $RBX
+tar -xf "$RSTC\TAR-ROLLBACK-PRE-RESET.tar" -C $RBX
 $a3a_ec_tar = $LASTEXITCODE
 if ($a3a_ec_tar -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
@@ -991,13 +1381,13 @@ restauração (aqui) e **depois** da restauração (`E8`).
 | **SAÍDA ESPERADA** | Lista de arquivos e lista de diretórios, integrais, das **três** subárvores — e de nada mais. |
 | **PASS** | Toda linha passa em `Test-CaminhoSeguro`. |
 | **STOP** | **Qualquer** linha que falhe ⇒ `R2P1_STOP_ENTRY_RESET_FAILED`, **antes do primeiro `rm`**. Não sanitizar, não truncar, não ignorar. |
-| **EVIDÊNCIA** | `$EXEC\reset\04_ENUM_ARQUIVOS.txt` · `…\04_ENUM_DIRS.txt` · `…\04_RESIDUOS.txt` · `…\04_VALIDACAO.txt` |
+| **EVIDÊNCIA** | `$RST\04_ENUM_ARQUIVOS.txt` · `…\04_ENUM_DIRS.txt` · `…\04_RESIDUOS.txt` · `…\04_VALIDACAO.txt` |
 
 ```powershell
-$E4_ARQ = "$EXEC\reset\04_ENUM_ARQUIVOS.txt"
-$E4_DIR = "$EXEC\reset\04_ENUM_DIRS.txt"
-$E4_RES = "$EXEC\reset\04_RESIDUOS.txt"
-$E4_VAL = "$EXEC\reset\04_VALIDACAO.txt"
+$E4_ARQ = "$RST\04_ENUM_ARQUIVOS.txt"
+$E4_DIR = "$RST\04_ENUM_DIRS.txt"
+$E4_RES = "$RST\04_RESIDUOS.txt"
+$E4_VAL = "$RST\04_VALIDACAO.txt"
 
 # --- enumeracao. NAO EXISTE fallback: se 'find' falhar, o passo PARA. A redacao
 #     anterior anunciava "fallback declarado: ls -alR" em COMENTARIO, e comentario
@@ -1102,7 +1492,7 @@ if ($arqInvalidos.Count -gt 0 -or $dirInvalidos.Count -gt 0) {
 | **SAÍDA ESPERADA** | Contexto das 22 entradas relevantes **e** dos três diretórios de topo. |
 | **PASS** | Captura completa; **contexto não vazio e extraível em TODAS as entradas**; `PRE_PATH_COUNT` igual ao número de alvos. |
 | **STOP** | `ls -Z` indisponível · código de saída ≠ `0` · saída vazia · contexto não extraível em **qualquer** entrada ⇒ **`throw 'R2P1_STOP_ENTRY_RESET_FAILED'` ANTES de `E5`**. Sem `SELINUX_PRE` completo não há como validar `SELINUX_POST`, e prosseguir seria remover sem referência. |
-| **EVIDÊNCIA** | `$EXEC\reset\04A_SELINUX_PRE.txt` · `…\04A_SELINUX_PRE_BRUTO.txt` · `…\04A_SELINUX_PRE_META.txt` |
+| **EVIDÊNCIA** | `$RST\04A_SELINUX_PRE.txt` · `…\04A_SELINUX_PRE_BRUTO.txt` · `…\04A_SELINUX_PRE_META.txt` |
 
 ```powershell
 # UMA invocacao por caminho: 'ls -Zd' NAO recursivo devolve o contexto DAQUELE caminho.
@@ -1115,9 +1505,9 @@ $ALVOS_META = @($RAIZES) + @($dirBrutos | Where-Object { $RAIZES -notcontains $_
 # Portanto este padrao identifica o contexto SEM presumir a ordem das colunas.
 $RX_SECTX = '[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:[A-Za-z0-9_.,=-]+'
 
-$A4A     = "$EXEC\reset\04A_SELINUX_PRE.txt"
-$A4A_BR  = "$EXEC\reset\04A_SELINUX_PRE_BRUTO.txt"
-$A4A_MET = "$EXEC\reset\04A_SELINUX_PRE_META.txt"
+$A4A     = "$RST\04A_SELINUX_PRE.txt"
+$A4A_BR  = "$RST\04A_SELINUX_PRE_BRUTO.txt"
+$A4A_MET = "$RST\04A_SELINUX_PRE_META.txt"
 $SELINUX_PRE = @{}                          # mapa caminho -> contexto extraido
 
 foreach ($rel in $ALVOS_META) {
@@ -1193,25 +1583,34 @@ equivalente**, dentro da mesma instalação, mesmo `uid`, mesmo *package* e mesm
 | **OBJETIVO** | Construir a referência de metadados estruturais. O comparador **não** vê modo/dono/grupo — este é o ponto cego que `E7B` fecha. |
 | **PRÉ-CONDIÇÃO** | `E4A` `PASS`. |
 | **TIPO** | `READ-ONLY` |
-| **SAÍDA ESPERADA** | Para cada entrada: nome, modo octal, `uid`, `gid`, `uname`, `gname`, tamanho, `mtime`, tipo. Esperado `uid 10364` / `gid 10364` em **todas**. |
-| **PASS** | Captura completa; **8 campos parseáveis em TODAS as entradas**; `uid`/`gid` = `10364` em todas. |
-| **STOP** | Código de saída ≠ `0` · linha vazia · número de campos ≠ `8` · modo não octal · `uid`/`gid` não numérico · `uid`/`gid` diferente de `10364` ⇒ **`throw` ANTES de `E5`**: o alvo não é o que o item `12` provou, ou a ferramenta não é confiável. |
-| **EVIDÊNCIA** | `$EXEC\reset\04B_MODE_PRE.txt` · `…\04B_MODE_PRE_BRUTO.txt` · `…\04B_MODE_PRE_META.txt` |
+| **SAÍDA ESPERADA** | Para cada entrada: nome, modo octal, `uid`, `gid`, `uname`, `gname`, tamanho, `mtime`. Esperado `uid 10364` / `gid 10364` em **todas**. **O árbitro guarda só os seis primeiros** (regra `A-7`). |
+| **PASS** | Captura completa; **8 campos parseáveis em TODAS as entradas**; `uid`/`gid` = `10364` em todas; **árbitro com `22` linhas de exatamente `6` campos**. |
+| **STOP** | Código de saída ≠ `0` · linha vazia · número de campos ≠ `8` · modo não octal · `uid`/`gid` não numérico · `uid`/`gid` diferente de `10364` · **qualquer linha do árbitro fora de `6` campos** ⇒ **`throw` ANTES de `E5`**: o alvo não é o que o item `12` provou, ou a ferramenta não é confiável. |
+| **EVIDÊNCIA** | `$RST\04B_MODE_PRE.txt` (**árbitro, `6` campos**) · `…\04B_MODE_PRE_BRUTO.txt` (**diagnóstico, `8` campos, com `%Y`**) · `…\04B_MODE_PRE_PROJECAO.txt` · `…\04B_MODE_PRE_META.txt` |
+| **RODADA** | escreve em `$RST` — `$RST01` na rodada `01`, `$RST02` na rodada `02` (§`2.7`). |
 
 ```powershell
 # FORMATO SEM ESPACOS: ':' nao e metacaractere em sh, portanto NAO precisa de aspas
 # e sobrevive intacto ao reparse do shell do aparelho (2.5).
+# DUAS PROJECOES, UMA UNICA CHAMADA (regra A-7):
+#   $FMT_BRUTO -> 8 campos. E o que stat realmente devolve, e e necessario para
+#                 VALIDAR o formato: %s e %Y provam que a ferramenta respondeu de
+#                 verdade. Vai SOMENTE para 04B_MODE_PRE_BRUTO.txt (diagnostico).
+#   $FMT_ARB   -> 6 campos. E a PROJECAO ESTRUTURAL que 04B_MODE_PRE.txt recebe,
+#                 e 04B_MODE_PRE.txt e o unico dos dois que E7B e I9 comparam.
 # Campos: 0=%n caminho  1=%a modo  2=%u uid  3=%g gid  4=%U uname  5=%G gname
-#         6=%s bytes    7=%Y mtime_epoch
-$FMT = '%n:%a:%u:%g:%U:%G:%s:%Y'
+#         6=%s bytes    7=%Y mtime_epoch   <-- 6 e 7 NAO ENTRAM NO ARBITRO
+$FMT_BRUTO = '%n:%a:%u:%g:%U:%G:%s:%Y'
+$FMT_ARB   = '%n:%a:%u:%g:%U:%G'          # documenta a projecao; New-Projecao a constroi
 
-$A4B     = "$EXEC\reset\04B_MODE_PRE.txt"
-$A4B_BR  = "$EXEC\reset\04B_MODE_PRE_BRUTO.txt"
-$A4B_MET = "$EXEC\reset\04B_MODE_PRE_META.txt"
+$A4B     = "$RST\04B_MODE_PRE.txt"          # ARBITRO   -- 6 campos
+$A4B_BR  = "$RST\04B_MODE_PRE_BRUTO.txt"    # DIAGNOSTICO -- 8 campos, com mtime
+$A4B_MET = "$RST\04B_MODE_PRE_META.txt"
+$A4B_PRJ = "$RST\04B_MODE_PRE_PROJECAO.txt"
 $MODO_PRE = @{}                             # mapa caminho -> objeto de metadados
 
 foreach ($rel in $ALVOS_META) {
-    $linha = (& $ADB -s $SERIAL shell run-as $PKG stat -c $FMT -- $rel) -join ' '
+    $linha = (& $ADB -s $SERIAL shell run-as $PKG stat -c $FMT_BRUTO -- $rel) -join ' '
     $ec    = $LASTEXITCODE
     "$rel|EXIT=$ec|$($linha.Trim())" | Out-File -LiteralPath $A4B_BR -Append -Encoding utf8
 
@@ -1230,15 +1629,27 @@ foreach ($rel in $ALVOS_META) {
     if ([int]$c[2] -ne $UID_ESP)         { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
     if ([int]$c[3] -ne $GID_ESP)         { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
+    # O objeto EM MEMORIA tambem descarta %s e %Y: nem por variavel o mtime
+    # alcanca um caminho de decisao. Quem quiser mtime le o *_BRUTO.txt.
     $MODO_PRE[$rel] = [pscustomobject]@{
         Caminho = $c[0]; Modo = $c[1]; Uid = [int]$c[2]; Gid = [int]$c[3]
-        Uname   = $c[4]; Gname = $c[5]; Bytes = [long]$c[6]; Mtime = [long]$c[7]
+        Uname   = $c[4]; Gname = $c[5]
     }
-    $t | Out-File -LiteralPath $A4B -Append -Encoding utf8
+    # ARBITRO recebe a PROJECAO de 6 campos -- nunca a linha de 8.
+    (New-Projecao $c) | Out-File -LiteralPath $A4B -Append -Encoding utf8
 }
 
 $PRE_META_COUNT = [int](Assert-Colecao @($MODO_PRE.Keys) $ALVOS_META.Count)
-[void](Assert-Evidencia $A4B $PRE_META_COUNT)
+
+# O BRUTO tem escritor e prova positiva de materializacao -- ausencia e STOP AQUI,
+# no produtor, e nunca no consumidor diagnostico (E7C).
+[void](Assert-Evidencia $A4B_BR $ALVOS_META.Count)
+
+# PROVA LITERAL DE 'MTIME_CAN_STOP = NAO' DO LADO PRE:
+# le o arquivo GRAVADO e exige 6 campos em toda linha. Uma linha de 8 campos --
+# a unica forma de mtime alcancar E7B ou I9 -- e STOP aqui, antes de E5.
+[void](Assert-Projecao $A4B $PRE_META_COUNT $A4B_PRJ)
+
 @(
   "MODE_PRE_META"
   "PRE_META_COUNT=$PRE_META_COUNT"
@@ -1248,9 +1659,15 @@ $PRE_META_COUNT = [int](Assert-Colecao @($MODO_PRE.Keys) $ALVOS_META.Count)
   "PRE_GID_FORA_DE_10364=0"
   "FONTE=stat"
   "FONTE_UNICA=SIM"
-  "PRE_ARQUIVO=$A4B"
+  "PRE_ARQUIVO_ARBITRO=$A4B"
+  "PRE_ARQUIVO_BRUTO=$A4B_BR"
+  "PRE_ARQUIVO_PROJECAO=$A4B_PRJ"
+  "ARBITRO_FORMATO=$FMT_ARB"
+  "BRUTO_FORMATO=$FMT_BRUTO"
+  "ARBITRO_CONTEM_MTIME=NAO"
+  "RODADA=$RODADA"
 ) | Set-Content -LiteralPath $A4B_MET -Encoding utf8
-[void](Assert-Evidencia $A4B_MET 9)
+[void](Assert-Evidencia $A4B_MET 15)
 ```
 
 > ### ⛔ Correção de auditoria — **`stat` é fonte única; o *fallback*-comentário foi excluído**
@@ -1290,56 +1707,83 @@ $PRE_META_COUNT = [int](Assert-Colecao @($MODO_PRE.Keys) $ALVOS_META.Count)
 | **PRÉ-CONDIÇÃO** | `E4B` `PASS`. |
 | **TIPO** | `READ-ONLY` — `tar -t` **apenas lista**; não cria, não sobrescreve, não remove. |
 | **SAÍDA ESPERADA** | **22 entradas**, cujo **CONJUNTO de caminhos** é idêntico ao conjunto selado da baseline (`$MODO_ESPERADO`, §2.2). |
-| **PASS** | `EXIT = 0` · *stderr* **vazio** · 22 linhas úteis · **`SÓ_NO_TAR = 0` e `SÓ_NA_REFERÊNCIA = 0`**. |
-| **STOP** | Código de saída ≠ `0` · qualquer linha em *stderr* · contagem ≠ 22 · **qualquer** diferença de conjunto ⇒ **`STOP` antes de `E5`**. Nenhuma mutação ocorreu; o aparelho continua em estado conhecido. |
-| **EVIDÊNCIA** | `$EXEC\reset\04C_STDIN_PROBE.txt` · `…\04C_STDIN_PROBE_STDERR.txt` · `…\04C_STDIN_PROBE_META.txt` |
+| **PASS** | `EXIT = 0` · *stderr* **materializado e sem linhas** (`Assert-Stderr`) · 22 linhas úteis · **`SÓ_NO_TAR = 0` e `SÓ_NA_REFERÊNCIA = 0`** por `Assert-Identidade`. |
+| **STOP** | Código de saída ≠ `0` · **captura de *stderr* inexistente** · qualquer linha em *stderr* · contagem ≠ 22 · **qualquer** diferença de conjunto · `$RODADA` fora de `{01, 02}` ⇒ **`STOP` antes de `E5`**. Nenhuma mutação ocorreu; o aparelho continua em estado conhecido. |
+| **EVIDÊNCIA** | `$RST\04C_STDIN_PROBE.txt` · `…\04C_STDIN_PROBE_STDERR.txt` · `…\04C_STDIN_PROBE_STDERR.txt.PROVA.txt` · `…\04C_STDIN_PROBE_IDENTIDADE.txt` · `…\04C_STDIN_PROBE_META.txt` |
+| **RODADA** | escreve em `$RST`; é o **único** passo do intervalo `E4`…`E7C` com caminho **literal**, e por isso tem **dois** comandos escritos por extenso, um por rodada (§`2.7`). |
 
 ```powershell
-$P4C     = "$EXEC\reset\04C_STDIN_PROBE.txt"
-$P4C_ERR = "$EXEC\reset\04C_STDIN_PROBE_STDERR.txt"
-$P4C_MET = "$EXEC\reset\04C_STDIN_PROBE_META.txt"
+$P4C     = "$RST\04C_STDIN_PROBE.txt"
+$P4C_ERR = "$RST\04C_STDIN_PROBE_STDERR.txt"
+$P4C_MET = "$RST\04C_STDIN_PROBE_META.txt"
+$P4C_IDN = "$RST\04C_STDIN_PROBE_IDENTIDADE.txt"
+
+# ---- 0) LITERAL POR RODADA.
+# Regra O-2 exige 'cmd.exe /c' para redirecionamento binario, e regra de auditoria
+# exige comando LITERAL, nao montado por concatenacao. Como cada rodada escreve numa
+# raiz propria (2.7), o literal e ESCRITO DUAS VEZES, por extenso, e escolhido por
+# 'if' sobre $RODADA. Nao ha edicao manual entre as rodadas, e os dois comandos
+# permanecem auditaveis palavra a palavra (I5_LITERAL_COMMANDS_PRESENT = SIM).
+#
+# Lacre anti-deriva: se o literal e a variavel apontarem para arquivos diferentes,
+# o passo para AQUI -- antes de qualquer leitura -- em vez de arbitrar o arquivo errado.
+$P4C_LIT01 = 'C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\round01\reset\04C_STDIN_PROBE.txt'
+$P4C_LIT02 = 'C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\round02\reset\04C_STDIN_PROBE.txt'
 
 # '<', '>' e '2>' sao consumidos pelo cmd.exe; o aparelho nao ve metacaractere algum.
-cmd.exe /c "C:\Android\platform-tools\adb.exe -s RX2XC003LTJ shell run-as com.valentedev.pequenostracosdefe tar -t < C:\tmp\ptf_evidencias\R2P1_RETRY_ENTRY_BASELINE_01\acervo\TAR-ENTRY-BASELINE-01.tar > C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\reset\04C_STDIN_PROBE.txt 2> C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\reset\04C_STDIN_PROBE_STDERR.txt"
-$p4c_exit = $LASTEXITCODE
+if ($RODADA -eq '01') {
+    if ($P4C -ne $P4C_LIT01) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    cmd.exe /c "C:\Android\platform-tools\adb.exe -s RX2XC003LTJ shell run-as com.valentedev.pequenostracosdefe tar -t < C:\tmp\ptf_evidencias\R2P1_RETRY_ENTRY_BASELINE_01\acervo\TAR-ENTRY-BASELINE-01.tar > C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\round01\reset\04C_STDIN_PROBE.txt 2> C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\round01\reset\04C_STDIN_PROBE_STDERR.txt"
+    $p4c_exit = $LASTEXITCODE
+} elseif ($RODADA -eq '02') {
+    if ($P4C -ne $P4C_LIT02) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    cmd.exe /c "C:\Android\platform-tools\adb.exe -s RX2XC003LTJ shell run-as com.valentedev.pequenostracosdefe tar -t < C:\tmp\ptf_evidencias\R2P1_RETRY_ENTRY_BASELINE_01\acervo\TAR-ENTRY-BASELINE-01.tar > C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\round02\reset\04C_STDIN_PROBE.txt 2> C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\round02\reset\04C_STDIN_PROBE_STDERR.txt"
+    $p4c_exit = $LASTEXITCODE
+} else {
+    throw 'R2P1_STOP_ENTRY_RESET_FAILED'
+}
 
 # ---- 1) codigo de saida REGISTRADO e CONFERIDO
-# ---- 2) stderr REGISTRADO e CONFERIDO (qualquer linha e STOP)
-$p4c_err = @(Get-Content -LiteralPath $P4C_ERR -ErrorAction SilentlyContinue |
-             ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
-if ($p4c_exit -ne 0)      { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-if ($p4c_err.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if ($p4c_exit -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+
+# ---- 2) stderr pelo UNICO leitor autorizado (regra A-4).
+#         Ausencia do arquivo e STOP: '2> arquivo' sob cmd.exe /c CRIA o arquivo
+#         mesmo sem conteudo, entao ausencia prova falha de redirecionamento.
+#         Assert-Stderr grava '04C_STDIN_PROBE_STDERR.txt.PROVA.txt'.
+$p4c_err_n = [int](Assert-Stderr $P4C_ERR "E4C.STDIN_PROBE.R$RODADA")
 
 # ---- 3) contagem exata (colecao vazia NAO passa - regra A-2)
-$p4c_bruto = @(Get-Content -LiteralPath $P4C -ErrorAction SilentlyContinue |
+[void](Assert-Evidencia $P4C 22)
+$p4c_bruto = @(Get-Content -LiteralPath $P4C |
                ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
 [void](Assert-Colecao $p4c_bruto 22)
 
-# ---- 4) COMPARACAO DE CONJUNTO, nao apenas de contagem.
+# ---- 4) IDENTIDADE DE CONJUNTO, nao apenas contagem (regra A-5).
 #         Diretorios saem do 'tar -t' com barra final; a normalizacao a remove.
-$p4c_set = @($p4c_bruto | ForEach-Object { $_.TrimEnd('/') } | Sort-Object -Unique)
-$esp_set = @($MODO_ESPERADO.Keys        | ForEach-Object { $_.TrimEnd('/') } | Sort-Object -Unique)
-[void](Assert-Colecao $p4c_set 22)
-[void](Assert-Colecao $esp_set 22)
-
-$soNoTar = @($p4c_set | Where-Object { $esp_set -notcontains $_ })
-$soNaRef = @($esp_set | Where-Object { $p4c_set -notcontains $_ })
-if ($soNoTar.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-if ($soNaRef.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+#         Assert-Identidade exige: 22 de cada lado, zero duplicata, zero sobra,
+#         zero falta -- e NOMEIA cada divergencia em 04C_STDIN_PROBE_IDENTIDADE.txt.
+$p4c_set = @($p4c_bruto        | ForEach-Object { $_.TrimEnd('/') })
+$esp_set = @($MODO_ESPERADO.Keys | ForEach-Object { $_.TrimEnd('/') })
+[void](Assert-Identidade $p4c_set $esp_set 22 "E4C.TAR_22.R$RODADA" $P4C_IDN)
 
 @(
   "STDIN_CHANNEL_PROBE_META"
+  "RODADA=$RODADA"
   "EXIT=$p4c_exit"
-  "STDERR_LINHAS=$($p4c_err.Count)"
+  "STDERR_ARQUIVO=$P4C_ERR"
+  "STDERR_PROVA=$P4C_ERR.PROVA.txt"
+  "STDERR_LINHAS=$p4c_err_n"
   "ENTRADAS_LISTADAS=$($p4c_bruto.Count)"
   "ENTRADAS_ESPERADAS=22"
-  "SO_NO_TAR=$($soNoTar.Count)"
-  "SO_NA_REFERENCIA=$($soNaRef.Count)"
+  "IDENTIDADE_ARQUIVO=$P4C_IDN"
+  "IDENTIDADE_VEREDITO=PASS"
+  "SO_NO_TAR=0"
+  "SO_NA_REFERENCIA=0"
   "CONJUNTO_IDENTICO=SIM"
   "PROVA=FRAMING_E_LISTAGEM"
   "NAO_PROVA=FIDELIDADE_INTEGRAL_DO_PAYLOAD"
 ) | Set-Content -LiteralPath $P4C_MET -Encoding utf8
-[void](Assert-Evidencia $P4C_MET 10)
+[void](Assert-Evidencia $P4C_MET 15)
 ```
 
 > **Por que este passo foi acrescentado.** O risco não medido do desenho é a fidelidade de
@@ -1393,20 +1837,21 @@ de execução cite o *hash* integral do desenho.
 | **OBJETIVO** | Eliminar o falso `PASS` por saída vazia de `stat`. Uma coleção vazia produz `Count = 0`, e `0 divergências` é lido por um humano como sucesso. Esta sonda garante que **houve leitura real de metadados**. |
 | **PRÉ-CONDIÇÃO** | `E4C` `PASS`. |
 | **TIPO** | `READ-ONLY` |
-| **SAÍDA ESPERADA** | Sonda de caminho único com `EXIT = 0`, saída não vazia, **8 campos**, modo/`uid`/`gid` parseáveis **e**, além disso, `04B_MODE_PRE.txt` integralmente revalidado. |
-| **PASS** | **`STAT_PROBE_BEFORE_E5 = SIM`** e `STAT_EMPTY_PASS_VECTOR = NONE`. |
+| **SAÍDA ESPERADA** | Sonda de caminho único com `EXIT = 0`, saída não vazia, **8 campos**, modo/`uid`/`gid` parseáveis **e**, além disso, `04B_MODE_PRE.txt` integralmente revalidado — com **6 campos por linha**, porque o árbitro é a projeção estrutural (regra `A-7`). |
+| **PASS** | **`STAT_PROBE_BEFORE_E5 = SIM`** · `STAT_EMPTY_PASS_VECTOR = NONE` · **`MTIME_CAN_STOP = NÃO` revalidado no último ponto `READ-ONLY`**. |
 | **STOP** | **Qualquer** condição falha ⇒ `throw 'R2P1_STOP_ENTRY_RESET_FAILED'` **ANTES de `E5`**. O aparelho permanece intacto. |
-| **EVIDÊNCIA** | `$EXEC\reset\04D_STAT_PROBE.txt` · `…\04D_STAT_PROBE_META.txt` |
+| **EVIDÊNCIA** | `$RST\04D_STAT_PROBE.txt` · `…\04D_STAT_PROBE_META.txt` · `…\04D_PROJECAO_REVALIDADA.txt` |
+| **RODADA** | escreve em `$RST`. |
 
 ```powershell
-$P4D     = "$EXEC\reset\04D_STAT_PROBE.txt"
-$P4D_MET = "$EXEC\reset\04D_STAT_PROBE_META.txt"
+$P4D     = "$RST\04D_STAT_PROBE.txt"
+$P4D_MET = "$RST\04D_STAT_PROBE_META.txt"
 
 # ---------- 4D.1  SONDA DE CAMINHO UNICO, execucao FRESCA
 #            Alvo: a primeira raiz canonica -- literal de $RAIZES, jamais um
 #            caminho vindo do aparelho. Existe por construcao (E4 a enumerou).
 $alvoProbe = $RAIZES[0]
-$pl        = (& $ADB -s $SERIAL shell run-as $PKG stat -c $FMT -- $alvoProbe) -join ' '
+$pl        = (& $ADB -s $SERIAL shell run-as $PKG stat -c $FMT_BRUTO -- $alvoProbe) -join ' '
 $pl_ec     = $LASTEXITCODE
 "PROBE|$alvoProbe|EXIT=$pl_ec|$($pl.Trim())" | Out-File -LiteralPath $P4D -Encoding utf8
 
@@ -1425,18 +1870,25 @@ if ([string]::IsNullOrEmpty($pc[4]))    { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 if ([string]::IsNullOrEmpty($pc[5]))    { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }  # 11 gname
 
 # ---------- 4D.2  REVALIDACAO INTEGRAL DO QUE E4B GRAVOU
-#            Nao basta a sonda passar: o arquivo consumido por E7B precisa
-#            estar completo, sem uma unica linha mal formada.
+#            Nao basta a sonda passar: o arquivo ARBITRO consumido por E7B e por I9
+#            precisa estar completo, sem uma unica linha mal formada.
+#            ATENCAO: o arbitro tem SEIS campos (regra A-7). A sonda acima usa OITO
+#            porque fala direto com o stat; o arbitro guarda a projecao estrutural.
 $mp = @(Get-Content -LiteralPath $A4B | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
 [void](Assert-Colecao $mp $ALVOS_META.Count)
 $mpRuim = @($mp | Where-Object {
               $f = $_.Split(':')
-              ($f.Count -ne 8) -or
+              ($f.Count -ne 6) -or
               ($f[1] -notmatch '^[0-7]{3,4}$') -or
               ($f[2] -notmatch '^[0-9]+$')     -or
               ($f[3] -notmatch '^[0-9]+$')
           })
 if ($mpRuim.Count -ne 0)                { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+
+# ---------- 4D.3  MTIME NAO ALCANCA NENHUM ARBITRO (regra A-7, prova redundante)
+#            Assert-Projecao ja rodou em E4B; aqui ela roda DE NOVO, imediatamente
+#            antes de E5, porque este e o ultimo ponto READ-ONLY da cadeia.
+[void](Assert-Projecao $A4B $mp.Count "$RST\04D_PROJECAO_REVALIDADA.txt")
 
 @(
   "STAT_PROBE_META"
@@ -1445,13 +1897,19 @@ if ($mpRuim.Count -ne 0)                { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
   "PROBE_EXIT=$pl_ec"
   "PROBE_CAMPOS=$($pc.Count)"
   "PROBE_CAMPOS_ESPERADOS=8"
+  "PROBE_FORMATO=$FMT_BRUTO"
+  "ARBITRO_FORMATO=$FMT_ARB"
+  "ARBITRO_CAMPOS_EXIGIDOS=6"
+  "ARBITRO_CONTEM_MTIME=NAO"
   "MODE_PRE_LINHAS=$($mp.Count)"
   "MODE_PRE_LINHAS_ESPERADAS=$($ALVOS_META.Count)"
   "MODE_PRE_LINHAS_MAL_FORMADAS=0"
+  "MTIME_CAN_STOP=NAO"
   "STAT_EMPTY_PASS_VECTOR=NONE"
   "STAT_PROBE_BEFORE_E5=SIM"
+  "RODADA=$RODADA"
 ) | Set-Content -LiteralPath $P4D_MET -Encoding utf8
-[void](Assert-Evidencia $P4D_MET 11)
+[void](Assert-Evidencia $P4D_MET 17)
 ```
 
 > **Por que esta sonda existe.** O `VERDE` mostrou o vetor completo: se `stat` não existir no
@@ -1469,14 +1927,15 @@ if ($mpRuim.Count -ne 0)                { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 | **OBJETIVO** | Eliminar o falso `PASS` por contexto vazio. `'' == ''` é o vetor mais silencioso deste desenho. |
 | **PRÉ-CONDIÇÃO** | `E4D` `PASS`. |
 | **TIPO** | `READ-ONLY` |
-| **SAÍDA ESPERADA** | Comando disponível · `EXIT = 0` · saída não vazia · contexto extraível · contagem de entradas coerente · **nenhuma** entrada com contexto vazio. |
-| **PASS** | **`SELINUX_PROBE_BEFORE_E5 = SIM`** e `SELINUX_EMPTY_PASS_VECTOR = NONE`. |
+| **SAÍDA ESPERADA** | Comando disponível · `EXIT = 0` · saída não vazia · contexto extraível · **identidade por `relpath`** entre arquivo, mapa em memória e os `22` alvos selados · **nenhuma** entrada com contexto vazio. |
+| **PASS** | **`SELINUX_PROBE_BEFORE_E5 = SIM`** · `SELINUX_EMPTY_PASS_VECTOR = NONE` · **`SELINUX_PRE_PROVA = IDENTIDADE_POR_RELPATH`**. |
 | **STOP** | **Qualquer** condição falha ⇒ `throw 'R2P1_STOP_ENTRY_RESET_FAILED'` **ANTES de `E5`**. |
-| **EVIDÊNCIA** | `$EXEC\reset\04E_SELINUX_PROBE.txt` · `…\04E_SELINUX_PROBE_META.txt` |
+| **EVIDÊNCIA** | `$RST\04E_SELINUX_PROBE.txt` · `…\04E_SELINUX_PROBE_META.txt` · `…\04E_SELINUX_PRE_IDENTIDADE.txt` · `…\04E_SELINUX_PRE_MAPA_IDENTIDADE.txt` |
+| **RODADA** | escreve em `$RST`. |
 
 ```powershell
-$P4E     = "$EXEC\reset\04E_SELINUX_PROBE.txt"
-$P4E_MET = "$EXEC\reset\04E_SELINUX_PROBE_META.txt"
+$P4E     = "$RST\04E_SELINUX_PROBE.txt"
+$P4E_MET = "$RST\04E_SELINUX_PROBE_META.txt"
 
 # ---------- 4E.1  SONDA DE CAMINHO UNICO, execucao FRESCA
 $sl    = (& $ADB -s $SERIAL shell run-as $PKG ls -Zd -- $alvoProbe) -join ' '
@@ -1503,8 +1962,17 @@ $spRuim = @($sp | Where-Object {
           })
 if ($spRuim.Count -ne 0)             { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }  # 6 nenhum vazio
 
-# o mapa em memoria precisa bater com o arquivo gravado
-[void](Assert-Colecao @($SELINUX_PRE.Keys) $sp.Count)
+# ---------- 4E.3  IDENTIDADE, NAO CARDINALIDADE (regra A-5 / BLOCO F).
+#            A redacao anterior parava em 'Assert-Colecao $sp $ALVOS_META.Count':
+#            22 linhas quaisquer passavam. Agora o CONJUNTO DE RELPATHS do arquivo
+#            gravado, o CONJUNTO DE CHAVES do mapa em memoria e os 22 relpaths
+#            selados de 2.2 sao provados IDENTICOS, um a um, por nome.
+$spRel = @($sp | ForEach-Object { $_.Substring(0, $_.IndexOf('=')).Trim() })
+[void](Assert-Identidade $spRel $ALVOS_META 22 "E4E.SELINUX_PRE_ARQUIVO.R$RODADA" `
+                         "$RST\04E_SELINUX_PRE_IDENTIDADE.txt")
+[void](Assert-Identidade @($SELINUX_PRE.Keys) $ALVOS_META 22 "E4E.SELINUX_PRE_MAPA.R$RODADA" `
+                         "$RST\04E_SELINUX_PRE_MAPA_IDENTIDADE.txt")
+
 $spVazios = @($SELINUX_PRE.Keys | Where-Object { $SELINUX_PRE[$_].Length -eq 0 })
 if ($spVazios.Count -ne 0)           { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
@@ -1517,10 +1985,14 @@ if ($spVazios.Count -ne 0)           { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
   "SELINUX_PRE_LINHAS=$($sp.Count)"
   "SELINUX_PRE_LINHAS_ESPERADAS=$($ALVOS_META.Count)"
   "SELINUX_PRE_CONTEXTOS_VAZIOS=0"
+  "SELINUX_PRE_IDENTIDADE_ARQUIVO=PASS"
+  "SELINUX_PRE_IDENTIDADE_MAPA=PASS"
+  "SELINUX_PRE_PROVA=IDENTIDADE_POR_RELPATH"
   "SELINUX_EMPTY_PASS_VECTOR=NONE"
   "SELINUX_PROBE_BEFORE_E5=SIM"
+  "RODADA=$RODADA"
 ) | Set-Content -LiteralPath $P4E_MET -Encoding utf8
-[void](Assert-Evidencia $P4E_MET 10)
+[void](Assert-Evidencia $P4E_MET 14)
 ```
 
 ---
@@ -1535,7 +2007,7 @@ if ($spVazios.Count -ne 0)           { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 | **SAÍDA ESPERADA** | `/data` com folga ≫ pico líquido; volume do `HOST` com folga ≫ soma dos artefatos previstos. |
 | **PASS** | Ambos os limites satisfeitos, medidos e gravados. |
 | **STOP** | Folga insuficiente em qualquer um dos dois ⇒ **`STOP` antes de `E5`**. |
-| **EVIDÊNCIA** | `$EXEC\reset\04F_ESPACO.txt` |
+| **EVIDÊNCIA** | `$RST\04F_ESPACO.txt` |
 
 **Prova estrutural do pico líquido no aparelho — por que ele é ≈ 0.** A ordem do desenho é
 `E5` (remover) **antes** de `E6` (extrair). Durante `E6`, o *sandbox* está no seu **mínimo
@@ -1546,7 +2018,7 @@ o saldo líquido do reset é **substituição, não acréscimo**. A medição ab
 essa afirmação com número, não para substituí-la por confiança.
 
 ```powershell
-$P4F = "$EXEC\reset\04F_ESPACO.txt"
+$P4F = "$RST\04F_ESPACO.txt"
 
 # ---------- 4F.1  APARELHO: 'df /data', somente leitura, sem 'run-as'
 $dfBruto = @(& $ADB -s $SERIAL shell df /data)
@@ -1597,12 +2069,14 @@ if ($hostLivreMB -lt 1024)              { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 | **SAÍDA ESPERADA** | `find … -type f` posterior **vazio**; os 8 diretórios da baseline **intactos**. |
 | **PASS** | Zero arquivos remanescentes nas três subárvores; os `$DIRS_BASELINE` continuam existindo. |
 | **STOP** | Qualquer erro de remoção ⇒ `R2P1_STOP_ENTRY_RESET_FAILED` + *rollback* (§5). |
-| **EVIDÊNCIA** | `$EXEC\reset\05_REMOCAO_LOG.txt` · `…\05_POS_REMOCAO.txt` · `…\05_POS_REMOCAO_DIRS.txt` |
+| **EVIDÊNCIA** | `$RST\05_REMOCAO_LOG.txt` · `…\05_POS_REMOCAO.txt` · `…\05_POS_REMOCAO_DIRS.txt` |
 
 ```powershell
-$A5L = "$EXEC\reset\05_REMOCAO_LOG.txt"
-$A5P = "$EXEC\reset\05_POS_REMOCAO.txt"
-$A5D = "$EXEC\reset\05_POS_REMOCAO_DIRS.txt"
+[void](Set-Passo 'E5')          # escritor 1/6 de $PASSO_CORRENTE (2.6 / 5.0)
+
+$A5L = "$RST\05_REMOCAO_LOG.txt"
+$A5P = "$RST\05_POS_REMOCAO.txt"
+$A5D = "$RST\05_POS_REMOCAO_DIRS.txt"
 
 # A lista de E4 e pre-requisito DURO, revalidado aqui: vazia, E5 removeria nada
 # e a conferencia 5.3 declararia PASS sobre trabalho nenhum.
@@ -1716,13 +2190,29 @@ if ($restantes.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 | **SAÍDA ESPERADA** | `EXIT = 0`; 14 arquivos presentes. |
 | **PASS** | `EXIT = 0` **medido, gravado e comparado** — e `E7` conforme. |
 | **STOP** | Erro de extração ⇒ `R2P1_STOP_ENTRY_RESET_FAILED` + *rollback* (§5). |
-| **EVIDÊNCIA** | `$EXEC\reset\06_EXTRACAO.txt` (stdout + stderr + linha `E6_EXTRACAO_EXIT`) |
+| **EVIDÊNCIA** | `$RST\06_EXTRACAO.txt` (stdout + stderr + linha `E6_EXTRACAO_EXIT`) |
 
 ```powershell
-$E6F = "$EXEC\reset\06_EXTRACAO.txt"
+[void](Set-Passo 'E6')          # escritor 2/6 de $PASSO_CORRENTE (2.6 / 5.0)
 
-cmd.exe /c "C:\Android\platform-tools\adb.exe -s RX2XC003LTJ shell run-as com.valentedev.pequenostracosdefe tar -x -C /data/user/0/com.valentedev.pequenostracosdefe < C:\tmp\ptf_evidencias\R2P1_RETRY_ENTRY_BASELINE_01\acervo\TAR-ENTRY-BASELINE-01.tar > C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\reset\06_EXTRACAO.txt 2>&1"
-$e6_ec = $LASTEXITCODE
+$E6F = "$RST\06_EXTRACAO.txt"
+
+# LITERAL POR RODADA -- mesma disciplina de E4C: dois comandos escritos por extenso,
+# escolhidos por 'if' sobre $RODADA, com lacre anti-deriva entre literal e variavel.
+$E6_LIT01 = 'C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\round01\reset\06_EXTRACAO.txt'
+$E6_LIT02 = 'C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\round02\reset\06_EXTRACAO.txt'
+
+if ($RODADA -eq '01') {
+    if ($E6F -ne $E6_LIT01) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    cmd.exe /c "C:\Android\platform-tools\adb.exe -s RX2XC003LTJ shell run-as com.valentedev.pequenostracosdefe tar -x -C /data/user/0/com.valentedev.pequenostracosdefe < C:\tmp\ptf_evidencias\R2P1_RETRY_ENTRY_BASELINE_01\acervo\TAR-ENTRY-BASELINE-01.tar > C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\round01\reset\06_EXTRACAO.txt 2>&1"
+    $e6_ec = $LASTEXITCODE
+} elseif ($RODADA -eq '02') {
+    if ($E6F -ne $E6_LIT02) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    cmd.exe /c "C:\Android\platform-tools\adb.exe -s RX2XC003LTJ shell run-as com.valentedev.pequenostracosdefe tar -x -C /data/user/0/com.valentedev.pequenostracosdefe < C:\tmp\ptf_evidencias\R2P1_RETRY_ENTRY_BASELINE_01\acervo\TAR-ENTRY-BASELINE-01.tar > C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\round02\reset\06_EXTRACAO.txt 2>&1"
+    $e6_ec = $LASTEXITCODE
+} else {
+    throw 'R2P1_STOP_ENTRY_RESET_FAILED'
+}
 
 if (-not (Test-Path -LiteralPath $E6F)) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 "E6_EXTRACAO_EXIT=$e6_ec" | Out-File -LiteralPath $E6F -Append -Encoding utf8
@@ -1767,31 +2257,33 @@ posiciona o `cwd` no diretório do *package*, mas o desenho não depende dessa s
 | **PRÉ-CONDIÇÃO** | `E6` `EXIT = 0`. |
 | **TIPO** | `READ-ONLY` |
 | **SAÍDA ESPERADA** | 14 arquivos = `$ARQS_BASELINE`; diretórios ⊇ `$DIRS_BASELINE`; nenhum caminho extra. |
-| **PASS** | Conjuntos idênticos. |
-| **STOP** | Arquivo faltante, arquivo extra ou diretório inesperado ⇒ `R2P1_STOP_ENTRY_RESET_FAILED` + *rollback* (§5). |
-| **EVIDÊNCIA** | `$EXEC\reset\07_ESTRUTURA_POS.txt` |
+| **PASS** | Conjuntos **idênticos por nome**, provado por `Assert-Identidade` (sem duplicata, sem sobra, sem falta). |
+| **STOP** | Arquivo faltante, arquivo extra, duplicata ou diretório inesperado ⇒ `R2P1_STOP_ENTRY_RESET_FAILED` + *rollback* (§5). |
+| **EVIDÊNCIA** | `$RST\07_ESTRUTURA_POS.txt` · `…\07_ESTRUTURA_IDENTIDADE.txt` |
+| **RODADA** | escreve em `$RST`. |
 
 ```powershell
-$A7 = "$EXEC\reset\07_ESTRUTURA_POS.txt"
+[void](Set-Passo 'E7')          # escritor 3/6 de $PASSO_CORRENTE (2.6 / 5.0)
+
+$A7 = "$RST\07_ESTRUTURA_POS.txt"
 
 & $ADB -s $SERIAL shell run-as $PKG find databases files shared_prefs -type f |
     Out-File -LiteralPath $A7 -Encoding utf8
 $a7_ec = $LASTEXITCODE
 if ($a7_ec -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
-$posArq = @(Get-Content -LiteralPath $A7 -ErrorAction SilentlyContinue |
-            ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
-
-# ---- guardas de vazio ANTES de comparar (regra A-2). Sem elas, uma extracao
-#      que nao produzisse NADA compararia lista vazia com lista vazia... e o
-#      Compare-Object devolveria 14 diferencas, mas uma leitura desatenta de
-#      'Count' sobre colecao vazia e exatamente o falso PASS que se combate.
+# ---- guardas de vazio ANTES de ler (regra A-2). Sem elas, uma extracao que nao
+#      produzisse NADA compararia lista vazia com lista vazia -- exatamente o falso
+#      PASS que se combate. Nao ha 'SilentlyContinue': ausencia do arquivo e STOP.
 [void](Assert-Evidencia $A7 14)
+$posArq = @(Get-Content -LiteralPath $A7 |
+            ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
 [void](Assert-Colecao $posArq        14)
 [void](Assert-Colecao $ARQS_BASELINE 14)
 
-$estDiff = @(Compare-Object $ARQS_BASELINE $posArq)
-if ($estDiff.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+# ---- IDENTIDADE por nome, nao apenas ausencia de diferenca agregada (regra A-5).
+[void](Assert-Identidade $posArq $ARQS_BASELINE 14 "E7.ESTRUTURA_14.R$RODADA" `
+                         "$RST\07_ESTRUTURA_IDENTIDADE.txt")
 ```
 
 ---
@@ -1804,15 +2296,18 @@ if ($estDiff.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 | **PRÉ-CONDIÇÃO** | `E7` `PASS`. |
 | **TIPO** | `READ-ONLY` |
 | **SAÍDA ESPERADA** | Contexto **funcionalmente equivalente** ao de `E4A`, dentro da mesma instalação, mesmo `uid`, mesmo *package*, mesma janela. |
-| **PASS** | Equivalência funcional para todas as entradas **com domínio de comparação provado não vazio e completo**. |
-| **STOP** | `PRE` ausente · `POST` ausente · contexto vazio de qualquer lado · contagem incompatível · interseção vazia · chave de `POST` sem par em `PRE` · divergência material ⇒ `R2P1_STOP_ENTRY_RESET_FAILED`. **NÃO** corrigir com `restorecon`, `chcon`, *root* ou qualquer mecanismo não autorizado. |
-| **EVIDÊNCIA** | `$EXEC\reset\07A_SELINUX_POST.txt` · `…\07A_SELINUX_POST_BRUTO.txt` · `…\07A_SELINUX_DIFF.txt` · `…\07A_SELINUX_DOMINIO.txt` |
+| **PASS** | Equivalência funcional para todas as entradas **com domínio de comparação provado por identidade de `relpath`, não vazio, igual a `22` dos dois lados**. |
+| **STOP** | `PRE` ausente · `POST` ausente · contexto vazio de qualquer lado · contagem incompatível · **`POST` diferente dos 22 selados** · **`PRE` que não cobre os 22 selados** · duplicata · interseção vazia · chave de `POST` sem par em `PRE` · divergência material ⇒ `R2P1_STOP_ENTRY_RESET_FAILED`. **NÃO** corrigir com `restorecon`, `chcon`, *root* ou qualquer mecanismo não autorizado. |
+| **EVIDÊNCIA** | `$RST\07A_SELINUX_POST.txt` · `…\07A_SELINUX_POST_BRUTO.txt` · `…\07A_SELINUX_DIFF.txt` · `…\07A_SELINUX_DOMINIO.txt` · `…\07A_SELINUX_POST_IDENTIDADE.txt` · `…\07A_SELINUX_PRE_COBERTURA.txt` |
+| **RODADA** | lê o `PRE` **da própria rodada** (`$RST\04A_…`) e escreve o `POST` na mesma raiz. |
 
 ```powershell
-$A7A     = "$EXEC\reset\07A_SELINUX_POST.txt"
-$A7A_BR  = "$EXEC\reset\07A_SELINUX_POST_BRUTO.txt"
-$A7A_DIF = "$EXEC\reset\07A_SELINUX_DIFF.txt"
-$A7A_DOM = "$EXEC\reset\07A_SELINUX_DOMINIO.txt"
+[void](Set-Passo 'E7A')         # escritor 4/6 de $PASSO_CORRENTE (2.6 / 5.0)
+
+$A7A     = "$RST\07A_SELINUX_POST.txt"
+$A7A_BR  = "$RST\07A_SELINUX_POST_BRUTO.txt"
+$A7A_DIF = "$RST\07A_SELINUX_DIFF.txt"
+$A7A_DOM = "$RST\07A_SELINUX_DOMINIO.txt"
 
 # ---- captura POS: MESMO comando, MESMAS guardas e MESMA extracao de E4A
 $ALVOS_POS = @($RAIZES) + @($DIRS_BASELINE | Where-Object { $RAIZES -notcontains $_ }) +
@@ -1859,30 +2354,55 @@ $sePos = Import-Indexado $A7A
 $PRE_PATH_COUNT  = [int](Assert-Colecao @($sePre.Keys) $ALVOS_META.Count)   # PRE  = ESPERADO
 $POST_PATH_COUNT = [int](Assert-Colecao @($sePos.Keys) $ALVOS_POS.Count)    # POST = ESPERADO
 
+# ---- (A) IGUALDADE, onde o invariante E igualdade (BLOCO F / regra A-5).
+#      POST tem de ser EXATAMENTE o conjunto selado de 22 relpaths de 2.2.
+#      Cardinalidade 22 nao basta: 22 nomes errados tambem dao 22.
+[void](Assert-Identidade @($sePos.Keys) $ALVOS_POS 22 "E7A.POST_IGUAL_A_22.R$RODADA" `
+                         "$RST\07A_SELINUX_POST_IDENTIDADE.txt")
+
+# ---- (B) SUBCONJUNTO, onde o invariante E subconjunto -- com a condicao previa
+#      que o torna significativo PROVADA LITERALMENTE.
+#      PRE inclui residuos que E5 remove, entao PRE = POST seria falso por
+#      construcao. O que precisa ser verdade e: PRE CONTEM os 22 selados. Sem
+#      isso, 'POST subset de PRE' seria satisfeito por um PRE arbitrario.
 $semParPre = @($sePos.Keys | Where-Object { -not $sePre.ContainsKey($_) })
 if ($semParPre.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }        # chave faltante
 
+$preNosSelados = @($ALVOS_POS | Where-Object { $sePre.ContainsKey($_) })
+[void](Assert-Identidade $preNosSelados $ALVOS_POS 22 "E7A.PRE_COBRE_OS_22.R$RODADA" `
+                         "$RST\07A_SELINUX_PRE_COBERTURA.txt")
+
+# ---- (C) so agora o dominio e formado, e ele vale 22 por identidade dos dois lados.
 $DOMINIO = @($sePos.Keys | Where-Object { $sePre.ContainsKey($_) } | Sort-Object)
 $DOM_COUNT = [int](Assert-Colecao $DOMINIO $POST_PATH_COUNT)                # intersecao != vazia
-                                                                            # e IGUAL a POST
+if ($DOM_COUNT -ne 22) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }             # e IGUAL a POST = 22
+
 $preVazios = @($sePre.Keys | Where-Object { $sePre[$_].Length -eq 0 })
 $posVazios = @($sePos.Keys | Where-Object { $sePos[$_].Length -eq 0 })
 if ($preVazios.Count -ne 0 -or $posVazios.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
 @(
   "SELINUX_DOMINIO"
+  "RODADA=$RODADA"
+  "PRE_ARQUIVO=$A4A"
+  "POST_ARQUIVO=$A7A"
+  "PRE_E_POST_NA_MESMA_RAIZ=SIM"
   "PRE_PATH_COUNT=$PRE_PATH_COUNT"
   "PRE_PATH_COUNT_ESPERADO=$($ALVOS_META.Count)"
   "POST_PATH_COUNT=$POST_PATH_COUNT"
   "POST_PATH_COUNT_ESPERADO=$($ALVOS_POS.Count)"
+  "POST_IGUAL_AOS_22_SELADOS=SIM"
+  "PRE_COBRE_OS_22_SELADOS=SIM"
   "DOMINIO_COMPARACAO=$DOM_COUNT"
+  "DOMINIO_ESPERADO=22"
   "POST_SEM_PAR_EM_PRE=0"
   "DOMINIO_IGUAL_A_POST=SIM"
+  "PROVA=IDENTIDADE_POR_RELPATH"
   "PRE_CONTEXTOS_VAZIOS=0"
   "POST_CONTEXTOS_VAZIOS=0"
   "SELINUX_EMPTY_PASS_VECTOR=NONE"
 ) | Set-Content -LiteralPath $A7A_DOM -Encoding utf8
-[void](Assert-Evidencia $A7A_DOM 11)
+[void](Assert-Evidencia $A7A_DOM 19)
 
 # =========================================================================
 # SO AGORA os VALORES sao comparados
@@ -1926,14 +2446,19 @@ if (@($seDiff).Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 > |---|---|---|
 > | 1 | `PRE_PATH_COUNT` = número de alvos enumerados em `E4A` | `Assert-Colecao … $ALVOS_META.Count` |
 > | 2 | `POST_PATH_COUNT` = **22** | `Assert-Colecao … $ALVOS_POS.Count` |
-> | 3 | `POST ⊆ PRE` — **nenhuma** chave de `POST` sem par | `$semParPre.Count -ne 0` ⇒ `throw` |
-> | 4 | domínio de comparação = `POST`, **não vazio** | `Assert-Colecao $DOMINIO $POST_PATH_COUNT` |
-> | 5 | zero contextos vazios em `PRE` **e** em `POST` | `$preVazios` / `$posVazios` ⇒ `throw` |
+> | 3 | **`POST` é IDENTICAMENTE o conjunto selado de 22 `relpath`** — mesma contagem, zero duplicata, zero sobra, zero falta | `Assert-Identidade @($sePos.Keys) $ALVOS_POS 22` |
+> | 4 | `POST ⊆ PRE` — **nenhuma** chave de `POST` sem par | `$semParPre.Count -ne 0` ⇒ `throw` |
+> | 5 | **condição prévia que torna `(4)` significativo: `PRE` COBRE os 22 selados**, provada por identidade | `Assert-Identidade $preNosSelados $ALVOS_POS 22` |
+> | 6 | domínio de comparação = `POST`, **não vazio e igual a 22** | `Assert-Colecao $DOMINIO $POST_PATH_COUNT` + `if ($DOM_COUNT -ne 22) { throw }` |
+> | 7 | zero contextos vazios em `PRE` **e** em `POST` | `$preVazios` / `$posVazios` ⇒ `throw` |
+> | 8 | `PRE` e `POST` são **da mesma rodada** | ambos sob `$RST`; `$RST01` ≠ `$RST02` (§`2.7`) |
 >
-> `(3)` + `(4)` **são** `PRE_PATH_SET = POST_PATH_SET` restrito ao domínio em que a igualdade é
-> semanticamente válida. Nenhum dos vetores que a exigência quer bloquear sobrevive: conjunto
-> vazio, interseção vazia, chave faltante e contagem incompatível produzem `STOP` **antes** de
-> qualquer comparação de valor.
+> **Emenda `DESIGN_03` — o que mudou e por quê.** A versão anterior parava em `(2)` + `(4)`:
+> contagem correta dos dois lados e nenhuma chave órfã. Isso **não** é identidade — `22` chaves
+> erradas satisfazem a contagem, e `POST ⊆ PRE` é satisfeito por qualquer `PRE` inchado. Agora
+> `(3)` testa **igualdade** onde o invariante é igualdade, e `(5)` prova **literalmente** a
+> condição prévia que torna o subconjunto de `(4)` significativo. Nenhum aparelho foi alterado
+> para tornar o teste possível: as duas provas leem os mesmos arquivos que já existiam.
 
 ---
 
@@ -1945,29 +2470,41 @@ if (@($seDiff).Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 | **PRÉ-CONDIÇÃO** | `E7A` `PASS`. |
 | **TIPO** | `READ-ONLY` |
 | **SAÍDA ESPERADA** | `uid`/`gid` = `10364` em tudo; modos conforme §2.2 (arquivos `0600`/`0660`; os três topos `0771`; intermediários `0700`). |
-| **PASS** | *Ownership* e grupo exatos **e** modos funcionalmente suficientes para o app ler/escrever. |
-| **STOP** | Conteúdo correto **mas** modos necessários ao acesso do app divergentes ⇒ `R2P1_STOP_ENTRY_RESET_FAILED`. **`chmod` corretivo silencioso é PROIBIDO na primeira prova** — ela existe justamente para medir o comportamento real do mecanismo. |
-| **EVIDÊNCIA** | `$EXEC\reset\07B_MODE_POST.txt` · `…\07B_MODE_DIFF.txt` |
+| **PASS** | *Ownership* e grupo exatos **e** modos funcionalmente suficientes para o app ler/escrever — sobre um domínio de `22` provado **por identidade de `relpath`**, não por contagem. |
+| **STOP** | Conteúdo correto **mas** modos necessários ao acesso do app divergentes ⇒ `R2P1_STOP_ENTRY_RESET_FAILED`. Também `STOP`: árbitro com linha fora de `6` campos (`Assert-Projecao`); `POST` diferente dos `22` selados; `PRE` que não cobre os `22`; tabela §2.2 diferente dos `22`. **`chmod` corretivo silencioso é PROIBIDO na primeira prova** — ela existe justamente para medir o comportamento real do mecanismo. |
+| **EVIDÊNCIA** | **árbitro** `$RST\07B_MODE_POST.txt` (**`6` campos — sem `%s`, sem `%Y`**) · **diagnóstico** `…\07B_MODE_POST_BRUTO.txt` (`8` campos, com `mtime`) · `…\07B_MODE_POST_PROJECAO.txt` · `…\07B_MODE_POST_IDENTIDADE.txt` · `…\07B_MODE_PRE_COBERTURA.txt` · `…\07B_MODE_TABELA_IDENTIDADE.txt` · `…\07B_MODE_DOMINIO.txt` · `…\07B_MODE_DIFF.txt` |
+| **RODADA** | Escreve em `$RST` — `round01` na rodada `1`, `round02` na rodada `2`. Compara `POST` com o `PRE` **da própria rodada** (`$A4B`, também sob `$RST`). |
 
 ```powershell
-$A7B     = "$EXEC\reset\07B_MODE_POST.txt"
-$A7B_BR  = "$EXEC\reset\07B_MODE_POST_BRUTO.txt"
-$A7B_DIF = "$EXEC\reset\07B_MODE_DIFF.txt"
-$A7B_DOM = "$EXEC\reset\07B_MODE_DOMINIO.txt"
+[void](Set-Passo 'E7B')         # escritor 5/6 de $PASSO_CORRENTE (2.6 / 5.0)
 
-# ---- captura POS: MESMO comando, MESMO formato e MESMAS guardas de E4B
+$A7B     = "$RST\07B_MODE_POST.txt"
+$A7B_BR  = "$RST\07B_MODE_POST_BRUTO.txt"
+$A7B_DIF = "$RST\07B_MODE_DIFF.txt"
+$A7B_DOM = "$RST\07B_MODE_DOMINIO.txt"
+
+# ---- captura POS: MESMO comando, MESMO formato e MESMAS guardas de E4B.
+#      A linha de 8 campos vai para o BRUTO; o ARBITRO recebe a PROJECAO de 6 (A-7).
 foreach ($rel in $ALVOS_POS) {
-    $linha = (& $ADB -s $SERIAL shell run-as $PKG stat -c $FMT -- $rel) -join ' '
+    $linha = (& $ADB -s $SERIAL shell run-as $PKG stat -c $FMT_BRUTO -- $rel) -join ' '
     $ec    = $LASTEXITCODE
     "$rel|EXIT=$ec|$($linha.Trim())" | Out-File -LiteralPath $A7B_BR -Append -Encoding utf8
     if ($ec -ne 0)                   { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
     $t = $linha.Trim()
     if ($t.Length -eq 0)             { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-    if ($t.Split(':').Count -ne 8)   { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-    $t | Out-File -LiteralPath $A7B -Append -Encoding utf8
+    $c8 = $t.Split(':')
+    if ($c8.Count -ne 8)             { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    (New-Projecao $c8) | Out-File -LiteralPath $A7B -Append -Encoding utf8
 }
 
-# ---- projecao: SOMENTE metadado estrutural. 'bytes' e 'mtime' ficam de FORA da igualdade.
+# BRUTO com escritor e prova positiva: ausencia e STOP no PRODUTOR.
+[void](Assert-Evidencia $A7B_BR $ALVOS_POS.Count)
+
+# PROVA LITERAL DE 'MTIME_CAN_STOP = NAO' DO LADO POST.
+[void](Assert-Projecao $A7B $ALVOS_POS.Count "$RST\07B_MODE_POST_PROJECAO.txt")
+
+# ---- projecao: SOMENTE metadado estrutural. 'bytes' e 'mtime' nem chegam aqui --
+#      eles ficaram no arquivo *_BRUTO.txt, que NENHUM caminho de STOP le.
 #      O leitor REJEITA linha mal formada em vez de produzir campos nulos silenciosos.
 function Import-Meta {
     param([string]$Arquivo)
@@ -1975,15 +2512,14 @@ function Import-Meta {
     $h = @{}
     foreach ($ln in @(Get-Content -LiteralPath $Arquivo |
                       ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })) {
-        $c = $ln.Split(':')                      # 0=%n 1=%a 2=%u 3=%g 4=%U 5=%G 6=%s 7=%Y
-        if ($c.Count -ne 8)                     { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+        $c = $ln.Split(':')                      # 0=%n 1=%a 2=%u 3=%g 4=%U 5=%G
+        if ($c.Count -ne 6)                     { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
         if ($c[0].Length -eq 0)                 { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
         if ($c[1] -notmatch '^[0-7]{3,4}$')     { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
         if ($c[2] -notmatch '^[0-9]+$')         { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
         if ($c[3] -notmatch '^[0-9]+$')         { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
         $h[$c[0]] = [pscustomobject]@{
             Modo = $c[1]; Uid = $c[2]; Gid = $c[3]; Uname = $c[4]; Gname = $c[5]
-            Bytes = $c[6]; Mtime = $c[7]
             Chave = ($c[1] + ':' + $c[2] + ':' + $c[3] + ':' + $c[4] + ':' + $c[5])
         }
     }
@@ -1998,24 +2534,53 @@ $mdPre = Import-Meta $A4B
 $mdPos = Import-Meta $A7B
 $MD_PRE_COUNT  = [int](Assert-Colecao @($mdPre.Keys) $ALVOS_META.Count)
 $MD_POST_COUNT = [int](Assert-Colecao @($mdPos.Keys) $ALVOS_POS.Count)
-$mdSemPar      = @($mdPos.Keys | Where-Object { -not $mdPre.ContainsKey($_) })
+
+# ---- IGUALDADE onde o invariante e igualdade (BLOCO F / regra A-5):
+#      POST tem de ser EXATAMENTE os 22 selados, por nome.
+[void](Assert-Identidade @($mdPos.Keys) $ALVOS_POS 22 "E7B.POST_IGUAL_A_22.R$RODADA" `
+                         "$RST\07B_MODE_POST_IDENTIDADE.txt")
+
+# ---- SUBCONJUNTO com a condicao previa PROVADA: PRE cobre os 22 selados.
+$mdSemPar = @($mdPos.Keys | Where-Object { -not $mdPre.ContainsKey($_) })
 if ($mdSemPar.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+
+$mdPreNosSelados = @($ALVOS_POS | Where-Object { $mdPre.ContainsKey($_) })
+[void](Assert-Identidade $mdPreNosSelados $ALVOS_POS 22 "E7B.PRE_COBRE_OS_22.R$RODADA" `
+                         "$RST\07B_MODE_PRE_COBERTURA.txt")
+
+# ---- e a tabela selada de 2.2 tambem e provada identica aos 22, nao apenas contada.
+[void](Assert-Identidade @($MODO_ESPERADO.Keys | ForEach-Object { $_.TrimEnd('/') }) `
+                         @($ALVOS_POS | ForEach-Object { $_.TrimEnd('/') }) 22 `
+                         "E7B.TABELA_2_2_IGUAL_A_22.R$RODADA" `
+                         "$RST\07B_MODE_TABELA_IDENTIDADE.txt")
+
 $MD_DOMINIO    = @($mdPos.Keys | Where-Object { $mdPre.ContainsKey($_) } | Sort-Object)
 $MD_DOM_COUNT  = [int](Assert-Colecao $MD_DOMINIO $MD_POST_COUNT)
-[void](Assert-Colecao @($MODO_ESPERADO.Keys) 22)
+if ($MD_DOM_COUNT -ne 22) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
 @(
   "MODE_DOMINIO"
+  "RODADA=$RODADA"
+  "PRE_ARQUIVO=$A4B"
+  "POST_ARQUIVO=$A7B"
+  "PRE_E_POST_NA_MESMA_RAIZ=SIM"
+  "ARBITRO_CAMPOS=6"
+  "ARBITRO_CONTEM_MTIME=NAO"
   "PRE_META_COUNT=$MD_PRE_COUNT"
   "PRE_META_COUNT_ESPERADO=$($ALVOS_META.Count)"
   "POST_META_COUNT=$MD_POST_COUNT"
   "POST_META_COUNT_ESPERADO=$($ALVOS_POS.Count)"
+  "POST_IGUAL_AOS_22_SELADOS=SIM"
+  "PRE_COBRE_OS_22_SELADOS=SIM"
+  "TABELA_2_2_IGUAL_AOS_22=SIM"
   "DOMINIO_COMPARACAO=$MD_DOM_COUNT"
+  "DOMINIO_ESPERADO=22"
   "POST_SEM_PAR_EM_PRE=0"
   "TABELA_BASELINE_ENTRADAS=22"
+  "PROVA=IDENTIDADE_POR_RELPATH"
   "META_EMPTY_PASS_VECTOR=NONE"
 ) | Set-Content -LiteralPath $A7B_DOM -Encoding utf8
-[void](Assert-Evidencia $A7B_DOM 9)
+[void](Assert-Evidencia $A7B_DOM 20)
 
 # =========================================================================
 # SO AGORA os VALORES sao comparados
@@ -2074,11 +2639,18 @@ if (@($mdDiff).Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 > três produzem rótulos distintos no `DIFF` para que o auditor saiba **qual** propriedade
 > falhou, e não apenas *que* algo falhou.
 >
-> **`%s` e `%Y` ficam fora da chave de igualdade, por desenho.** Tamanho já é medido pelo
-> comparador selado no item `14` — repeti-lo aqui criaria um segundo gate de conteúdo, não
-> autorizado. `mtime` é **`DIAGNOSTIC_ONLY`** (§3.2): incluí-lo na chave o transformaria em
-> critério de reprovação, violando a decisão. Os dois campos continuam **capturados e
-> registrados**; apenas não entram na igualdade.
+> **`%s` e `%Y` não ficam apenas "fora da chave" — eles não existem no árbitro.** Esta é a
+> diferença entre `DESIGN_02` e `DESIGN_03`. Antes, a linha gravada em `07B_MODE_POST.txt` era a
+> saída **inteira** de `stat`, de `8` campos; a chave de igualdade descartava `%s` e `%Y`, mas
+> `I9` comparava o **arquivo**, e o arquivo carregava o `mtime`. Bastava uma restauração produzir
+> um `mtime` diferente da outra — comportamento **legítimo** — para `I9` derrubar a execução.
+> Agora `07B_MODE_POST.txt` recebe a **projeção** de `6` campos (`New-Projecao`, regra `A-7`) e
+> `Assert-Projecao` **relê o arquivo gravado** exigindo `6` campos em toda linha: uma linha de
+> `8` campos é `STOP` no próprio passo que a produziu. `%s` e `%Y` continuam **capturados e
+> registrados** — em `07B_MODE_POST_BRUTO.txt`, cujo único leitor é `E7C`, que não tem `throw`.
+>
+> Tamanho já é medido pelo comparador selado no item `14`; repeti-lo aqui criaria um segundo gate
+> de conteúdo, não autorizado. `mtime` é **`DIAGNOSTIC_ONLY`** (§3.2).
 >
 > Como o comportamento de `tar -x` do `toybox` **nunca foi exercido** neste aparelho, **não se
 > presume** que os modos sejam reproduzidos automaticamente. **Nenhum `chmod` passa a ser
@@ -2093,30 +2665,65 @@ if (@($mdDiff).Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 | **OBJETIVO** | Registrar `mtime` para forense e para comparação entre restaurações. |
 | **PRÉ-CONDIÇÃO** | `E7B` `PASS`. |
 | **TIPO** | `READ-ONLY` |
-| **SAÍDA ESPERADA** | `mtime` de cada uma das 14 entradas; esperado o valor da baseline (§2.2), pois `tar` restaura `mtime`. |
+| **SAÍDA ESPERADA** | `mtime` de cada uma das `22` entradas; esperado o valor da baseline (§2.2), pois `tar` restaura `mtime`. |
 | **PASS** | **Sempre registra; nunca reprova.** `MTIME_GATE = DIAGNOSTIC_ONLY`. |
 | **STOP** | **Nenhum.** `mtime` divergente, com conteúdo, estrutura e demais condições válidas, **não** é motivo autônomo de reprovação e **não** pode, sozinho, produzir `R2P1_STOP_ENTRY_BASELINE_DIVERGED`. |
-| **EVIDÊNCIA** | `$EXEC\reset\07C_MTIME.txt` |
+| **EVIDÊNCIA** | `$RST\07C_MTIME.txt` |
+| **RODADA** | Escreve em `$RST`. Terminal: **nenhum** passo posterior — inclusive `I9` — lê este arquivo. |
 
 ```powershell
-# O campo %Y ja foi capturado em E4B/E7B. Aqui ele e apenas PROJETADO e datado,
-# lado a lado, para leitura humana. Nenhuma condicao de PASS/STOP e avaliada.
+[void](Set-Passo 'E7C')         # escritor 6/6 de $PASSO_CORRENTE (2.6 / 5.0)
+
+# ---------------------------------------------------------------------------
+# UNICO consumidor de '%Y' no desenho inteiro -- e ele nao arbitra nada.
+# Regra A-7: o mtime NAO existe nos arquivos ARBITROS ($A4B / $A7B, 6 campos).
+# Ele so existe nos *_BRUTO.txt, e este passo -- que nao tem 'throw', nao tem
+# 'if' de reprovacao e nao tem valor esperado -- e o unico que os le.
+# ---------------------------------------------------------------------------
+function Read-MtimeBruto {
+    param([string]$Arquivo)
+    $h = @{}
+    if (-not (Test-Path -LiteralPath $Arquivo)) { return $h }   # diagnostico: nunca reprova
+    foreach ($ln in @(Get-Content -LiteralPath $Arquivo |
+                      ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })) {
+        $partes = $ln.Split('|')
+        if ($partes.Count -lt 3) { continue }
+        $c = $partes[$partes.Count - 1].Split(':')
+        if ($c.Count -ne 8)      { continue }
+        $h[$c[0]] = $c[7]                                        # %n -> %Y
+    }
+    return $h
+}
+
+$mtPre = Read-MtimeBruto $A4B_BR
+$mtPos = Read-MtimeBruto $A7B_BR
+
 foreach ($k in ($mdPos.Keys | Sort-Object)) {
-    $eAnt = if ($mdPre.ContainsKey($k)) { $mdPre[$k].Mtime } else { '-' }
-    $eDep = $mdPos[$k].Mtime
-    $utc  = [DateTimeOffset]::FromUnixTimeSeconds([int64]$eDep).UtcDateTime.ToString('yyyy-MM-dd HH:mm:ss')
+    $eAnt = if ($mtPre.ContainsKey($k)) { $mtPre[$k] } else { '-' }
+    $eDep = if ($mtPos.ContainsKey($k)) { $mtPos[$k] } else { '-' }
+    $utc  = if ($eDep -match '^[0-9]+$') {
+                [DateTimeOffset]::FromUnixTimeSeconds([int64]$eDep).UtcDateTime.ToString('yyyy-MM-dd HH:mm:ss')
+            } else { '-' }
     "$k|PRE=$eAnt|POS=$eDep|POS_UTC=$utc" |
-        Out-File -LiteralPath "$EXEC\reset\07C_MTIME.txt" -Append -Encoding utf8
+        Out-File -LiteralPath "$RST\07C_MTIME.txt" -Append -Encoding utf8
 }
 ```
 
-Sinal diagnóstico de alto valor: um `mtime` "de agora" em qualquer das 14 entradas indica um
+Sinal diagnóstico de alto valor: um `mtime` "de agora" em qualquer das `22` entradas indica um
 arquivo que **não** veio do TAR. Isso **motiva investigação**, não reprovação automática.
 
 > **O passo não contém nenhum `throw`, nenhum `if` de reprovação e nenhuma comparação com
 > valor esperado — deliberadamente.** É assim que `MTIME_GATE = DIAGNOSTIC_ONLY` deixa de ser
 > uma promessa textual e passa a ser uma propriedade verificável do procedimento: não existe,
 > em lugar algum do desenho, caminho de código pelo qual `mtime` produza `STOP`.
+>
+> **`E7C` é o único leitor de `%Y` do documento inteiro** — e lê os `*_BRUTO.txt`, nunca os
+> árbitros. A varredura que sustenta essa afirmação está em §13.4: `%Y` aparece em `$FMT_BRUTO`
+> (produção), nos dois `*_BRUTO.txt` (registro) e em `Read-MtimeBruto` (leitura diagnóstica) —
+> e em mais lugar nenhum. `Read-MtimeBruto` devolve mapa vazio se o arquivo faltar, o que aqui
+> **não** é um vetor de falso `PASS`: os dois `*_BRUTO.txt` têm `Assert-Evidencia` **no
+> produtor** (`E4B` e `E7B`), de modo que a ausência já teria produzido `STOP` antes — e este
+> passo, por decisão, não arbitra coisa alguma.
 >
 > **Exceção declarada à regra `A-1` (§2.6), e a única do documento.** Todo outro caminho de
 > evidência recebe `Assert-Evidencia`. `07C_MTIME.txt` **não** recebe — de propósito. Incluir a
@@ -2147,19 +2754,28 @@ $T_LIST  = "$EXEC\acervo\13_TAR_LISTAGEM.txt"
 $T_ERR   = "$EXEC\acervo\13_TAR_STDERR.txt"
 $T_PID   = "$EXEC\acervo\13_PIDOF.txt"
 
-# ---- app parado: CONDICAO REAL, nao comentario
-$pid13 = @(& $ADB -s $SERIAL shell pidof com.valentedev.pequenostracosdefe |
-           ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
-"PIDOF_LINHAS=$($pid13.Count)" | Set-Content -LiteralPath $T_PID -Encoding utf8
+# ---- app parado: CONDICAO REAL, nao comentario.
+#      O exit de 'pidof' e CAPTURADO e REGISTRADO, mas NAO arbitrado -- 'pidof'
+#      devolve 1 justamente quando nao ha processo, que e o caso de PASS.
+#      Excecao X-2 das CINCO declaradas da regra A-3 (tabela C de 13.3.1).
+$pid13    = @(& $ADB -s $SERIAL shell pidof com.valentedev.pequenostracosdefe |
+              ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+$pid13_ec = $LASTEXITCODE
+@(
+  "PIDOF_LINHAS=$($pid13.Count)"
+  "PIDOF_EXIT=$pid13_ec"
+  "PIDOF_EXIT_E_GATE=NAO"
+) | Set-Content -LiteralPath $T_PID -Encoding utf8
+[void](Assert-Evidencia $T_PID 3)
 if ($pid13.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
 cmd.exe /c "C:\Android\platform-tools\adb.exe -s RX2XC003LTJ exec-out run-as com.valentedev.pequenostracosdefe tar -c databases files shared_prefs > C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\acervo\TAR-ENTRY-POS-RESET.tar 2> C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\acervo\13_TAR_STDERR.txt"
 $t_exit = $LASTEXITCODE
 
-$t_err = @(Get-Content -LiteralPath $T_ERR -ErrorAction SilentlyContinue |
-           ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+# Regra A-4: stderr SO e lido por Assert-Stderr. Ausencia do arquivo e STOP,
+# nunca colecao vazia -- '2> arquivo' sob cmd.exe /c CRIA o arquivo mesmo vazio.
+$t_err_n = [int](Assert-Stderr $T_ERR 'ITEM13.TAR_POS_RESET')
 if ($t_exit -ne 0)                     { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-if ($t_err.Count -ne 0)                { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 if (-not (Test-Path -LiteralPath $T))  { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
 $t_len = (Get-Item     -LiteralPath $T).Length
@@ -2185,12 +2801,16 @@ $t_identico = [bool]($t_sha -eq $BASE_SHA)
   "TAR_ENTRADAS=$t_itens"
   "TAR_ENTRADAS_ESPERADAS=22"
   "TAR_EXIT=$t_exit"
-  "TAR_STDERR_LINHAS=0"
+  "TAR_STDERR_ARQUIVO=$T_ERR"
+  "TAR_STDERR_PROVA=$T_ERR.PROVA.txt"
+  "TAR_STDERR_LINHAS=$t_err_n"
   "PIDOF_LINHAS=0"
+  "PIDOF_EXIT=$pid13_ec"
+  "PIDOF_EXIT_E_GATE=NAO"
   "IDENTICO_A_BASE_SHA=$t_identico"
   "IDENTICO_E_GATE=NAO"
 ) | Set-Content -LiteralPath $T_META -Encoding utf8
-[void](Assert-Evidencia $T_META 12)
+[void](Assert-Evidencia $T_META 16)
 ```
 
 > **Indicador corroborante, não gate:** se este TAR sair **byte-idêntico** a `$BASE_SHA`, é
@@ -2367,6 +2987,109 @@ reinterpretado: ele apenas confirma que as cinco divergências são as cinco con
 Acionado **exclusivamente** por falha em `E5`, `E6` ou `E7*`, ou por interrupção depois do
 início da mutação. **`ROLLBACK_ATTEMPTS = 1`.**
 
+### `RB` — como o *rollback* é **acionado** (a linha que faltava)
+
+> ### ⛔ Correção de auditoria — o acionamento do *rollback* **não existia**
+>
+> `DESIGN_02` descrevia `RB0`…`RB7` e, em `RB0`, lia `$ROLLBACK_PASSO` e `$ROLLBACK_MOTIVO` com
+> `Get-Variable … -ErrorAction SilentlyContinue`. **Nenhuma linha do documento escrevia essas
+> duas variáveis.** Consequência literal: em toda e qualquer execução, `RB0` gravaria
+> `PASSO_QUE_FALHOU=NAO_INFORMADO` e `MOTIVO=NAO_INFORMADO` — dois campos que **parecem**
+> informação, passam em `Assert-Evidencia … 10` e não dizem nada. Pior: **não havia linha alguma
+> que transferisse o controle** de um `throw` da janela destrutiva para `RB0`. O *rollback* era,
+> na prática, um capítulo que ninguém chamava.
+>
+> A emenda materializa as três peças que faltavam: o **escritor** (`Set-CausaRollback`, §`2.6`),
+> o **rastreador de passo** (`Set-Passo`, uma linha literal no topo de cada passo da janela) e o
+> **acionador** (o `try/catch` abaixo). `ROLLBACK_DISCIPLINE_COMPLETE = SIM` passa a ser
+> verificável por leitura, não por confiança.
+
+```powershell
+# =========================================================================
+# 5.0  JANELA DESTRUTIVA -- o UNICO ponto de entrada do rollback.
+#      Tudo de E5 ate E7C corre aqui dentro. Um 'throw' em qualquer um
+#      desses passos cai NESTE catch, que grava a causa e executa RB0..RB7.
+#      Fora desta janela nao ha rollback: antes de E5 nada foi mutado, e
+#      depois de E7C a janela ja fechou (item 13 em diante e READ-ONLY).
+# =========================================================================
+$ROLLBACK_ACIONADO = $false
+
+try {
+    # E5 -> E6 -> E7 -> E7A -> E7B -> E7C, na ordem, com os blocos literais
+    # das secoes anteriores. Cada um comeca com a sua linha 'Set-Passo'.
+    # (Na rodada 2, o mesmo bloco roda de novo, depois de I4.)
+}
+catch {
+    $ROLLBACK_ACIONADO = $true
+    [void](Set-CausaRollback $PASSO_CORRENTE $_.Exception.Message)
+
+    # ROLLBACK_ATTEMPTS = 1 -- este catch nao e reentrante:
+    if ($ROLLBACK_JA_EXECUTADO) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    $ROLLBACK_JA_EXECUTADO = $true
+
+    try {
+        # RB0 .. RB7, na ordem, sem desvio e sem segunda tentativa.
+        # A ultima linha de RB7 e, ela propria, o throw terminal.
+    }
+    catch {
+        # ---------------------------------------------------------------
+        # LACRE DE ROLLBACK INTERROMPIDO.
+        # RB1, RB2, RB3 e RB4 PODEM lancar -- e devem: sao as barreiras que
+        # impedem restaurar a partir de meta adulterado ou de lista invalida.
+        # Mas um throw ali sairia do catch SEM passar por RB7, e a execucao
+        # terminaria sem lacre algum. Isso tornaria 'ROLLBACK_DISCIPLINE_
+        # COMPLETE = SIM' falso na pratica: existiria caminho real de termino
+        # sem arquivo de veredito. Este bloco fecha esse caminho SEM afrouxar
+        # nenhuma barreira -- os throws de RB1..RB4 continuam existindo e
+        # continuam interrompendo o rollback; o que muda e que agora eles
+        # deixam registro.
+        # NAO e segunda tentativa: nada e reexecutado, nada e mutado aqui.
+        # ---------------------------------------------------------------
+        $RBIF = "$RSTC\RB_INTERROMPIDO_LACRE.txt"
+        @(
+          "RB_INTERROMPIDO_LACRE"
+          "EXEC_ROOT=$EXEC"
+          "RODADA=$RODADA"
+          "VEREDITO=R2P1_STOP_ENTRY_RESET_FAILED"
+          "ROLLBACK_ACIONADO=SIM"
+          "ROLLBACK_CONCLUIDO=NAO"
+          "ROLLBACK_ATTEMPTS=1"
+          "ROLLBACK_RESULT=INDETERMINATE"
+          "DEVICE_STATE=INDETERMINATE"
+          "PASSO_CORRENTE_NA_INTERRUPCAO=$PASSO_CORRENTE"
+          "EXCECAO_DO_ROLLBACK=$($_.Exception.Message)"
+          "RB7_ALCANCADO=NAO"
+          "ITEM_13_INICIADO=NAO"
+          "PROXIMA_ACAO=HUMAN_GATE"
+        ) | Set-Content -LiteralPath $RBIF -Encoding utf8
+        [void](Assert-Evidencia $RBIF 14)
+
+        throw 'R2P1_STOP_ENTRY_RESET_FAILED'
+    }
+}
+```
+
+> **Por que existem `RB7_VEREDITO_FINAL.txt` e `RB_INTERROMPIDO_LACRE.txt`, e nunca os dois.**
+> `RB7` lacra o *rollback* que **chegou ao fim** — com `ROLLBACK_RESULT` classificado por `RB5`.
+> `RB_INTERROMPIDO_LACRE.txt` lacra o *rollback* que **foi interrompido por uma de suas próprias
+> barreiras** (`RB1` meta divergente, `RB2` enumeração quebrada, `RB3` lista inválida, `RB4` falha
+> de extração). São estados **mutuamente exclusivos**: se `RB7` executou, o `catch` interno nunca
+> foi alcançado; se o `catch` interno gravou, `RB7` não rodou e o arquivo dele não existe. Em
+> **ambos** os desfechos existe arquivo de veredito, e em ambos o resultado é
+> `R2P1_STOP_ENTRY_RESET_FAILED` — jamais `PASS`.
+
+> **`$PASSO_CORRENTE` tem escritor em seis lugares literais** — uma linha `[void](Set-Passo 'E5')`
+> no topo de `E5`, e as equivalentes em `E6`, `E7`, `E7A`, `E7B` e `E7C`. Não é convenção verbal:
+> se a linha não estiver lá, `$PASSO_CORRENTE` mantém o valor do passo anterior, e `RB0` registra
+> um passo **errado** — por isso as seis linhas estão escritas, uma a uma, nos blocos respectivos.
+> Fora da janela, o próprio *rollback* também marca posição: `RB0`, `RB6` e `RB7` têm suas
+> chamadas literais de `Set-Passo`. **Total no documento: `9` pontos de chamada** — `6` na janela
+> destrutiva e `3` no *rollback* —, todos conferíveis por busca textual por `[void](Set-Passo`.
+>
+> **O que este `catch` deliberadamente não faz:** não tenta reexecutar o passo que falhou, não
+> reabre a janela, não chama `force-stop`, não recaptura TAR e não decide nada sozinho. Ele
+> **registra** e **entrega** ao procedimento `RB0`…`RB7`, cujo desfecho é sempre `RB7`.
+
 ### `RB0` — Interromper e registrar
 
 | campo | valor |
@@ -2374,24 +3097,31 @@ início da mutação. **`ROLLBACK_ATTEMPTS = 1`.**
 | **OBJETIVO** | Congelar a sequência principal e registrar a condição observada. |
 | **TIPO** | `READ-ONLY` |
 | **PASS/STOP** | Não se aplica; é registro. **NÃO iniciar o item `13`.** |
-| **EVIDÊNCIA** | `$EXEC\reset\RB0_CONDICAO_OBSERVADA.txt` |
+| **EVIDÊNCIA** | `$RSTC\RB0_CONDICAO_OBSERVADA.txt` |
 
 ```powershell
-$RB0F = "$EXEC\reset\RB0_CONDICAO_OBSERVADA.txt"
+$RB0F = "$RSTC\RB0_CONDICAO_OBSERVADA.txt"
 
-# O passo que falhou grava $ROLLBACK_PASSO e $ROLLBACK_MOTIVO antes de acionar o
-# rollback. Lidos por Get-Variable para que a AUSENCIA da variavel produza um
-# registro honesto ('NAO_INFORMADO') em vez de derrubar o proprio rollback.
-$rb0_passo  = "$(Get-Variable -Name ROLLBACK_PASSO  -ValueOnly -ErrorAction SilentlyContinue)".Trim()
-$rb0_motivo = "$(Get-Variable -Name ROLLBACK_MOTIVO -ValueOnly -ErrorAction SilentlyContinue)".Trim()
+[void](Set-Passo 'RB0')
+
+# As duas variaveis TEM ESCRITOR: 'Set-CausaRollback', chamada pelo catch de 5.0
+# imediatamente antes de RB0. Ler com Get-Variable -SilentlyContinue era encobrir
+# a ausencia do escritor; agora a leitura e direta e a AUSENCIA e condicao real.
+$rb0_passo  = "$ROLLBACK_PASSO".Trim()
+$rb0_motivo = "$ROLLBACK_MOTIVO".Trim()
+$rb0_causa_ok = (($rb0_passo -ne '') -and ($rb0_motivo -ne ''))
 if ($rb0_passo  -eq '') { $rb0_passo  = 'NAO_INFORMADO' }
 if ($rb0_motivo -eq '') { $rb0_motivo = 'NAO_INFORMADO' }
 
 @(
   "RB0_CONDICAO_OBSERVADA"
   "EXEC_ROOT=$EXEC"
+  "RODADA=$RODADA"
   "PASSO_QUE_FALHOU=$rb0_passo"
   "MOTIVO=$rb0_motivo"
+  "CAUSA_REGISTRADA_POR_ESCRITOR=$(if ($rb0_causa_ok) { 'SIM' } else { 'NAO' })"
+  "ESCRITOR_DA_CAUSA=Set-CausaRollback"
+  "ACIONADOR=SECAO_5.0_CATCH"
   "JANELA_DESTRUTIVA_INICIADA=SIM"
   "ITEM_13_INICIADO=NAO"
   "RECAPTURA_DE_TAR=PROIBIDA"
@@ -2399,7 +3129,11 @@ if ($rb0_motivo -eq '') { $rb0_motivo = 'NAO_INFORMADO' }
   "DEVICE_STATE=INDETERMINATE"
   "CARIMBO_DIAGNOSTICO=$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))"
 ) | Set-Content -LiteralPath $RB0F -Encoding utf8
-[void](Assert-Evidencia $RB0F 10)
+[void](Assert-Evidencia $RB0F 14)
+
+# A causa AUSENTE nao derruba o rollback -- derrubar seria perder o aparelho por
+# um defeito de registro. Mas fica REGISTRADA como 'NAO', e RB7 a transporta.
+$ROLLBACK_CAUSA_REGISTRADA = $(if ($rb0_causa_ok) { 'SIM' } else { 'NAO' })
 ```
 
 > **O que mudou aqui e por quê.** `RB0` declarava `RB0_CONDICAO_OBSERVADA.txt` como `EVIDÊNCIA`
@@ -2407,6 +3141,14 @@ if ($rb0_motivo -eq '') { $rb0_motivo = 'NAO_INFORMADO' }
 > caminho de *rollback*, ou seja, exatamente onde a custódia mais importa. `CARIMBO_DIAGNOSTICO`
 > é **diagnóstico**, como todo carimbo de tempo deste desenho: não é comparado, não decide nada e
 > **não pode gerar `STOP`**.
+>
+> **Emenda `DESIGN_03`.** As leituras `Get-Variable … -ErrorAction SilentlyContinue` **saíram**.
+> Elas existiam para tolerar a ausência de um escritor que nunca existiu — isto é, para fazer o
+> defeito parecer decisão. Agora `$ROLLBACK_PASSO` e `$ROLLBACK_MOTIVO` são inicializadas em
+> §`2.6` e escritas por `Set-CausaRollback` no `catch` de §`5.0`; `RB0` as lê **direto** e grava
+> `CAUSA_REGISTRADA_POR_ESCRITOR`, que é `SIM` quando o caminho normal ocorreu. A ausência
+> continua **não** derrubando o *rollback* — mas agora ela é **um fato registrado**, não um
+> valor-padrão indistinguível do sucesso.
 
 ### `RB1` — Provar que o *rollback* pertence a **esta** execução
 
@@ -2417,13 +3159,13 @@ if ($rb0_motivo -eq '') { $rb0_motivo = 'NAO_INFORMADO' }
 | **TIPO** | `READ-ONLY` |
 | **PASS** | O TAR está **dentro de `$EXEC`** (raiz exclusiva desta execução, criada em `E0` com `Test-Path = False`), o meta de `E3` **pertence a esta mesma `$EXEC`**, e **tamanho, `SHA256` e contagem de entradas recalculados agora batem com os gravados em `E3`**. |
 | **STOP** | Qualquer divergência ⇒ *rollback* **inválido** ⇒ `R2P1_STOP_ENTRY_RESET_FAILED` com `DEVICE_STATE = INDETERMINATE`. **Nenhuma remoção de `RB3` pode ocorrer sem este `PASS`.** |
-| **EVIDÊNCIA** | `$EXEC\reset\RB1_ROLLBACK_IDENTIDADE.txt` · `…\RB1_LISTAGEM.txt` |
+| **EVIDÊNCIA** | `$RSTC\RB1_ROLLBACK_IDENTIDADE.txt` · `…\RB1_LISTAGEM.txt` |
 
 ```powershell
-$RB       = "$EXEC\reset\TAR-ROLLBACK-PRE-RESET.tar"
-$RBMETA   = "$EXEC\reset\03_ROLLBACK_META.txt"
-$RB1_OUT  = "$EXEC\reset\RB1_ROLLBACK_IDENTIDADE.txt"
-$RB1_LIST = "$EXEC\reset\RB1_LISTAGEM.txt"
+$RB       = "$RSTC\TAR-ROLLBACK-PRE-RESET.tar"
+$RBMETA   = "$RSTC\03_ROLLBACK_META.txt"
+$RB1_OUT  = "$RSTC\RB1_ROLLBACK_IDENTIDADE.txt"
+$RB1_LIST = "$RSTC\RB1_LISTAGEM.txt"
 
 # Trava consumida por RB3. So RB1, ao final e sem nenhum desvio, a levanta.
 $ROLLBACK_VERIFICADO = $false
@@ -2464,7 +3206,11 @@ if ($rb1_sha -ne $M['ROLLBACK_TAR_SHA256'])             { throw 'R2P1_STOP_ENTRY
 tar -tf $RB | Out-File -LiteralPath $RB1_LIST -Encoding utf8
 $rb1_ec = $LASTEXITCODE
 if ($rb1_ec -ne 0)                                      { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-$rb1_itens = [int](Assert-Evidencia $RB1_LIST 1)
+# CARDINALIDADE LITERAL, nao herdada: 22 exigido AQUI, no piso e na igualdade.
+# O encadeamento com o meta de E3 continua valendo, mas nao e mais a UNICA
+# barreira: um meta adulterado para '1' nao compra passagem para o restore.
+$rb1_itens = [int](Assert-Evidencia $RB1_LIST 22)
+if ($rb1_itens -ne 22)                                  { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 if ($M['ROLLBACK_TAR_ENTRADAS'] -notmatch '^[0-9]+$')   { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 if ($rb1_itens -ne [int]$M['ROLLBACK_TAR_ENTRADAS'])    { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
@@ -2529,12 +3275,12 @@ $ROLLBACK_VERIFICADO = $true
 | **TIPO** | `READ-ONLY` |
 | **PASS** | `RB1` **verificado**; ambos os `find` com `EXIT = 0`; a listagem de diretórios **não vazia**; **toda** linha de arquivo aprovada por `Test-CaminhoSeguro`, sem raiz nua, sem *traversal*, dentro das três subárvores. |
 | **STOP** | Qualquer linha inválida, qualquer `EXIT ≠ 0`, listagem de diretórios vazia ⇒ **não remover nada** ⇒ `R2P1_STOP_ENTRY_RESET_FAILED` com `DEVICE_STATE = INDETERMINATE`. |
-| **EVIDÊNCIA** | `$EXEC\reset\RB2_ENUM_PARCIAL.txt` · `…\RB2_ENUM_PARCIAL_DIRS.txt` · `…\RB2_VALIDACAO.txt` |
+| **EVIDÊNCIA** | `$RSTC\RB2_ENUM_PARCIAL.txt` · `…\RB2_ENUM_PARCIAL_DIRS.txt` · `…\RB2_VALIDACAO.txt` |
 
 ```powershell
-$RB2_ARQ  = "$EXEC\reset\RB2_ENUM_PARCIAL.txt"
-$RB2_DIRS = "$EXEC\reset\RB2_ENUM_PARCIAL_DIRS.txt"
-$RB2_VAL  = "$EXEC\reset\RB2_VALIDACAO.txt"
+$RB2_ARQ  = "$RSTC\RB2_ENUM_PARCIAL.txt"
+$RB2_DIRS = "$RSTC\RB2_ENUM_PARCIAL_DIRS.txt"
+$RB2_VAL  = "$RSTC\RB2_VALIDACAO.txt"
 
 # RB1 e pre-requisito DURO: sem rollback verificado nao se enumera para remover.
 if (-not $ROLLBACK_VERIFICADO) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
@@ -2599,8 +3345,8 @@ em `E4` → `E5`, **a validação é integral e antecede o primeiro `rm`**.
 #### `RB3.1` — Carga e validação **integral** · `READ-ONLY` · nenhum `rm` ainda
 
 ```powershell
-$RB3_VAL = "$EXEC\reset\RB3_VALIDACAO.txt"
-$RB3_LOG = "$EXEC\reset\RB3_REMOCAO_LOG.txt"
+$RB3_VAL = "$RSTC\RB3_VALIDACAO.txt"
+$RB3_LOG = "$RSTC\RB3_REMOCAO_LOG.txt"
 
 # Contador inicializado ANTES de qualquer validacao: se RB3.1 abortar, o valor
 # reportado e obrigatoriamente 0, porque nenhum 'rm' chegou a ser emitido.
@@ -2608,7 +3354,7 @@ $FILES_DELETED_BY_RB3 = 0
 
 if (-not $ROLLBACK_VERIFICADO) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
-$rbArq = @(Get-Content -LiteralPath "$EXEC\reset\RB2_ENUM_PARCIAL.txt" |
+$rbArq = @(Get-Content -LiteralPath "$RSTC\RB2_ENUM_PARCIAL.txt" |
            ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
 
 $rbRuim = @()
@@ -2704,8 +3450,8 @@ if ($rbArq.Count -gt 0) {
 cmd.exe /c "C:\Android\platform-tools\adb.exe -s RX2XC003LTJ shell run-as com.valentedev.pequenostracosdefe tar -x -C /data/user/0/com.valentedev.pequenostracosdefe < C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\reset\TAR-ROLLBACK-PRE-RESET.tar > C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_EXEC_01\reset\RB4_EXTRACAO.txt 2>&1"
 $rb4_ec = $LASTEXITCODE
 "RB4_EXTRACAO_EXIT=$rb4_ec" |
-    Out-File -LiteralPath "$EXEC\reset\RB4_EXTRACAO.txt" -Append -Encoding utf8
-if (-not (Test-Path -LiteralPath "$EXEC\reset\RB4_EXTRACAO.txt")) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    Out-File -LiteralPath "$RSTC\RB4_EXTRACAO.txt" -Append -Encoding utf8
+if (-not (Test-Path -LiteralPath "$RSTC\RB4_EXTRACAO.txt")) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 if ($rb4_ec -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 ```
 
@@ -2713,7 +3459,7 @@ if ($rb4_ec -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 |---|---|
 | **PASS** | `EXIT = 0` **verificado em `$rb4_ec` e gravado**, não presumido pela ausência de exceção no host. |
 | **STOP** | Falha ⇒ `R2P1_STOP_ENTRY_RESET_FAILED` com `DEVICE_STATE = INDETERMINATE`. **NÃO** executar segunda restauração. **NÃO** abrir o app. **NÃO** usar `pm clear`. **NÃO** instalar. **NÃO** apagar mais nada. |
-| **EVIDÊNCIA** | `$EXEC\reset\RB4_EXTRACAO.txt` (stdout + stderr + linha `RB4_EXTRACAO_EXIT`) |
+| **EVIDÊNCIA** | `$RSTC\RB4_EXTRACAO.txt` (stdout + stderr + linha `RB4_EXTRACAO_EXIT`) |
 
 ### `RB5` — Verificar estruturalmente o estado recuperado
 
@@ -2721,13 +3467,13 @@ if ($rb4_ec -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 |---|---|
 | **TIPO** | `READ-ONLY` |
 | **CLASSIFICA** | `ROLLBACK_RESULT = RECUPERADO` quando a estrutura recuperada é **idêntica** à enumerada em `E4`; `INDETERMINATE` em qualquer outro caso. |
-| **EVIDÊNCIA** | `$EXEC\reset\RB5_ESTRUTURA_RECUPERADA.txt` · `…\RB5_DIFF.txt` · `…\RB5_VEREDITO.txt` |
+| **EVIDÊNCIA** | `$RSTC\RB5_ESTRUTURA_RECUPERADA.txt` · `…\RB5_DIFF.txt` · `…\RB5_VEREDITO.txt` |
 
 ```powershell
-$RB5_EST = "$EXEC\reset\RB5_ESTRUTURA_RECUPERADA.txt"
-$RB5_DIF = "$EXEC\reset\RB5_DIFF.txt"
-$RB5_VER = "$EXEC\reset\RB5_VEREDITO.txt"
-$E4_ARQ  = "$EXEC\reset\04_ENUM_ARQUIVOS.txt"
+$RB5_EST = "$RSTC\RB5_ESTRUTURA_RECUPERADA.txt"
+$RB5_DIF = "$RSTC\RB5_DIFF.txt"
+$RB5_VER = "$RSTC\RB5_VEREDITO.txt"
+$E4_ARQ  = "$RST\04_ENUM_ARQUIVOS.txt"
 
 (& $ADB -s $SERIAL shell run-as $PKG find databases files shared_prefs -type f) |
     Out-File -LiteralPath $RB5_EST -Encoding utf8
@@ -2786,15 +3532,118 @@ if ($rb5_ok_leitura -and $rb5_dif.Count -eq 0) { $ROLLBACK_RESULT = 'RECUPERADO'
 
 ### `RB6` — **Não continuar** o *retry*
 
+| campo | valor |
+|---|---|
+| **OBJETIVO** | Provar, por evidência, que **nenhuma** continuação funcional ocorreu depois do *rollback*. |
+| **TIPO** | `READ-ONLY` |
+| **PASS/STOP** | Não se aplica; é lacre de não-continuação. `RB6` **não** absolve a execução. |
+| **EVIDÊNCIA** | `$RSTC\RB6_NAO_CONTINUACAO.txt` |
+
 Nenhuma continuação funcional ocorre depois de um *rollback*: **não** iniciar o item `13`,
 **não** subir Metro, **não** iniciar `PS3`, **não** emitir *deep link*, **não** abrir o app,
-**não** reexecutar `E5`/`E6`.
+**não** reexecutar `E5`/`E6`. E isso agora é **medido**, não prometido:
+
+```powershell
+[void](Set-Passo 'RB6')
+$RB6F = "$RSTC\RB6_NAO_CONTINUACAO.txt"
+
+# As proibicoes de RB6 sao MEDIDAS, uma a uma, com os MESMOS instrumentos de E2:
+# se alguem tivesse subido Metro/PS3 ou aberto reverse depois do rollback, aqui apareceria.
+$rb6_portas = @(Get-NetTCPConnection -State Listen -LocalPort 8081,8082,8083 -ErrorAction SilentlyContinue)
+$rb6_node   = @(Get-Process node -ErrorAction SilentlyContinue)
+$rb6_rev    = @(& $ADB -s $SERIAL reverse --list |
+                ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+$rb6_ec_rev = $LASTEXITCODE
+
+# O item 13 nao pode ter comecado: o seu TAR e o seu META nao podem existir.
+$rb6_t13     = [bool](Test-Path -LiteralPath "$EXEC\acervo\TAR-ENTRY-POS-RESET.tar")
+$rb6_t13meta = [bool](Test-Path -LiteralPath "$EXEC\acervo\13_TAR_META.txt")
+
+@(
+  "RB6_NAO_CONTINUACAO"
+  "EXEC_ROOT=$EXEC"
+  "RODADA=$RODADA"
+  "PASSO_QUE_FALHOU=$rb0_passo"
+  "ITEM_13_TAR_EXISTE=$rb6_t13"
+  "ITEM_13_META_EXISTE=$rb6_t13meta"
+  "PORTAS_8081_8082_8083_EM_LISTEN=$($rb6_portas.Count)"
+  "PROCESSOS_NODE=$($rb6_node.Count)"
+  "REVERSE_LIST_EXIT=$rb6_ec_rev"
+  "REVERSE_ENTRADAS=$($rb6_rev.Count)"
+  "METRO_START=0"
+  "PS3_START=0"
+  "DEEPLINK=0"
+  "APP_OPEN=0"
+  "REEXECUCAO_DE_E5_OU_E6=NAO"
+  "ROLLBACK_ATTEMPTS_CONSUMIDAS=1"
+) + @($rb6_portas | ForEach-Object { "PORTA|$($_.LocalPort)|$($_.OwningProcess)" }) `
+  + @($rb6_node   | ForEach-Object { "NODE|$($_.Id)|$($_.ProcessName)" }) `
+  + @($rb6_rev    | ForEach-Object { "REVERSE|$_" }) |
+    Set-Content -LiteralPath $RB6F -Encoding utf8
+[void](Assert-Evidencia $RB6F 16)
+```
+
+> **Por que `RB6` não lança, nem mesmo se encontrar Metro no ar.** Pela mesma razão de `RB5`: a
+> execução **já** termina em `R2P1_STOP_ENTRY_RESET_FAILED` por força de `RB7`. Um `throw` aqui
+> pularia `RB7` e apagaria o lacre final. O achado é **registrado** — `PROCESSOS_NODE`,
+> `PORTAS…`, `REVERSE_ENTRADAS` diferentes de `0` são, no relatório, prova de que alguém violou a
+> proibição — e o veredito continua sendo o de `RB7`.
 
 ### `RB7` — Finalizar
 
+| campo | valor |
+|---|---|
+| **OBJETIVO** | Emitir o veredito terminal e lacrar os campos obrigatórios do relatório. |
+| **TIPO** | `READ-ONLY` |
+| **PASS/STOP** | **Sempre `STOP`.** Não existe caminho pelo qual `RB7` produza `PASS`. |
+| **EVIDÊNCIA** | `$RSTC\RB7_VEREDITO_FINAL.txt` |
+
 **`R2P1_STOP_ENTRY_RESET_FAILED`** — **mesmo que o *rollback* tenha devolvido o estado
-anterior**. *Rollback* bem-sucedido **NÃO** transforma a execução em `PASS`. Campo obrigatório
+anterior**. *Rollback* bem-sucedido **NÃO** transforma a execução em `PASS`. Campos obrigatórios
 no relatório: `ROLLBACK_EXECUTED = SIM` e `ROLLBACK_RESULT = RECUPERADO | INDETERMINATE`.
+
+```powershell
+[void](Set-Passo 'RB7')
+$RB7F = "$RSTC\RB7_VEREDITO_FINAL.txt"
+
+# ROLLBACK_RESULT vem de RB5, que CLASSIFICA e nao lanca. A variavel nasce
+# 'INDETERMINATE' em 2.6 e SO vira 'RECUPERADO' se RB5 rodou e fechou identico:
+# se RB5 nao chegou a executar, a classificacao honesta continua INDETERMINATE.
+$rb7_result = if ($ROLLBACK_RESULT -eq 'RECUPERADO') { 'RECUPERADO' } else { 'INDETERMINATE' }
+
+@(
+  "RB7_VEREDITO_FINAL"
+  "EXEC_ROOT=$EXEC"
+  "RODADA=$RODADA"
+  "VEREDITO=R2P1_STOP_ENTRY_RESET_FAILED"
+  "ROLLBACK_EXECUTED=SIM"
+  "ROLLBACK_RESULT=$rb7_result"
+  "ROLLBACK_ATTEMPTS=1"
+  "PASSO_QUE_FALHOU=$rb0_passo"
+  "MOTIVO=$rb0_motivo"
+  "CAUSA_REGISTRADA_POR_ESCRITOR=$ROLLBACK_CAUSA_REGISTRADA"
+  "RB6_NAO_CONTINUACAO=$RB6F"
+  "ROLLBACK_TRANSFORMA_EM_PASS=NAO"
+  "ITEM_13_INICIADO=NAO"
+  "PROXIMA_ACAO=HUMAN_GATE"
+) | Set-Content -LiteralPath $RB7F -Encoding utf8
+[void](Assert-Evidencia $RB7F 14)
+
+# A ultima linha do rollback e, literalmente, o STOP. Nao ha caminho alternativo.
+throw 'R2P1_STOP_ENTRY_RESET_FAILED'
+```
+
+> ### ⛔ Correção de auditoria — `RB6` e `RB7` eram **prosa**
+>
+> Na versão anterior, as duas seções tinham título, texto normativo e **nenhuma linha
+> executável**. A matriz de §13 as listava como passos; o desenho não as implementava. Um leitor
+> apressado concluiria que existia lacre de não-continuação e veredito final gravados em
+> evidência — e não existia **nada**. A emenda entrega os dois blocos: `RB6` **mede** as
+> proibições que declara (portas, `node`, `reverse`, item `13` não iniciado) e `RB7` **grava** o
+> veredito terminal e **executa** o `throw` que o documento sempre afirmou existir.
+>
+> `ROLLBACK_DISCIPLINE_COMPLETE = SIM` — com `RB0`…`RB7` todos com bloco literal, escritor
+> nomeado, evidência asseverada e acionador real (§`5.0`).
 
 ---
 
@@ -2864,10 +3713,10 @@ start* e **sem** `CASO 7`. Ela **não consome** montagem fria e **não gasta** j
 |---|---|---|---|
 | `I0` | *Rollback* prévio | `E3` integral | TAR capturado, `bytes` + `SHA256` + listagem |
 | `I1` | **Restauração 1** | `E3A` → `E4` → `E4A` → `E4B` → `E4C` → `E4D` → `E4E` → `E4F` → `E5` → `E6` → `E7` → `E7A` → `E7B` → `E7C` | estrutura, SELinux e modos conformes |
-| `I2` | Capturar `TAR-RESTORE-01.tar` **e arquivar a rodada 1** | `I2` abaixo, **literal** | `bytes` + `SHA256` + listagem + arquivo da rodada |
+| `I2` | Capturar `TAR-RESTORE-01.tar` **e selar a rodada 1** | `I2` abaixo, **literal** | `bytes` + `SHA256` + listagem + raiz `01` materializada + raiz `02` **inexistente** |
 | `I3` | `RESTORE_01` **vs** baseline | `I3` abaixo | `ESCOPO_OK=SIM` + **7 zeros** |
 | `I4` | **Restauração 2** — **revalida `E1` e `E2`** e repete a rodada | `I4` abaixo → `E1'` → `E2'` → `E4` → `E4A` → `E4B` → `E4C` → `E4D` → `E4E` → `E4F` → `E5` → `E6` → `E7` → `E7A` → `E7B` → `E7C` | app parado e infra ausente **de novo**; estrutura, SELinux e modos conformes |
-| `I5` | Capturar `TAR-RESTORE-02.tar` **e arquivar a rodada 2** | `I5` abaixo, **literal e completo** | `bytes` + `SHA256` + listagem + arquivo da rodada |
+| `I5` | Capturar `TAR-RESTORE-02.tar` **e selar a rodada 2** | `I5` abaixo, **literal e completo** | `bytes` + `SHA256` + listagem + **`22 + 22` medidos nas duas raízes** |
 | `I6` | `RESTORE_02` **vs** baseline | `I6` abaixo | `ESCOPO_OK=SIM` + **7 zeros** |
 | `I7` | `RESTORE_02` **vs** `RESTORE_01` | `I7` abaixo | `ESCOPO_OK=SIM` + **7 zeros** |
 | `I8` | Invariantes: `RESTORE_01` e `RESTORE_02`, cada um contra o artefato `30` | `I8` abaixo | `8/8` idênticas · `4/4` zeros, **nos dois** |
@@ -2876,15 +3725,38 @@ start* e **sem** `CASO 7`. Ela **não consome** montagem fria e **não gasta** j
 
 #### Raízes por rodada — evidência **não colide**
 
+> ### ⛔ Emenda `DESIGN_03` — a colisão foi **eliminada**, não **arquivada**
+>
+> `DESIGN_02` deixava `E4`…`E7C` escreverem os dois em `$EXEC\reset\` e tentava salvar a rodada 1
+> **copiando** `$EXEC\reset\*.txt` para `…\rodadas\RESTORE01\` antes que a rodada 2 sobrescrevesse.
+> Três defeitos reais nessa solução:
+>
+> | defeito | consequência |
+> |---|---|
+> | os arquivos eram **os mesmos** durante a rodada 2 | qualquer escritor `-Append` da rodada 2 abria o arquivo da rodada 1 **ainda com o conteúdo dela dentro** e produzia `44` linhas onde a asserção esperava `22` — ou, pior, passava numa contagem feita antes |
+> | a cópia dependia de **ordem de execução** | bastava `I2` falhar, ser pulado ou rodar depois de `I4` para a rodada 1 desaparecer sem `STOP` |
+> | `I9` comparava **cópia** com **original** | uma diferença poderia vir do `Copy-Item`, não do aparelho |
+>
+> A emenda **não trunca** e **não copia**: cada rodada tem **raiz própria desde o nascimento**
+> (§`2.7`). `$RST01` e `$RST02` nascem por `Assert-RaizNova` — **preexistência é `STOP`** — e
+> `E4`…`E7C` escrevem sempre em `$RST`, que vale uma ou outra por **linha literal**. Não existe
+> arquivo gravável compartilhado entre as duas rodadas, logo não existe acumulação possível:
+> a rodada `1` produz `22`, a rodada `2` produz `22`, e **nenhuma das duas pode produzir `44`**.
+
 ```powershell
-$RODADAS = "$EXEC\rodadas"
-$R01     = "$EXEC\rodadas\RESTORE01"
-$R02     = "$EXEC\rodadas\RESTORE02"
-New-Item -ItemType Directory -Force $R01 | Out-Null
-New-Item -ItemType Directory -Force $R02 | Out-Null
+# NAO ha copia, NAO ha arquivamento e NAO ha diretorio intermediario:
+# as raizes de rodada JA SAO as raizes de escrita, criadas por Assert-RaizNova
+# (E0.3 para a rodada 01; I4 para a rodada 02).
+$R01 = $RST01                      # C:\...\R2P1_ENTRY_RESET_EXEC_01\round01\reset
+$R02 = $RST02                      # C:\...\R2P1_ENTRY_RESET_EXEC_01\round02\reset
+
+# Lacre anti-deriva: as duas raizes sao distintas e nenhuma e prefixo da outra.
+if ($R01 -eq $R02)               { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if ($R01.StartsWith("$R02\"))    { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if ($R02.StartsWith("$R01\"))    { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 ```
 
-#### `I2` — capturar a rodada 1 e **arquivá-la** ⚠️ leitura do aparelho
+#### `I2` — capturar a rodada 1 e **selá-la na raiz própria** ⚠️ leitura do aparelho
 
 ```powershell
 $T01     = "$EXEC\acervo\TAR-RESTORE-01.tar"
@@ -2898,10 +3770,7 @@ $t01_ec = $LASTEXITCODE
 
 if ($t01_ec -ne 0)                          { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 if (-not (Test-Path -LiteralPath $T01))     { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-if (-not (Test-Path -LiteralPath $T01ERR))  { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-$t01_err = @(Get-Content -LiteralPath $T01ERR |
-             ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
-if ($t01_err.Count -ne 0)                   { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+$t01_err_n = [int](Assert-Stderr $T01ERR 'I2.TAR_RESTORE_01')
 
 $t01_len = (Get-Item     -LiteralPath $T01).Length
 $t01_sha = (Get-FileHash -LiteralPath $T01 -Algorithm SHA256).Hash
@@ -2916,9 +3785,23 @@ New-Item -ItemType Directory -Force $X01 | Out-Null
 tar -xf $T01 -C $X01
 if ($LASTEXITCODE -ne 0)                    { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
-# ARQUIVAMENTO DA RODADA 1 -- feito AQUI, antes que I4 sobrescreva '$EXEC\reset\*.txt'.
-Copy-Item -Path "$EXEC\reset\*.txt" -Destination $R01 -Force
+# SELAGEM DA RODADA 1 -- NAO ha copia. A evidencia ja nasceu na raiz propria da
+# rodada ($RST01) e I4 nao tem como sobrescreve-la: a rodada 2 escreve em $RST02.
+# O que se faz aqui e PROVAR que a raiz da rodada 1 esta materializada, e que a
+# raiz da rodada 2 AINDA NAO EXISTE -- ou seja, nada da rodada 2 pode ter vazado
+# para dentro da rodada 1, porque a rodada 2 nem comecou.
+if (-not (Test-Path -LiteralPath $R01 -PathType Container)) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if (Test-Path -LiteralPath $R02)                            { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 $r01_n = [int](Assert-Colecao @(Get-ChildItem -LiteralPath $R01 -File -Filter *.txt))
+if ($r01_n -le 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+
+# Cardinalidade da rodada 1, medida ARQUIVO A ARQUIVO nos tres arbitros de 22:
+# se algum tivesse acumulado duas rodadas, marcaria 44 e faria STOP aqui.
+foreach ($arb in @("$R01\04B_MODE_PRE.txt", "$R01\07B_MODE_POST.txt",
+                   "$R01\07A_SELINUX_POST.txt")) {
+    $n = [int](Assert-Evidencia $arb 22)
+    if ($n -ne 22) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+}
 
 @(
   "I2_TAR01_META"
@@ -2928,11 +3811,16 @@ $r01_n = [int](Assert-Colecao @(Get-ChildItem -LiteralPath $R01 -File -Filter *.
   "TAR_SHA256=$t01_sha"
   "TAR_ENTRADAS=$t01_itens"
   "TAR_EXIT=$t01_ec"
-  "STDERR_LINHAS=0"
-  "ARQUIVO_DA_RODADA=$R01"
-  "ARQUIVOS_ARQUIVADOS=$r01_n"
+  "STDERR_ARQUIVO=$T01ERR"
+  "STDERR_PROVA=$T01ERR.PROVA.txt"
+  "STDERR_LINHAS=$t01_err_n"
+  "RAIZ_DA_RODADA=$R01"
+  "RAIZ_DA_RODADA_02_JA_EXISTE=NAO"
+  "ARQUIVOS_NA_RAIZ=$r01_n"
+  "ARBITROS_DE_22_CONFERIDOS=3"
+  "COPIA_ENTRE_RODADAS=NAO"
 ) | Set-Content -LiteralPath $T01META -Encoding utf8
-[void](Assert-Evidencia $T01META 10)
+[void](Assert-Evidencia $T01META 15)
 ```
 
 #### `I3` — `RESTORE_01` **vs** baseline
@@ -2953,8 +3841,39 @@ if ($I3.CHAVES['ENTRY_STATE_RESULT'] -ne 'PASS') { throw 'R2P1_STOP_ENTRY_RESET_
 #### `I4` — **revalidar `E1` e `E2`** antes da segunda janela destrutiva
 
 ```powershell
-$I4_E1 = "$EXEC\rodadas\RESTORE02\I4_E1_PIDOF_ANTES.txt"
-$I4_E2 = "$EXEC\rodadas\RESTORE02\I4_E2_INFRA_AUSENTE.txt"
+# ---------------------------------------------------------------------------
+# I4.0) VIRADA DE RODADA -- a unica do documento, e ela e LITERAL.
+#       A raiz da rodada 2 NASCE AQUI e tem de nascer NOVA: se ja existir,
+#       e residuo de execucao anterior e o desenho para (regra A-6, secao 2.7).
+#       Depois desta linha, TODO escritor de E4..E7C aponta para $RST02 --
+#       nenhum arquivo da rodada 1 e reaberto, nem para leitura, nem em -Append.
+# ---------------------------------------------------------------------------
+[void](Assert-RaizNova $RST02 'RESET_RODADA_02')
+$RODADA = '02'
+$RST    = $RST02
+if ($RST -ne $RST02)          { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if ($RST -eq $RST01)          { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if ($RODADA -ne '02')         { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+
+# A rodada 1 continua intacta e SELADA: nada abaixo escreve dentro dela.
+if (-not (Test-Path -LiteralPath $RST01 -PathType Container)) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+
+$I4_VIR = "$RST02\I4_VIRADA_DE_RODADA.txt"
+@(
+  "I4_VIRADA_DE_RODADA"
+  "RODADA_ANTERIOR=01"
+  "RODADA_CORRENTE=$RODADA"
+  "RAIZ_RODADA_01=$RST01"
+  "RAIZ_RODADA_02=$RST02"
+  "RAIZ_02_NASCEU_NOVA=SIM"
+  "RAIZ_01_PRESERVADA=SIM"
+  "COPIA_ENTRE_RODADAS=NAO"
+  "APPEND_CRUZADO=NAO"
+) | Set-Content -LiteralPath $I4_VIR -Encoding utf8
+[void](Assert-Evidencia $I4_VIR 9)
+
+$I4_E1 = "$RST02\I4_E1_PIDOF_ANTES.txt"
+$I4_E2 = "$RST02\I4_E2_INFRA_AUSENTE.txt"
 
 # --- E1' : o app precisa estar parado DE NOVO. I2 nao abriu o app, mas nada garante
 #     que o sistema (JobScheduler, sync, broadcast) nao o tenha subido entre as rodadas.
@@ -3008,7 +3927,7 @@ if ($i4_portas.Count -ne 0)  { throw 'R2P1_STOP_PORT_OCCUPIED' }
 #     -> E5 -> E6 -> E7 -> E7A -> E7B -> E7C, com os MESMOS comandos ja auditados.
 ```
 
-#### `I5` — capturar a rodada 2 e **arquivá-la** ⚠️ leitura do aparelho
+#### `I5` — capturar a rodada 2 e **selá-la na raiz própria** ⚠️ leitura do aparelho
 
 ```powershell
 $T02     = "$EXEC\acervo\TAR-RESTORE-02.tar"
@@ -3022,10 +3941,7 @@ $t02_ec = $LASTEXITCODE
 
 if ($t02_ec -ne 0)                          { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 if (-not (Test-Path -LiteralPath $T02))     { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-if (-not (Test-Path -LiteralPath $T02ERR))  { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
-$t02_err = @(Get-Content -LiteralPath $T02ERR |
-             ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
-if ($t02_err.Count -ne 0)                   { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+$t02_err_n = [int](Assert-Stderr $T02ERR 'I5.TAR_RESTORE_02')
 
 $t02_len = (Get-Item     -LiteralPath $T02).Length
 $t02_sha = (Get-FileHash -LiteralPath $T02 -Algorithm SHA256).Hash
@@ -3040,8 +3956,27 @@ New-Item -ItemType Directory -Force $X02 | Out-Null
 tar -xf $T02 -C $X02
 if ($LASTEXITCODE -ne 0)                    { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
-Copy-Item -Path "$EXEC\reset\*.txt" -Destination $R02 -Force
+# SELAGEM DA RODADA 2 -- de novo SEM copia. As duas raizes coexistem, distintas,
+# cada uma com os seus 22. E aqui que se prova, literalmente, que ninguem fez 44.
+if (-not (Test-Path -LiteralPath $R01 -PathType Container)) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if (-not (Test-Path -LiteralPath $R02 -PathType Container)) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 $r02_n = [int](Assert-Colecao @(Get-ChildItem -LiteralPath $R02 -File -Filter *.txt))
+if ($r02_n -le 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+
+# 22 + 22, NUNCA 44 -- conferido nos TRES arbitros das DUAS raizes, um a um.
+$I5_CARD = "$EXEC\acervo\I5_CARDINALIDADE_POR_RODADA.txt"
+$i5_card = @('I5_CARDINALIDADE_POR_RODADA')
+foreach ($par in @(@($R01,'01'), @($R02,'02'))) {
+    foreach ($nome in @('04B_MODE_PRE.txt', '07B_MODE_POST.txt', '07A_SELINUX_POST.txt')) {
+        $alvo = "$($par[0])\$nome"
+        $n    = [int](Assert-Evidencia $alvo 22)
+        $i5_card += "RODADA$($par[1])|$nome|LINHAS=$n|ESPERADO=22"
+        if ($n -ne 22) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+    }
+}
+$i5_card += @("RAIZES_DISTINTAS=SIM"; "SOMA_POR_ACUMULACAO=NAO"; "TOTAL_ESPERADO=22+22")
+$i5_card | Set-Content -LiteralPath $I5_CARD -Encoding utf8
+[void](Assert-Evidencia $I5_CARD 10)
 
 @(
   "I5_TAR02_META"
@@ -3051,11 +3986,16 @@ $r02_n = [int](Assert-Colecao @(Get-ChildItem -LiteralPath $R02 -File -Filter *.
   "TAR_SHA256=$t02_sha"
   "TAR_ENTRADAS=$t02_itens"
   "TAR_EXIT=$t02_ec"
-  "STDERR_LINHAS=0"
-  "ARQUIVO_DA_RODADA=$R02"
-  "ARQUIVOS_ARQUIVADOS=$r02_n"
+  "STDERR_ARQUIVO=$T02ERR"
+  "STDERR_PROVA=$T02ERR.PROVA.txt"
+  "STDERR_LINHAS=$t02_err_n"
+  "RAIZ_DA_RODADA=$R02"
+  "RAIZ_DA_RODADA_01_INTACTA=SIM"
+  "ARQUIVOS_NA_RAIZ=$r02_n"
+  "CARDINALIDADE_POR_RODADA=$I5_CARD"
+  "COPIA_ENTRE_RODADAS=NAO"
 ) | Set-Content -LiteralPath $T02META -Encoding utf8
-[void](Assert-Evidencia $T02META 10)
+[void](Assert-Evidencia $T02META 15)
 ```
 
 #### `I6` · `I7` · `I8` — as três comparações, cada uma com veredito executável
@@ -3099,14 +4039,22 @@ foreach ($f in @($I8A, $I8B)) {
 $CONTENT_IDEMPOTENCE = 'PASS'
 ```
 
-#### `I9` — SELinux e modos, **rodada a rodada**, dos arquivos arquivados
+#### `I9` — SELinux e modos, **rodada a rodada**, nas raízes próprias de cada rodada
 
 ```powershell
 $I9F = "$EXEC\I9_METADADOS_POR_RODADA.txt"
 $i9Falta = @()
 $i9Dif   = @()
 
-# Cada rodada tem de ter produzido, no SEU proprio arquivo, os quatro vereditos.
+# ---- 0) OS DOIS OBJETOS COMPARADOS SAO INDEPENDENTES. Nao ha copia, nao ha
+#         arquivo compartilhado e nenhuma das raizes contem a outra.
+if ($R01 -eq $R02)            { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if ($R01.StartsWith("$R02\")) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if ($R02.StartsWith("$R01\")) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if (-not (Test-Path -LiteralPath $R01 -PathType Container)) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+if (-not (Test-Path -LiteralPath $R02 -PathType Container)) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
+
+# ---- 1) Cada rodada tem de ter produzido, no SEU proprio arquivo, os quatro vereditos.
 foreach ($par in @(@{R='01'; D=$R01}, @{R='02'; D=$R02})) {
     foreach ($nome in @('07A_SELINUX_DOMINIO.txt','07A_SELINUX_POST.txt',
                         '07B_MODE_DOMINIO.txt','07B_MODE_POST.txt')) {
@@ -3117,14 +4065,22 @@ foreach ($par in @(@{R='01'; D=$R01}, @{R='02'; D=$R02})) {
 }
 if ($i9Falta.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 
-# Equivalencia ENTRE as rodadas: os mapas de SELinux e de modo tem de ser identicos.
+# ---- 2) I9 SO consome a PROJECAO ESTRUTURAL. Antes de comparar qualquer coisa,
+#         relê o arbitro de modo das DUAS rodadas e exige 6 campos por linha.
+#         Uma unica linha de 8 campos -- unica forma de o mtime chegar aqui --
+#         faz STOP neste ponto. Os *_BRUTO.txt NAO sao abertos por I9.
+[void](Assert-Projecao (Join-Path $R01 '07B_MODE_POST.txt') 22 "$EXEC\I9_PROJECAO_R01.txt")
+[void](Assert-Projecao (Join-Path $R02 '07B_MODE_POST.txt') 22 "$EXEC\I9_PROJECAO_R02.txt")
+
+# ---- 3) Equivalencia ENTRE as rodadas: os mapas de SELinux e de modo tem de ser
+#         identicos -- 22 de um lado, 22 do outro, nunca 44 num arquivo so.
 foreach ($nome in @('07A_SELINUX_POST.txt','07B_MODE_POST.txt')) {
     $a = @(Get-Content -LiteralPath (Join-Path $R01 $nome) |
            ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } | Sort-Object)
     $b = @(Get-Content -LiteralPath (Join-Path $R02 $nome) |
            ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } | Sort-Object)
-    [void](Assert-Colecao $a)
-    [void](Assert-Colecao $b)
+    [void](Assert-Colecao $a 22)          # 22 -- nao "o que vier"
+    [void](Assert-Colecao $b 22)          # 22 -- nao "o que vier"
     if ($a.Count -ne $b.Count) { $i9Dif += "CARDINALIDADE|$nome|$($a.Count)|$($b.Count)"; continue }
     for ($i = 0; $i -lt $a.Count; $i++) {
         if ($a[$i] -cne $b[$i]) { $i9Dif += "VALOR|$nome|$($a[$i])|$($b[$i])" }
@@ -3135,14 +4091,30 @@ foreach ($nome in @('07A_SELINUX_POST.txt','07B_MODE_POST.txt')) {
   "I9_METADADOS_POR_RODADA"
   "RODADA_01_RAIZ=$R01"
   "RODADA_02_RAIZ=$R02"
+  "RAIZES_INDEPENDENTES=SIM"
+  "OBJETOS_COMPARADOS=ORIGINAIS_DE_CADA_RODADA"
+  "COPIA_ENTRE_RODADAS=NAO"
+  "ARBITRO_CAMPOS_EXIGIDOS=6"
+  "ARBITRO_CONTEM_MTIME=NAO"
+  "MTIME_CONSUMIDO_POR_I9=NAO"
+  "LINHAS_POR_RODADA=22"
+  "SOMA_POR_ACUMULACAO=NAO"
   "ARQUIVOS_AUSENTES_OU_VAZIOS=$($i9Falta.Count)"
   "DIVERGENCIAS_ENTRE_RODADAS=$($i9Dif.Count)"
   "STRUCTURAL_METADATA_CHECK=$(if ($i9Dif.Count -eq 0) { 'PASS' } else { 'STOP' })"
 ) + $i9Dif | Set-Content -LiteralPath $I9F -Encoding utf8
-[void](Assert-Evidencia $I9F 6)
+[void](Assert-Evidencia $I9F 14)
 if ($i9Dif.Count -ne 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 $STRUCTURAL_METADATA_CHECK = 'PASS'
 ```
+
+> **Por que `I9` deixou de poder reprovar por `mtime`.** Em `DESIGN_02`, `07B_MODE_POST.txt`
+> guardava a saída **inteira** de `stat`, com `%Y`. `I9` compara as linhas das duas rodadas com
+> `-cne` — comparação **exata**. Duas restaurações do mesmo TAR podem, legitimamente, produzir
+> `mtime` diferentes; bastava isso para `$i9Dif` encher e a execução parar por uma diferença
+> **esperada**. Agora `07B_MODE_POST.txt` é a projeção de `6` campos, e `Assert-Projecao` **relê
+> os dois arquivos** antes da comparação, exigindo `6` campos em cada linha. `MTIME_CAN_STOP =
+> NÃO` é, aqui, uma condição verificada em tempo de execução — não uma afirmação de prosa.
 
 #### `I10` — lacre, com as duas rodadas discriminadas
 
@@ -3175,16 +4147,24 @@ if ($n02 -eq 0) { throw 'R2P1_STOP_ENTRY_RESET_FAILED' }
 > |---|---|---|
 > | 1 | `# ---- I2 / I5 : capturas (trocar 01 por 02 na segunda rodada)` — **`I5` não existia**. Havia um comando para `01` e uma **instrução de edição manual** para produzir `02`. | `I2` e `I5` são agora **dois blocos literais completos e distintos**. Nenhum executor redige comando novo durante a execução. |
 > | 2 | `I4` listava `E4 → … → E7C` e **omitia `E1` e `E2`**. A segunda restauração herdava cegamente o resultado da primeira: se o app tivesse subido entre as rodadas, `E5` removeria arquivos **com o processo vivo**. | `I4` **revalida `E1'` (app parado, `pidof` vazio) e `E2'` (infra ausente)** antes de qualquer ato destrutivo da rodada 2. |
-> | 3 | `07A_SELINUX_POST.txt`, `07B_MODE_POST.txt` e todos os demais têm **nome fixo**. A rodada 2 **sobrescreveria** a evidência da rodada 1, e `I9`/`I10` auditariam duas vezes o **mesmo** arquivo. | `I2` e `I5` **arquivam `$EXEC\reset\*.txt`** em `…\rodadas\RESTORE01\` e `…\rodadas\RESTORE02\` **antes** que a rodada seguinte sobrescreva. `I9` compara as duas raízes; `I10` marca cada linha com `RODADA01` / `RODADA02` e exige que **as duas** tenham conteúdo. |
+> | 3 | `07A_SELINUX_POST.txt`, `07B_MODE_POST.txt` e todos os demais têm **nome fixo**. A rodada 2 **sobrescreveria** a evidência da rodada 1, e `I9`/`I10` auditariam duas vezes o **mesmo** arquivo. | **`DESIGN_02` respondia com `Copy-Item` — e isso não bastava** (ver a emenda `DESIGN_03` acima). **`DESIGN_03` elimina o arquivo compartilhado:** `E4`…`E7C` escrevem em `$RST`, que é `$RST01` (`$EXEC\round01\reset\`) na rodada `1` e `$RST02` (`$EXEC\round02\reset\`) na rodada `2`, ambas nascidas por `Assert-RaizNova`. `I2` confere a raiz `01` **e** exige que a raiz `02` **ainda não exista**; `I4` faz a virada literal; `I5` confere as duas e mede `22 + 22` arquivo a arquivo; `I9` compara os **originais** de cada raiz; `I10` marca cada linha com `RODADA01` / `RODADA02`. |
 >
 > `I5_LITERAL_COMMANDS_PRESENT = SIM` · `I4_REVALIDATES_E1_E2 = SIM` ·
-> `IDEMPOTENCE_EVIDENCE_PATHS_UNIQUE = SIM`
+> `IDEMPOTENCE_EVIDENCE_PATHS_UNIQUE = SIM` · `IDEMPOTENCE_DESIGN_COMPLETE = SIM`
 
-> **Por que o arquivamento é `Copy-Item … *.txt` e não a cópia da árvore inteira.** As evidências
-> são todas `.txt`. Copiar `$EXEC\reset\` por inteiro arrastaria `TAR-ROLLBACK-PRE-RESET.tar`
-> (~17 MB) e `ROLLBACK-EXTRACTED\` a cada rodada, **duplicando** o pico de disco que `E4F` acabou
-> de orçar. O filtro é deliberado e a conferência é `Assert-Colecao` sobre o resultado — se o
-> arquivamento não copiar nada, o passo para.
+> **Por que não há mais `Copy-Item` nenhum.** O arquivamento por cópia resolvia o sintoma —
+> preservar a rodada 1 — sem remover a causa: durante a rodada 2, os arquivos de nome fixo
+> **continuavam sendo os mesmos**, abertos em `-Append` por escritores que esperavam `22` linhas
+> e podiam encontrar `44`. Com raízes independentes, o arquivo da rodada 1 **não é alcançável**
+> pela rodada 2: o caminho `$RST02\07B_MODE_POST.txt` não existe até `I4` criar a raiz, e o
+> caminho `$RST01\07B_MODE_POST.txt` não é escrito por passo algum depois de `I2`. Como efeito
+> colateral desejado, some também o custo de disco que a cópia impunha, e `I9` passa a comparar
+> **originais** — não cópias, cujas diferenças poderiam vir do próprio `Copy-Item`.
+>
+> A prova de que **nenhuma rodada produz `44` por acumulação** é executável e está em três
+> lugares: `Assert-RaizNova` (preexistência da raiz é `STOP`), `I2` (`$R02` não pode existir
+> ainda) e `I5` (`Assert-Evidencia … 22` nos **três** árbitros das **duas** raízes, seis medições
+> registradas em `I5_CARDINALIDADE_POR_RODADA.txt`).
 
 **Campos de relatório do artefato** (não são *gates* globais e não são cunhados como tal):
 
@@ -3348,107 +4328,173 @@ refere-se a **conteúdo** — metadados são cobertos por `E7A`/`E7B`; (b) a res
 
 ---
 
-### 13.1 Auditoria de persistência real de evidência — varredura integral
+### 13.1 Matriz integral escritor ⇄ consumidor de evidência
 
-**Propriedade auditada:** *nenhum artefato declarado como `EVIDÊNCIA` e consumido por um passo
-posterior pode depender de saída apenas exibida no console.* A varredura abaixo é **integral**:
-percorre todo caminho declarado em qualquer linha `EVIDÊNCIA` do documento e responde três
-perguntas objetivas — existe comando que **grava**? algum passo posterior **lê**? existe
-**asserção executável** sobre ele?
+**Propriedade auditada — enunciada em três invariantes independentes, não em prosa:**
 
-Legenda: `WRITER` = existe `Out-File`/`Set-Content`/`Tee-Object` ou redirecionamento
-`cmd.exe /c … > …` para o caminho · `CONSUMIDO` = algum passo posterior faz `Get-Content`,
-`Get-FileHash`, `Get-Item` ou `tar` sobre ele · `ASSERÇÃO` = `Assert-Evidencia`,
-`Assert-Colecao` ou `if … throw` sobre o conteúdo.
+| invariante | enunciado | token |
+|---|---|---|
+| `INV-1` | Nenhum artefato **consumido** por qualquer passo posterior existe sem uma **linha de escrita literal** neste documento. | `CONSUMED_EVIDENCE_WITHOUT_WRITER = 0` |
+| `INV-2` | Nenhum artefato que **arbitra** (isto é, do qual pode nascer um `PASS` ou um `STOP`) existe sem **asserção executável** sobre existência **e** cardinalidade. | `ARBITER_WITHOUT_ASSERTION = 0` |
+| `INV-3` | Nenhum `PASS` decorre de coleção vazia obtida por ausência de arquivo, `-ErrorAction SilentlyContinue` ou canal quebrado. | `EMPTY_COLLECTION_FALSE_PASS_VECTORS = 0` |
 
-| # | `EVIDENCE_PATH` | `WRITER_COMMAND_EXISTS` | `CONSUMED_LATER` | `REAL_ASSERTION_EXISTS` |
-|---:|---|---|---|---|
-| 1 | `00_PREVOO.txt` *(custódia do pré-voo canônico)* | **SIM**, fora deste desenho | **NÃO** | **N/A** — ver `E-1` |
-| 2 | `12_dumpsys_package_raw.txt` *(idem)* | **SIM**, fora deste desenho | **NÃO** | **N/A** — ver `E-1` |
-| 3 | `$EXEC\00_E0_INTEGRIDADE.txt` | **SIM** `E0.5` `Set-Content` | NÃO | **SIM** `Assert-Evidencia … 20` |
-| 4 | `$EXEC\reset\01_PIDOF_ANTES.txt` | **SIM** `E1` | NÃO | **SIM** `Assert-Evidencia … 4` + `if ($e1_pids.Count -ne 0)` |
-| 5 | `$EXEC\reset\02_INFRA_AUSENTE.txt` | **SIM** `E2` | NÃO | **SIM** `Assert-Evidencia … 9` + 4 condições |
-| 6 | `$EXEC\reset\TAR-ROLLBACK-PRE-RESET.tar` | **SIM** `E3` `cmd.exe /c … > …` | **SIM** `RB1`, `RB4` | **SIM** `Get-Item`/`Get-FileHash` vs `03_ROLLBACK_META.txt` |
-| 7 | `$EXEC\reset\03_ROLLBACK_META.txt` | **SIM** `E3` `Set-Content` | **SIM** `RB1` | **SIM** `Assert-Evidencia … 10` + 5 chaves + 3 comparações |
-| 8 | `$EXEC\reset\03_ROLLBACK_LISTAGEM.txt` | **SIM** `E3` | **SIM** `E3` (contagem) | **SIM** `Assert-Evidencia … 1` + `-ne 22` |
-| 9 | `$EXEC\reset\03_ROLLBACK_STDERR.txt` | **SIM** `E3` `2> …` | **SIM** `E3` | **SIM** `if (…Count -ne 0) throw` |
-| 10 | `$EXEC\reset\03A_PRE_RESET_vs_ARTEFATO30.txt` | **SIM** `E3A` `> …` | **SIM** `E3A` | **SIM** `Read-Comparador` |
-| 11 | `$EXEC\reset\03A_VEREDITO.txt` | **SIM** `E3A` | NÃO | **SIM** `Assert-Evidencia … 14` |
-| 12 | `$EXEC\reset\04_ENUM_ARQUIVOS.txt` | **SIM** `E4` | **SIM** `E4`→`E5` | **SIM** `Test-Path` + `Assert-Colecao $arqBrutos` |
-| 13 | `$EXEC\reset\04_ENUM_DIRS.txt` | **SIM** `E4` | **SIM** `E4`→`E5` | **SIM** `Assert-Evidencia … 3` + 3 raízes |
-| 14 | `$EXEC\reset\04_RESIDUOS.txt` | **SIM** `E4` (com cabeçalho) | NÃO | **SIM** `Assert-Evidencia … 1` |
-| 15 | `$EXEC\reset\04_VALIDACAO.txt` | **SIM** `E4`, **nos dois caminhos** | NÃO | **SIM** `Assert-Evidencia … 10` |
-| 16 | `$EXEC\reset\04A_SELINUX_PRE.txt` | **SIM** `E4A` | **SIM** `E7A` | **SIM** `Assert-Evidencia … 22` |
-| 17 | `$EXEC\reset\04A_SELINUX_PRE_BRUTO.txt` | **SIM** `E4A` | **SIM** `E4A` | **SIM** `Assert-Evidencia` |
-| 18 | `$EXEC\reset\04A_SELINUX_PRE_META.txt` | **SIM** `E4A` | NÃO | **SIM** `Assert-Evidencia` |
-| 19 | `$EXEC\reset\04B_MODE_PRE.txt` | **SIM** `E4B` | **SIM** `E7B` | **SIM** `Assert-Evidencia … 22` |
-| 20 | `$EXEC\reset\04B_MODE_PRE_BRUTO.txt` | **SIM** `E4B` | **SIM** `E4B` | **SIM** `Assert-Evidencia` |
-| 21 | `$EXEC\reset\04B_MODE_PRE_META.txt` | **SIM** `E4B` | NÃO | **SIM** `Assert-Evidencia` |
-| 22 | `$EXEC\reset\04C_STDIN_PROBE.txt` | **SIM** `E4C` `> …` | **SIM** `E4C` | **SIM** `Assert-Colecao … 22` + conjunto |
-| 23 | `$EXEC\reset\04C_STDIN_PROBE_STDERR.txt` | **SIM** `E4C` `2> …` | **SIM** `E4C` | **SIM** `if (…Count -ne 0) throw` |
-| 24 | `$EXEC\reset\04C_STDIN_PROBE_META.txt` | **SIM** `E4C` | NÃO | **SIM** `Assert-Evidencia … 10` |
-| 25 | `$EXEC\reset\04D_STAT_PROBE.txt` | **SIM** `E4D` | **SIM** `E4D` | **SIM** `Assert-Evidencia` + *parse* |
-| 26 | `$EXEC\reset\04D_STAT_PROBE_META.txt` | **SIM** `E4D` | NÃO | **SIM** `Assert-Evidencia` |
-| 27 | `$EXEC\reset\04E_SELINUX_PROBE.txt` | **SIM** `E4E` | **SIM** `E4E` | **SIM** `Assert-Evidencia` + `$RX_SECTX` |
-| 28 | `$EXEC\reset\04E_SELINUX_PROBE_META.txt` | **SIM** `E4E` | NÃO | **SIM** `Assert-Evidencia` |
-| 29 | `$EXEC\reset\04F_ESPACO.txt` | **SIM** `E4F` | NÃO | **SIM** `Assert-Evidencia … 9` |
-| 30 | `$EXEC\reset\05_REMOCAO_LOG.txt` | **SIM** `E5.1`/`E5.2` | **SIM** `E5` | **SIM** `Assert-Evidencia … $FILES_DELETED_BY_E5` |
-| 31 | `$EXEC\reset\05_POS_REMOCAO.txt` | **SIM** `E5.3`, **pré-criado** | **SIM** `E5.3` | **SIM** `Test-Path` + `if (…Count -ne 0)` |
-| 32 | `$EXEC\reset\05_POS_REMOCAO_DIRS.txt` | **SIM** `E5.3` | **SIM** `E5.3` | **SIM** `Assert-Evidencia … 3` + `Assert-Colecao` |
-| 33 | `$EXEC\reset\06_EXTRACAO.txt` | **SIM** `E6` | **SIM** `E6` | **SIM** exit + `$e6_ruido` |
-| 34 | `$EXEC\reset\07_ESTRUTURA_POS.txt` | **SIM** `E7` | **SIM** `E7` | **SIM** `Assert-Evidencia … 14` + `Compare-Object` |
-| 35 | `$EXEC\reset\07A_SELINUX_POST.txt` | **SIM** `E7A` | **SIM** `E7A`, `I9` | **SIM** `Assert-Evidencia … 22` |
-| 36 | `$EXEC\reset\07A_SELINUX_POST_BRUTO.txt` | **SIM** `E7A` | **SIM** `E7A` | **SIM** `Assert-Evidencia` |
-| 37 | `$EXEC\reset\07A_SELINUX_DOMINIO.txt` | **SIM** `E7A` | NÃO | **SIM** `Assert-Evidencia` |
-| 38 | `$EXEC\reset\07A_SELINUX_DIFF.txt` | **SIM** `E7A` | NÃO | **SIM** `if (…Count -ne 0) throw` |
-| 39 | `$EXEC\reset\07B_MODE_POST.txt` | **SIM** `E7B` | **SIM** `E7B`, `E7C`, `I9` | **SIM** `Assert-Evidencia … 22` |
-| 40 | `$EXEC\reset\07B_MODE_POST_BRUTO.txt` | **SIM** `E7B` | **SIM** `E7B` | **SIM** `Assert-Evidencia` |
-| 41 | `$EXEC\reset\07B_MODE_DOMINIO.txt` | **SIM** `E7B` | NÃO | **SIM** `Assert-Evidencia` |
-| 42 | `$EXEC\reset\07B_MODE_DIFF.txt` | **SIM** `E7B` | NÃO | **SIM** `if (…Count -ne 0) throw` |
-| 43 | `$EXEC\reset\07C_MTIME.txt` | **SIM** `E7C` `Out-File -Append` | **NÃO** | **NÃO** — **exceção declarada e única** (§`E7C`) |
-| 44 | `$EXEC\acervo\TAR-ENTRY-POS-RESET.tar` | **SIM** item `13` `> …` | **SIM** item `14`, `E8` | **SIM** *bytes* + `SHA256` + 22 entradas |
-| 45 | `$EXEC\acervo\13_TAR_META.txt` | **SIM** item `13` | NÃO | **SIM** `Assert-Evidencia … 12` |
-| 46 | `$EXEC\acervo\13_TAR_LISTAGEM.txt` | **SIM** item `13` | **SIM** item `13` | **SIM** `Assert-Evidencia … 22` |
-| 47 | `$EXEC\acervo\13_TAR_STDERR.txt` | **SIM** item `13` `2> …` | **SIM** item `13` | **SIM** `if (…Count -ne 0) throw` |
-| 48 | `$EXEC\acervo\13_PIDOF.txt` | **SIM** item `13` | **SIM** item `13` | **SIM** `if (…Count -ne 0) throw` |
-| 49 | `$EXEC\acervo\14_POS-RESET-vs-BASELINE.txt` | **SIM** item `14` `> …` | **SIM** item `14` | **SIM** `Read-Comparador` |
-| 50 | `$EXEC\acervo\14_VEREDITO.txt` | **SIM** item `14` | NÃO | **SIM** `Assert-Evidencia … 14` |
-| 51 | `$EXEC\acervo\E8_POS-RESET-vs-ARTEFATO30.txt` | **SIM** `E8` `> …` | **SIM** `E8` | **SIM** `Read-Comparador` |
-| 52 | `$EXEC\acervo\E8_VEREDITO.txt` | **SIM** `E8` | NÃO | **SIM** `Assert-Evidencia … 13` |
-| 53 | `$EXEC\reset\RB0_CONDICAO_OBSERVADA.txt` | **SIM** `RB0` | NÃO | **SIM** `Assert-Evidencia … 10` |
-| 54 | `$EXEC\reset\RB1_ROLLBACK_IDENTIDADE.txt` | **SIM** `RB1` | NÃO | **SIM** `Assert-Evidencia … 17` |
-| 55 | `$EXEC\reset\RB1_LISTAGEM.txt` | **SIM** `RB1` | **SIM** `RB1` | **SIM** `Assert-Evidencia … 1` + `-ne` meta |
-| 56 | `$EXEC\reset\RB2_ENUM_PARCIAL.txt` | **SIM** `RB2`, **pré-criado** | **SIM** `RB3.1` | **SIM** `Test-Path` + validação integral |
-| 57 | `$EXEC\reset\RB2_ENUM_PARCIAL_DIRS.txt` | **SIM** `RB2` | **SIM** `RB2` | **SIM** `Assert-Evidencia … 3` |
-| 58 | `$EXEC\reset\RB2_VALIDACAO.txt` | **SIM** `RB2` | NÃO | **SIM** `Assert-Evidencia … 7` |
-| 59 | `$EXEC\reset\RB3_VALIDACAO.txt` | **SIM** `RB3.1` | NÃO | **SIM** `Assert-Evidencia … 6` |
-| 60 | `$EXEC\reset\RB3_REMOCAO_LOG.txt` | **SIM** `RB3.2` | NÃO | **SIM** exit por linha |
-| 61 | `$EXEC\reset\RB4_EXTRACAO.txt` | **SIM** `RB4` | **SIM** `RB4` | **SIM** `RB4_EXTRACAO_EXIT` + `throw` |
-| 62 | `$EXEC\reset\RB5_ESTRUTURA_RECUPERADA.txt` | **SIM** `RB5` | **SIM** `RB5` | **SIM** classificação executável |
-| 63 | `$EXEC\reset\RB5_DIFF.txt` | **SIM** `RB5` | **SIM** `RB5` | **SIM** classificação executável |
-| 64 | `$EXEC\reset\RB5_VEREDITO.txt` | **SIM** `RB5` | NÃO | **SIM** `Assert-Evidencia … 8` |
-| 65 | `$R01\TAR-RESTORE-01.tar` · `$R02\TAR-RESTORE-02.tar` | **SIM** `I2`/`I5` `> …` | **SIM** `I3`/`I6`/`I7` | **SIM** *bytes* + `SHA256` + 22 entradas |
-| 66 | `$R01\I2_TAR01_LISTAGEM.txt` · `$R02\I5_TAR02_LISTAGEM.txt` | **SIM** `I2`/`I5` | **SIM** `I2`/`I5` | **SIM** `Assert-Evidencia … 22` |
-| 67 | `$R01\I2_TAR01_STDERR.txt` · `$R02\I5_TAR02_STDERR.txt` | **SIM** `I2`/`I5` `2> …` | **SIM** `I2`/`I5` | **SIM** `if (…Count -ne 0) throw` |
-| 68 | `$R01\I2_TAR01_META.txt` · `$R02\I5_TAR02_META.txt` | **SIM** `I2`/`I5` | NÃO | **SIM** `Assert-Evidencia … 10` |
-| 69 | `$R01\I4_E1_PIDOF_ANTES.txt` · `…\I4_E2_INFRA_AUSENTE.txt` | **SIM** `I4` | NÃO | **SIM** `Assert-Evidencia` + condições de `E1`/`E2` |
-| 70 | `$EXEC\I9_METADADOS_POR_RODADA.txt` | **SIM** `I9` | NÃO | **SIM** `Assert-Evidencia … 6` |
-| 71 | `$EXEC\I10_LACRE.txt` | **SIM** `I10` | NÃO | **SIM** `Assert-Evidencia … 1` + `$n01`/`$n02` não nulos |
+**Como ler as colunas.** `ESCRITOR` = a linha que materializa o artefato — `Out-File`,
+`Set-Content`, `New-Item` ou redirecionamento `cmd.exe /c … > …` / `2> …`; quando o escritor é um
+*helper* de §2.6, o nome do *helper* é o escritor real. `EXISTÊNCIA` = asserção que **para** se o
+caminho não existir ou tiver `0` *bytes*. `CARDINALIDADE` = asserção sobre a **contagem de linhas
+úteis**: `Assert-Evidencia n` é **piso** (`-lt n` ⇒ `STOP`), `Assert-Colecao n` e
+`Assert-Identidade n` são **exatas**, `Assert-Projecao n` é piso **mais** `6` campos por linha.
+`RODADA` = `COMUM` (raiz `$RSTC`, escrita uma única vez), `POR RODADA` (raiz `$RST`, isto é
+`$RST01` **ou** `$RST02`, nunca as duas) ou `PÓS-RODADAS` (`$EXEC`, escrito depois das duas).
+`PRE/POST` = posição relativa à **primeira mutação** (`E5`). `DECISÃO DESTRUTIVA` = se um `STOP`
+originado neste artefato altera o que é apagado, extraído ou restaurado — `AUTORIZA` (é gate de
+entrada da janela), `DIRIGE` (é a lista que comanda os `rm`), `ACIONA ROLLBACK` (seu `STOP` cai no
+`catch` de §5.0) ou `NÃO` (diagnóstico puro).
+
+| # | ARTEFATO | ESCRITOR | MOMENTO DA ESCRITA | EXISTÊNCIA | CARDINALIDADE | CONSUMIDOR | CRITÉRIO DE `PASS` | CRITÉRIO DE `STOP` | RODADA | PRE/POST | DECISÃO DESTRUTIVA |
+|---:|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | `00_PREVOO.txt` *(custódia do pré-voo canônico)* | fora deste desenho | campanha anterior | — | — | **nenhum** neste desenho | n/a | n/a | — | PRE | **NÃO** — ver `E-1` |
+| 2 | `12_dumpsys_package_raw.txt` *(idem)* | fora deste desenho | campanha anterior | — | — | **nenhum** neste desenho | n/a | n/a | — | PRE | **NÃO** — ver `E-1` |
+| 3 | `$EXEC\tools\compare_state.py` | cópia lacrada, fora do desenho | antes de `E0` | `E0.4` `Get-FileHash` | `4380` *bytes* | `E3A`, item `14`, `E8`, `I3`, `I6`, `I7`, `I8` | `SHA256 = A7649DD2…FDFD` | *hash* ou tamanho divergente | COMUM | PRE | **AUTORIZA** |
+| 4 | `$EXEC\00_E0_INTEGRIDADE.txt` | `E0.5` `Set-Content` | após `E0.0` (desenho *vs* custódia *vs* gate) e após conferir *branch*, `HEAD`, `SHA256` e *bytes* da baseline | `Assert-Evidencia $E0F 34` | piso `34` | terminal — nenhum passo lê | `34` linhas de integridade gravadas, incluindo `DESIGN_REPO_VS_CUSTODY=IDENTICOS` | ausente, vazio ou `< 34` linhas | COMUM | PRE | **AUTORIZA** |
+| 5 | `$RSTC\01_PIDOF_ANTES.txt` | `E1` `Set-Content` | logo após `pidof`, antes de qualquer decisão | `Assert-Evidencia $E1F 4` | piso `4` | `E1` (a própria condição) | `PIDS_ENCONTRADOS=0` **lido do arquivo** | `if ($e1_pids.Count -ne 0) { throw }` | COMUM | PRE | **AUTORIZA** |
+| 6 | `$RSTC\02_INFRA_AUSENTE.txt` | `E2` `Set-Content` | após medir portas `8081/8082/8083`, `node` e `adb reverse --list` | `Assert-Evidencia $E2F 9` | piso `9` | `E2` (as quatro condições) | quatro contagens gravadas em `0` | qualquer uma `≠ 0` | COMUM | PRE | **AUTORIZA** |
+| 7 | `$RSTC\TAR-ROLLBACK-PRE-RESET.tar` | `E3` `cmd.exe /c … > …` | **antes** do primeiro `rm` de `E5` | `Get-Item .Length` em `E3` e de novo em `RB1` | `22` entradas via `03_ROLLBACK_LISTAGEM.txt` | `RB1` (identidade), `RB4` (extração) | *bytes* `> 0`, `SHA256` reproduzido em `RB1`, `22` entradas | ausente, `0` *bytes*, *hash* divergente ou `≠ 22` | COMUM | PRE | **AUTORIZA** |
+| 8 | `$RSTC\03_ROLLBACK_STDERR.txt` | `E3` `cmd.exe /c … 2> …` | no mesmo comando que grava o TAR | **`Assert-Stderr`** — ausência é `STOP`, nunca coleção vazia | `0` linhas úteis exigido | `E3` via `Assert-Stderr` | arquivo **existe** e tem `0` linhas úteis | arquivo **ausente** (canal falhou) ou `≠ 0` linhas | COMUM | PRE | **AUTORIZA** |
+| 9 | `$RSTC\03_ROLLBACK_STDERR.txt.PROVA.txt` | `Assert-Stderr` `Set-Content` | dentro do próprio `Assert-Stderr`, antes de retornar | `Assert-Evidencia $prova 8` | piso `8` | leitura humana e auditoria | `VEREDITO=PASS` gravado | não materializar as `8` linhas | COMUM | PRE | **AUTORIZA** |
+| 10 | `$RSTC\03_ROLLBACK_LISTAGEM.txt` | `E3` `Out-File` | após `tar -t` do *rollback* | `Assert-Evidencia $RBLIST 22` | piso `22` **mais** `if ($rb_itens -ne 22) { throw }` | `E3` (guarda de cardinalidade) e `RB1` | `$rb_itens = 22` **exato** | `≠ 22` ⇒ `STOP` **antes** de `E5` | COMUM | PRE | **AUTORIZA** |
+| 11 | `$RSTC\03_ROLLBACK_IDENTIDADE.txt` | `Assert-Identidade` `Set-Content` | dentro de `Assert-Identidade`, em `E3` | `Assert-Evidencia $Log 12` | piso `12` | auditoria | `VEREDITO=PASS`, `SO_EM_A=0`, `SO_EM_B=0` | qualquer sobra, falta ou duplicata | COMUM | PRE | **AUTORIZA** |
+| 12 | `$RSTC\03_ROLLBACK_META.txt` | `E3` `Set-Content` | imediatamente após medir o TAR | `Assert-Evidencia $RBMETA 14` | piso `14` | **`RB1`** — relê caminho, *bytes*, `SHA256`, entradas e `EXEC_ROOT` | as cinco chaves conferem em `RB1` | qualquer chave ausente ou divergente | COMUM | PRE | **AUTORIZA** |
+| 13 | `$RSTC\ROLLBACK-EXTRACTED\` | `E3A` `tar -x` **no `HOST`** | antes de `E4` | `Test-Path -PathType Container` | `22` entradas conferidas pelo comparador | `E3A` (`compare_state.py`) | árvore extraída legível | extração falha | COMUM | PRE | **AUTORIZA** |
+| 14 | `$RSTC\03A_PRE_RESET_vs_ARTEFATO30.txt` | `E3A` `cmd.exe /c … > …` | após o comparador rodar | `Read-Comparador` ⇒ `Assert-Evidencia … 11` | piso `11` (3 de escopo + 7 contadores + veredito) | `E3A` | as `9` chaves presentes e numéricas | chave faltante, valor não numérico ou arquivo ausente | COMUM | PRE | **AUTORIZA** |
+| 15 | `$RSTC\03A_VEREDITO.txt` | `E3A` `Set-Content` | após interpretar o comparador | `Assert-Evidencia $A3A_VER 14` | piso `14` | auditoria | veredito de escopo gravado | ausente ou `< 14` linhas | COMUM | PRE | **AUTORIZA** |
+| 16 | `$RST\04_ENUM_ARQUIVOS.txt` | `E4` `Out-File` | primeira enumeração da rodada | `Test-Path` + leitura sem `SilentlyContinue` | **`Assert-Colecao $arqBrutos`** (`> 0`) | **`E5`** (dirige cada `rm -f`) e `RB5` | lista não vazia e `100 %` validada por `Test-CaminhoSeguro` | lista vazia ⇒ canal quebrado ⇒ `STOP` **antes** do 1º `rm` | POR RODADA | PRE | **DIRIGE** |
+| 17 | `$RST\04_ENUM_DIRS.txt` | `E4` `Out-File` | junto com a enumeração de arquivos | `Assert-Evidencia $E4_DIR 3` | piso `3` | `E4` e `E5` | as três raízes nomeadas presentes | `< 3` linhas ou raiz ausente | POR RODADA | PRE | **DIRIGE** |
+| 18 | `$RST\04_RESIDUOS.txt` | `E4` `Set-Content` com cabeçalho | após classificar resíduos | `Assert-Evidencia $E4_RES 1` | piso `1` (o cabeçalho garante `≥ 1`) | auditoria | inventário gravado | ausente ou vazio | POR RODADA | PRE | **AUTORIZA** |
+| 19 | `$RST\04_VALIDACAO.txt` | `E4` `Set-Content`, **nos dois caminhos** | após validar toda a lista | `Assert-Evidencia $E4_VAL 10` | piso `10` | auditoria | `100 %` dos caminhos aprovados | qualquer caminho reprovado | POR RODADA | PRE | **AUTORIZA** |
+| 20 | `$RST\04A_SELINUX_PRE.txt` | `E4A` `Out-File -Append` | um `ls -Zd` por alvo, `22` linhas | `Assert-Evidencia $A4A $PRE_PATH_COUNT` | **`Assert-Colecao … $ALVOS_META.Count`** (exata) | **`E7A`** (mapa `PRE`) e `E4E` | `22` contextos não vazios | `EXIT ≠ 0`, contexto vazio ou contagem `≠ 22` | POR RODADA | PRE | **AUTORIZA** |
+| 21 | `$RST\04A_SELINUX_PRE_BRUTO.txt` | `E4A` `Out-File -Append` | **antes** de validar cada linha | `Assert-Evidencia` no produtor | piso = nº de alvos | diagnóstico | linha bruta preservada | ausência do bruto ⇒ `STOP` **no produtor** | POR RODADA | PRE | **NÃO** |
+| 22 | `$RST\04A_SELINUX_PRE_META.txt` | `E4A` `Set-Content` | fechamento de `E4A` | `Assert-Evidencia $A4A_MET 5` | piso `5` | auditoria | `PRE_CONTEXTOS_VAZIOS=0` | ausente ou `< 5` linhas | POR RODADA | PRE | **NÃO** |
+| 23 | `$RST\04B_MODE_PRE.txt` **(árbitro, `6` campos)** | `E4B` `New-Projecao` + `Out-File -Append` | uma linha projetada por alvo | `Assert-Projecao $A4B $PRE_META_COUNT` | exata `22` **e** `6` campos por linha | **`E7B`** (`Import-Meta`), **`E4D.3`** (revalidação) | `22` linhas, todas com `6` campos | qualquer linha fora de `6` campos ⇒ `STOP` **antes** de `E5` | POR RODADA | PRE | **AUTORIZA** |
+| 24 | `$RST\04B_MODE_PRE_BRUTO.txt` **(`8` campos, com `%Y`)** | `E4B` `Out-File -Append` | antes de projetar | `Assert-Evidencia $A4B_BR $ALVOS_META.Count` | piso `22` | **apenas `E7C`** (`Read-MtimeBruto`) | linha bruta preservada | ausência ⇒ `STOP` **no produtor** `E4B` | POR RODADA | PRE | **NÃO** — nenhum caminho de `STOP` o lê |
+| 25 | `$RST\04B_MODE_PRE_PROJECAO.txt` | `Assert-Projecao` `Set-Content` | dentro do próprio `Assert-Projecao` | `Assert-Evidencia $Log 9` | piso `9` | auditoria | `LINHAS_FORA_DE_6_CAMPOS=0`, `CONTEM_MTIME=NAO` | qualquer linha fora de `6` campos | POR RODADA | PRE | **AUTORIZA** |
+| 26 | `$RST\04B_MODE_PRE_META.txt` | `E4B` `Set-Content` | fechamento de `E4B` | `Assert-Evidencia $A4B_MET 15` | piso `15` | auditoria | `ARBITRO_CONTEM_MTIME=NAO` gravado | ausente ou `< 15` linhas | POR RODADA | PRE | **NÃO** |
+| 27 | `$RST\04C_STDIN_PROBE.txt` | `E4C` `cmd.exe /c … > …` (literal por rodada) | `tar -t` por `stdin`, **sem mutar nada** | `Assert-Evidencia $P4C 22` | piso `22` **mais** identidade exata | `E4C` | `22` entradas idênticas ao conjunto selado | `≠ 22` ou nome divergente ⇒ `STOP` **antes** de `E5` | POR RODADA | PRE | **AUTORIZA** |
+| 28 | `$RST\04C_STDIN_PROBE_STDERR.txt` | `E4C` `cmd.exe /c … 2> …` | no mesmo comando | **`Assert-Stderr`** — ausência é `STOP` | `0` linhas úteis | `E4C` | existe e tem `0` linhas úteis | ausente ou `≠ 0` linhas | POR RODADA | PRE | **AUTORIZA** |
+| 29 | `$RST\04C_STDIN_PROBE_STDERR.txt.PROVA.txt` | `Assert-Stderr` `Set-Content` | dentro do *helper* | `Assert-Evidencia $prova 8` | piso `8` | auditoria | `VEREDITO=PASS` | não materializar | POR RODADA | PRE | **AUTORIZA** |
+| 30 | `$RST\04C_STDIN_PROBE_IDENTIDADE.txt` | `Assert-Identidade` `Set-Content` | após `tar -t` | `Assert-Evidencia $Log 12` | piso `12` | auditoria | `SO_EM_A=0` e `SO_EM_B=0` | qualquer divergência nomeada | POR RODADA | PRE | **AUTORIZA** |
+| 31 | `$RST\04C_STDIN_PROBE_META.txt` | `E4C` `Set-Content` | fechamento de `E4C` | `Assert-Evidencia $P4C_MET 15` | piso `15` | auditoria | `STDIN_CHANNEL_PROBE_BEFORE_DESTRUCTION=SIM` | ausente ou `< 15` linhas | POR RODADA | PRE | **AUTORIZA** |
+| 32 | `$RST\04D_STAT_PROBE.txt` | `E4D` `Set-Content` | sonda de caminho único, antes de `E5` | `Assert-Evidencia` + *parse* com `throw` | `8` campos exigidos na sonda | `E4D` | `EXIT = 0`, saída não vazia, `8` campos parseáveis | `stat` ausente, mudo ou com formato inesperado | POR RODADA | PRE | **AUTORIZA** |
+| 33 | `$RST\04D_PROJECAO_REVALIDADA.txt` | `Assert-Projecao` `Set-Content` | `E4D.3`, **último ponto `READ-ONLY`** | `Assert-Evidencia $Log 9` | piso `9` | auditoria | `04B_MODE_PRE.txt` revalidado com `6` campos | uma única linha de `8` campos ⇒ `STOP` **antes** de `E5` | POR RODADA | PRE | **AUTORIZA** |
+| 34 | `$RST\04D_STAT_PROBE_META.txt` | `E4D` `Set-Content` | fechamento de `E4D` | `Assert-Evidencia $P4D_MET 17` | piso `17` | auditoria | `STAT_PROBE_BEFORE_E5=SIM` | ausente ou `< 17` linhas | POR RODADA | PRE | **AUTORIZA** |
+| 35 | `$RST\04E_SELINUX_PROBE.txt` | `E4E` `Set-Content` | sonda de `ls -Z`, antes de `E5` | `Assert-Evidencia` + `$RX_SECTX` | contexto com `≥ 3` `:` | `E4E` | sonda devolve contexto reconhecível | `ls -Z` ausente ou sem contexto | POR RODADA | PRE | **AUTORIZA** |
+| 36 | `$RST\04E_SELINUX_PRE_IDENTIDADE.txt` | `Assert-Identidade` `Set-Content` | `E4E.3` | `Assert-Evidencia $Log 12` | piso `12` | auditoria | conjunto do **arquivo** idêntico aos `22` selados | qualquer sobra ou falta | POR RODADA | PRE | **AUTORIZA** |
+| 37 | `$RST\04E_SELINUX_PRE_MAPA_IDENTIDADE.txt` | `Assert-Identidade` `Set-Content` | `E4E.3` | `Assert-Evidencia $Log 12` | piso `12` | auditoria | conjunto do **mapa em memória** idêntico aos `22` | qualquer sobra ou falta | POR RODADA | PRE | **AUTORIZA** |
+| 38 | `$RST\04E_SELINUX_PROBE_META.txt` | `E4E` `Set-Content` | fechamento de `E4E` | `Assert-Evidencia $P4E_MET 14` | piso `14` | auditoria | `SELINUX_PROBE_BEFORE_E5=SIM`, `SELINUX_EMPTY_PASS_VECTOR=NONE` | ausente ou `< 14` linhas | POR RODADA | PRE | **AUTORIZA** |
+| 39 | `$RST\04F_ESPACO.txt` | `E4F` `Set-Content` | medição de `df` no aparelho e no `HOST` | `Assert-Evidencia $P4F 9` | piso `9` | `E4F` | `≥ 64 MB` no aparelho **e** `≥ 1024 MB` no `HOST` | abaixo da margem ⇒ `STOP` **fora** da janela destrutiva | POR RODADA | PRE | **AUTORIZA** |
+| 40 | `$RST\05_REMOCAO_LOG.txt` | `E5.1`/`E5.2` `Out-File -Append` | **uma linha por `rm`**, durante a remoção | `Assert-Evidencia $A5L $FILES_DELETED_BY_E5` | piso = nº de remoções contadas em memória | `E5` | log com tantas linhas quantas remoções | log menor que o contador ⇒ escrita perdida | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 41 | `$RST\05_POS_REMOCAO.txt` | `E5.3` `Out-File`, **arquivo pré-criado** | após todos os `rm` | `Test-Path` sobre arquivo pré-criado | `0` linhas é o `PASS` esperado | `E5.3` | `find -type f` vazio **com o canário vivo** | qualquer arquivo remanescente | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 42 | `$RST\05_POS_REMOCAO_DIRS.txt` | `E5.3` `Out-File` | após todos os `rm` | `Assert-Evidencia $A5D 3` | piso `3` — **canário da regra `A-2`** | `E5.3` | as três raízes sobrevivem | `< 3` ⇒ a enumeração quebrou, não a remoção acertou | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 43 | `$RST\06_EXTRACAO.txt` | `E6` `cmd.exe /c … > … 2>&1` (literal por rodada) | durante `tar -x` por `stdin` | `Test-Path` + leitura + linha `E6_EXTRACAO_EXIT` | `$e6_ruido = 0` | `E6` | `EXIT = 0` **gravado** e ruído `0` | `EXIT ≠ 0` ou linha inesperada | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 44 | `$RST\07_ESTRUTURA_POS.txt` | `E7` `Out-File` | após a extração | `Assert-Evidencia $A7 14` | `Assert-Colecao … 14` nos dois lados | `E7` | `14` arquivos idênticos por nome à baseline | falta, sobra ou duplicata | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 45 | `$RST\07_ESTRUTURA_IDENTIDADE.txt` | `Assert-Identidade` `Set-Content` | dentro de `E7` | `Assert-Evidencia $Log 12` | piso `12` | auditoria | `SO_EM_A=0` e `SO_EM_B=0` | qualquer divergência nomeada | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 46 | `$RST\07A_SELINUX_POST.txt` | `E7A` `Out-File -Append` | um `ls -Zd` por alvo | `Test-Path` + **`Import-Indexado`** (ausente ⇒ `throw`) | `Assert-Colecao … 22` + `Assert-Identidade … 22` | `E7A` e **`I9`** | `22` chaves idênticas ao conjunto selado | ausente, vazio, `≠ 22` ou nome divergente | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 47 | `$RST\07A_SELINUX_POST_BRUTO.txt` | `E7A` `Out-File -Append` | antes de validar cada linha | `Assert-Evidencia` no produtor | piso = nº de alvos | diagnóstico | linha bruta preservada | ausência ⇒ `STOP` no produtor | POR RODADA | **POST** | **NÃO** |
+| 48 | `$RST\07A_SELINUX_POST_IDENTIDADE.txt` | `Assert-Identidade` `Set-Content` | prova **(A)** de `E7A` | `Assert-Evidencia $Log 12` | piso `12` | auditoria | `POST` **igual** aos `22` selados | `22` nomes errados também dariam `22` ⇒ aqui param | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 49 | `$RST\07A_SELINUX_PRE_COBERTURA.txt` | `Assert-Identidade` `Set-Content` | prova **(B)** de `E7A` | `Assert-Evidencia $Log 12` | piso `12` | auditoria | `PRE` **cobre** os `22` — condição que torna `POST ⊆ PRE` significativo | `PRE` arbitrário satisfazendo o subconjunto por vacuidade | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 50 | `$RST\07A_SELINUX_DOMINIO.txt` | `E7A` `Set-Content` | após formar a interseção | `Assert-Evidencia $A7A_DOM 19` | piso `19` | **`I9`** | domínio `= 22` por identidade dos dois lados | domínio `≠ 22` | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 51 | `$RST\07A_SELINUX_DIFF.txt` | `E7A` `Out-File` | após comparar contextos | `Test-Path` + contagem | `0` divergências materiais | `E7A` | `Count = 0` **sobre domínio provado de `22`** | qualquer divergência material — **sem** `restorecon`/`chcon` | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 52 | `$RST\07B_MODE_POST.txt` **(árbitro, `6` campos)** | `E7B` `New-Projecao` + `Out-File -Append` | uma linha projetada por alvo | **`Assert-Projecao $A7B $ALVOS_POS.Count`** | exata `22` **e** `6` campos por linha | `E7B` (`Import-Meta`) e **`I9`** | `22` linhas, todas com `6` campos | qualquer linha de `8` campos — única rota de `mtime` até `I9` | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 53 | `$RST\07B_MODE_POST_BRUTO.txt` **(`8` campos, com `%Y`)** | `E7B` `Out-File -Append` | antes de projetar | `Assert-Evidencia $A7B_BR $ALVOS_POS.Count` | piso `22` | **apenas `E7C`** (`Read-MtimeBruto`) | linha bruta preservada | ausência ⇒ `STOP` **no produtor** `E7B` | POR RODADA | **POST** | **NÃO** — nenhum caminho de `STOP` o lê |
+| 54 | `$RST\07B_MODE_POST_PROJECAO.txt` | `Assert-Projecao` `Set-Content` | dentro do *helper*, em `E7B` | `Assert-Evidencia $Log 9` | piso `9` | auditoria | `CONTEM_MTIME=NAO` gravado sobre arquivo **relido** | `LINHAS_FORA_DE_6_CAMPOS ≠ 0` | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 55 | `$RST\07B_MODE_POST_IDENTIDADE.txt` | `Assert-Identidade` `Set-Content` | prova de igualdade de `E7B` | `Assert-Evidencia $Log 12` | piso `12` | auditoria | `POST` **igual** aos `22` selados | sobra, falta ou duplicata | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 56 | `$RST\07B_MODE_PRE_COBERTURA.txt` | `Assert-Identidade` `Set-Content` | prova da condição prévia de `E7B` | `Assert-Evidencia $Log 12` | piso `12` | auditoria | `PRE` cobre os `22` | subconjunto satisfeito por `PRE` arbitrário | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 57 | `$RST\07B_MODE_TABELA_IDENTIDADE.txt` | `Assert-Identidade` `Set-Content` | prova da tabela §2.2 | `Assert-Evidencia $Log 12` | piso `12` | auditoria | `$MODO_ESPERADO` idêntico aos `22` alvos | tabela selada divergente do escopo | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 58 | `$RST\07B_MODE_DOMINIO.txt` | `E7B` `Set-Content` | após formar a interseção | `Assert-Evidencia $A7B_DOM 20` | piso `20` | **`I9`** | domínio `= 22` | domínio `≠ 22` | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 59 | `$RST\07B_MODE_DIFF.txt` | `E7B` `Out-File` | após comparar modo, `uid`, `gid` | `Test-Path` + contagem | `0` divergências | `E7B` | `Count = 0` sobre domínio provado | qualquer divergência de modo, dono ou grupo | POR RODADA | **POST** | **ACIONA ROLLBACK** |
+| 60 | `$RST\07C_MTIME.txt` | `E7C` `Out-File -Append` | último passo da janela | **nenhuma** — *exceção declarada e única* | **nenhuma** | **NENHUM** — terminal por construção | não avalia `PASS` | **não existe** `STOP` originado aqui | POR RODADA | **POST** | **NÃO** — `MTIME_GATE = DIAGNOSTIC_ONLY` |
+| 61 | `$EXEC\acervo\13_PIDOF.txt` | item `13` `Set-Content` | antes de capturar o TAR final | `Assert-Evidencia $T_PID 3` | piso `3` | item `13` | `PIDOF_LINHAS=0` **lido do arquivo** | `≠ 0` — o `EXIT` do `pidof` **não** é gate (`PIDOF_EXIT_E_GATE=NAO`) | PÓS-RODADAS | **POST** | **NÃO** |
+| 62 | `$EXEC\acervo\TAR-ENTRY-POS-RESET.tar` | item `13` `cmd.exe /c … > …` | captura por `stdout`, **nunca** gravando no aparelho | `Get-Item .Length` + `Get-FileHash` | `22` entradas via listagem | item `14`, `E8` | *bytes* `> 0`, `SHA256` gravado, `22` entradas | ausente, `0` *bytes* ou `≠ 22` | PÓS-RODADAS | **POST** | **NÃO** |
+| 63 | `$EXEC\acervo\13_TAR_STDERR.txt` | item `13` `cmd.exe /c … 2> …` | no mesmo comando | **`Assert-Stderr $T_ERR 'ITEM13.TAR_POS_RESET'`** | `0` linhas úteis | item `13` | existe e tem `0` linhas úteis | **ausente** (canal falhou) ou `≠ 0` linhas | PÓS-RODADAS | **POST** | **NÃO** |
+| 64 | `$EXEC\acervo\13_TAR_STDERR.txt.PROVA.txt` | `Assert-Stderr` `Set-Content` | dentro do *helper* | `Assert-Evidencia $prova 8` | piso `8` | auditoria | `VEREDITO=PASS` | não materializar | PÓS-RODADAS | **POST** | **NÃO** |
+| 65 | `$EXEC\acervo\13_TAR_LISTAGEM.txt` | item `13` `Out-File` | após `tar -t` do TAR capturado | `Assert-Evidencia $T_LIST 22` | piso `22` + `if ($t_itens -ne 22)` | item `13` | `22` entradas exatas | `≠ 22` | PÓS-RODADAS | **POST** | **NÃO** |
+| 66 | `$EXEC\acervo\13_TAR_META.txt` | item `13` `Set-Content` | fechamento do item `13` | `Assert-Evidencia $T_META 16` | piso `16` | auditoria | `TAR_CAPTURE_ON_DEVICE=NAO` gravado | ausente ou `< 16` linhas | PÓS-RODADAS | **POST** | **NÃO** |
+| 67 | `$EXEC\acervo\POS-RESET-EXTRACTED\` | item `14` `tar -x` **no `HOST`** | antes do comparador | `Test-Path -PathType Container` | `22` entradas | item `14` | árvore extraída legível | extração falha | PÓS-RODADAS | **POST** | **NÃO** |
+| 68 | `$EXEC\acervo\14_POS-RESET-vs-BASELINE.txt` | item `14` `cmd.exe /c … > …` | saída do comparador | `Read-Comparador` ⇒ `Assert-Evidencia … 11` | piso `11` | item `14` | `7` contadores em `0` | qualquer contador `≠ 0` ⇒ `ENTRY_STATE_RESULT` negativo | PÓS-RODADAS | **POST** | **NÃO** |
+| 69 | `$EXEC\acervo\14_VEREDITO.txt` | item `14` `Set-Content` | após interpretar o comparador | `Assert-Evidencia $A14_VER 14` | piso `14` | auditoria | veredito de entrada gravado | ausente ou `< 14` linhas | PÓS-RODADAS | **POST** | **NÃO** |
+| 70 | `$EXEC\acervo\E8_POS-RESET-vs-ARTEFATO30.txt` | `E8` `cmd.exe /c … > …` | saída do comparador | `Read-Comparador` ⇒ `Assert-Evidencia … 11` | piso `11` | `E8` | escopo conforme o artefato `30` | divergência de escopo | PÓS-RODADAS | **POST** | **NÃO** |
+| 71 | `$EXEC\acervo\E8_VEREDITO.txt` | `E8` `Set-Content` | fechamento de `E8` | `Assert-Evidencia $A8_VER 13` | piso `13` | auditoria | veredito gravado | ausente ou `< 13` linhas | PÓS-RODADAS | **POST** | **NÃO** |
+| 72 | `$RSTC\RB0_CONDICAO_OBSERVADA.txt` | `RB0` `Set-Content` | **primeiro** passo do *rollback* | `Assert-Evidencia $RB0F 14` | piso `14` | auditoria e `RB7` | `$ROLLBACK_PASSO` e `$ROLLBACK_MOTIVO` **não** `NAO_INFORMADO` | causa não registrada por `Set-CausaRollback` | COMUM | **POST** | **ACIONA ROLLBACK** |
+| 73 | `$RSTC\RB1_LISTAGEM.txt` | `RB1` `Out-File` | relistagem do TAR de *rollback* | `Assert-Evidencia $RB1_LIST 22` | **exata `22`** (`-ne 22` ⇒ `STOP`) **e** igualdade com o META de `E3` | `RB1` | `22` entradas **e** contagem idêntica à gravada em `E3` | `≠ 22`, ou divergência do META ⇒ `STOP` **antes** de `RB2`/`RB3` | COMUM | **POST** | **DIRIGE** |
+| 74 | `$RSTC\RB1_ROLLBACK_IDENTIDADE.txt` | `RB1` `Set-Content` | após recalcular *bytes* e `SHA256` | `Assert-Evidencia $RB1_OUT 17` | piso `17` | `RB2`, `RB3` (via `$ROLLBACK_VERIFICADO`) | caminho, `EXEC_ROOT`, *bytes*, `SHA256` e entradas conferem | qualquer divergência ⇒ **nenhuma remoção de `RB3`** | COMUM | **POST** | **DIRIGE** |
+| 75 | `$RSTC\RB2_ENUM_PARCIAL.txt` | `RB2` `Out-File`, **pré-criado** | enumeração do estado parcial | `Test-Path` sobre arquivo pré-criado | validação integral de **todas** as linhas | `RB3.1` | `100 %` das linhas aprovadas em `Test-CaminhoSeguro` | uma linha reprovada ⇒ **nenhum `rm`** | COMUM | **POST** | **DIRIGE** |
+| 76 | `$RSTC\RB2_ENUM_PARCIAL_DIRS.txt` | `RB2` `Out-File` | junto da enumeração | `Assert-Evidencia $RB2_DIRS 3` | piso `3` — **canário** | `RB2` | três raízes sobrevivem | `< 3` ⇒ enumeração quebrada, não "nada a remover" | COMUM | **POST** | **DIRIGE** |
+| 77 | `$RSTC\RB2_VALIDACAO.txt` | `RB2` `Set-Content` | fechamento de `RB2` | `Assert-Evidencia $RB2_VAL 7` | piso `7` | auditoria | validação registrada | ausente ou `< 7` linhas | COMUM | **POST** | **DIRIGE** |
+| 78 | `$RSTC\RB3_VALIDACAO.txt` | `RB3.1` `Set-Content` | **antes** do primeiro `rm` do *rollback* | `Assert-Evidencia $RB3_VAL 6` | piso `6` | `RB3.2` | `VALIDATE_ALL_BEFORE_FIRST_DELETE = SIM` | validação incompleta ⇒ nenhuma remoção | COMUM | **POST** | **DIRIGE** |
+| 79 | `$RSTC\RB3_REMOCAO_LOG.txt` | `RB3.2` `Out-File -Append` | uma linha por `rm` | `Assert-Evidencia $RB3_LOG $rbArq.Count` | piso = nº de caminhos validados | auditoria | log completo, `EXIT` por linha | log menor que a lista validada | COMUM | **POST** | **DIRIGE** |
+| 80 | `$RSTC\RB4_EXTRACAO.txt` | `RB4` `cmd.exe /c … > … 2>&1` | reextração do TAR de *rollback* | `Test-Path` + linha `RB4_EXTRACAO_EXIT` | `EXIT = 0` | `RB4` | `EXIT = 0` gravado | `EXIT ≠ 0` ⇒ `throw` | COMUM | **POST** | **ACIONA ROLLBACK** |
+| 81 | `$RSTC\RB5_ESTRUTURA_RECUPERADA.txt` | `RB5` `Out-File` | após a reextração | `Test-Path` + `$rb5_ok_leitura` | comparada com `$RST\04_ENUM_ARQUIVOS.txt` | `RB5` | conjunto idêntico ao inventário de `E4` | **não lança** — `RB5` **classifica** | COMUM | **POST** | **NÃO** — classifica |
+| 82 | `$RSTC\RB5_DIFF.txt` | `RB5` `Out-File` | após `Compare-Object` | `Test-Path` | `$rb5_dif.Count` | `RB5` | `0` diferenças ⇒ `RECUPERADO` | `> 0` ou leitura inválida ⇒ `INDETERMINATE` | COMUM | **POST** | **NÃO** — classifica |
+| 83 | `$RSTC\RB5_VEREDITO.txt` | `RB5` `Set-Content` | fechamento de `RB5` | `Assert-Evidencia $RB5_VER 8` | piso `8` | **`RB7`** (via `$ROLLBACK_RESULT`) | `ROLLBACK_RESULT` gravado | ausente ou `< 8` linhas | COMUM | **POST** | **NÃO** — classifica |
+| 84 | `$RSTC\RB6_NAO_CONTINUACAO.txt` | `RB6` `Set-Content` | após medir portas, `node`, `reverse` e artefatos do item `13` | `Assert-Evidencia $RB6F 16` | piso `16` | auditoria e `RB7` | infraestrutura **não** subida e item `13` **não** iniciado | **por desenho não lança** — o `STOP` terminal é de `RB7` | COMUM | **POST** | **NÃO** |
+| 85 | `$RSTC\RB7_VEREDITO_FINAL.txt` | `RB7` `Set-Content` | **último** artefato da execução | `Assert-Evidencia $RB7F 14` | piso `14` | encerramento | não existe `PASS` — o *rollback* **sempre** termina em `STOP` | `throw 'R2P1_STOP_ENTRY_RESET_FAILED'` **literal** após gravar | COMUM | **POST** | **NÃO** |
+| 86 | `$EXEC\acervo\TAR-RESTORE-01.tar` | `I2` `cmd.exe /c … > …` | *checkpoint* da rodada `01` | `Get-Item .Length` + `Get-FileHash` | `22` entradas | `I3`, `I7`, `I8` | *bytes* `> 0`, `22` entradas | ausente, `0` *bytes* ou `≠ 22` | RODADA `01` | **POST** | **NÃO** |
+| 87 | `$EXEC\acervo\I2_TAR01_STDERR.txt` | `I2` `cmd.exe /c … 2> …` | no mesmo comando | **`Assert-Stderr $T01ERR 'I2.TAR_RESTORE_01'`** | `0` linhas úteis | `I2` | existe e tem `0` linhas úteis | ausente ou `≠ 0` linhas | RODADA `01` | **POST** | **NÃO** |
+| 88 | `$EXEC\acervo\I2_TAR01_STDERR.txt.PROVA.txt` | `Assert-Stderr` `Set-Content` | dentro do *helper* | `Assert-Evidencia $prova 8` | piso `8` | auditoria | `VEREDITO=PASS` | não materializar | RODADA `01` | **POST** | **NÃO** |
+| 89 | `$EXEC\acervo\I2_TAR01_LISTAGEM.txt` | `I2` `Out-File` | após `tar -t` | `Assert-Evidencia $T01LIST 22` | piso `22` | `I2` | `22` entradas | `≠ 22` | RODADA `01` | **POST** | **NÃO** |
+| 90 | `$EXEC\acervo\I2_TAR01_META.txt` | `I2` `Set-Content` | fechamento de `I2` | `Assert-Evidencia $T01META 15` | piso `15` | auditoria | `22` linhas nos **três** árbitros de `$R01`, `$R02` **inexistente** | `$R02` já existente ⇒ `STOP` (contaminação entre rodadas) | RODADA `01` | **POST** | **NÃO** |
+| 91 | `$EXEC\acervo\RESTORE-01-EXTRACTED\` | `I2` `tar -x` **no `HOST`** | antes de `I3` | `Test-Path -PathType Container` | `22` entradas | `I3`, `I7`, `I8` | árvore legível | extração falha | RODADA `01` | **POST** | **NÃO** |
+| 92 | `$EXEC\acervo\I3_RESTORE01-vs-BASELINE.txt` | `I3` `cmd.exe /c … > …` | comparação da rodada `01` | `Read-Comparador` ⇒ `Assert-Evidencia … 11` | piso `11` | `I3` | `7` contadores em `0` | qualquer contador `≠ 0` | RODADA `01` | **POST** | **NÃO** |
+| 93 | `$RST02\I4_VIRADA_DE_RODADA.txt` | `I4.0` `Set-Content` | **imediatamente após** `$RST = $RST02` | `Assert-Evidencia $I4_VIR 9` | piso `9` | auditoria e `I5` | `$RST` aponta para `$RST02` e **não** para `$RST01` | ponteiro não virado ⇒ rodada `02` escreveria sobre a `01` | RODADA `02` | PRE (da rodada `02`) | **AUTORIZA** |
+| 94 | `$RST02\I4_E1_PIDOF_ANTES.txt` | `I4` `Set-Content` | revalidação de `E1` antes da rodada `02` | `Assert-Evidencia $I4_E1 5` | piso `5` | `I4` | `PIDS_ENCONTRADOS=0` | `≠ 0` | RODADA `02` | PRE (da rodada `02`) | **AUTORIZA** |
+| 95 | `$RST02\I4_E2_INFRA_AUSENTE.txt` | `I4` `Set-Content` | revalidação de `E2` antes da rodada `02` | `Assert-Evidencia $I4_E2 10` | piso `10` | `I4` | portas, `node` e `reverse` em `0` | qualquer `≠ 0` | RODADA `02` | PRE (da rodada `02`) | **AUTORIZA** |
+| 96 | `$EXEC\acervo\TAR-RESTORE-02.tar` | `I5` `cmd.exe /c … > …` | *checkpoint* da rodada `02` | `Get-Item .Length` + `Get-FileHash` | `22` entradas | `I6`, `I7`, `I8` | *bytes* `> 0`, `22` entradas | ausente, `0` *bytes* ou `≠ 22` | RODADA `02` | **POST** | **NÃO** |
+| 97 | `$EXEC\acervo\I5_TAR02_STDERR.txt` | `I5` `cmd.exe /c … 2> …` | no mesmo comando | **`Assert-Stderr $T02ERR 'I5.TAR_RESTORE_02'`** | `0` linhas úteis | `I5` | existe e tem `0` linhas úteis | ausente ou `≠ 0` linhas | RODADA `02` | **POST** | **NÃO** |
+| 98 | `$EXEC\acervo\I5_TAR02_STDERR.txt.PROVA.txt` | `Assert-Stderr` `Set-Content` | dentro do *helper* | `Assert-Evidencia $prova 8` | piso `8` | auditoria | `VEREDITO=PASS` | não materializar | RODADA `02` | **POST** | **NÃO** |
+| 99 | `$EXEC\acervo\I5_TAR02_LISTAGEM.txt` | `I5` `Out-File` | após `tar -t` | `Assert-Evidencia $T02LIST 22` | piso `22` | `I5` | `22` entradas | `≠ 22` | RODADA `02` | **POST** | **NÃO** |
+| 100 | `$EXEC\acervo\I5_CARDINALIDADE_POR_RODADA.txt` | `I5` `Set-Content` | após medir os **seis** árbitros | `Assert-Evidencia $I5_CARD 10` | piso `10`; cada medição é `Assert-Evidencia … 22` | auditoria e `I9` | `22 + 22`, **nunca `44`** num arquivo só | qualquer árbitro com contagem `≠ 22` | PÓS-RODADAS | **POST** | **NÃO** |
+| 101 | `$EXEC\acervo\I5_TAR02_META.txt` | `I5` `Set-Content` | fechamento de `I5` | `Assert-Evidencia $T02META 15` | piso `15` | auditoria | raízes independentes, sem `Copy-Item` entre rodadas | evidência de acumulação entre rodadas | RODADA `02` | **POST** | **NÃO** |
+| 102 | `$EXEC\acervo\RESTORE-02-EXTRACTED\` | `I5` `tar -x` **no `HOST`** | antes de `I6` | `Test-Path -PathType Container` | `22` entradas | `I6`, `I7`, `I8` | árvore legível | extração falha | RODADA `02` | **POST** | **NÃO** |
+| 103 | `$EXEC\acervo\I6_RESTORE02-vs-BASELINE.txt` · `I7_RESTORE02-vs-RESTORE01.txt` · `I8_RESTORE01-vs-ARTEFATO30.txt` · `I8_RESTORE02-vs-ARTEFATO30.txt` | `I6`/`I7`/`I8` `cmd.exe /c … > …` | comparações finais | `Read-Comparador` ⇒ `Assert-Evidencia … 11` cada | piso `11` cada | `I6`, `I7`, `I8` | `7` contadores em `0` e interseção nomeada com `$PRODUTO_8` | qualquer contador `≠ 0` | PÓS-RODADAS | **POST** | **NÃO** |
+| 104 | `$EXEC\I9_PROJECAO_R01.txt` · `$EXEC\I9_PROJECAO_R02.txt` | `Assert-Projecao` `Set-Content` | **antes** de `I9` comparar um único valor | `Assert-Evidencia $Log 9` cada | piso `9`; `22` linhas de `6` campos exigidas em cada raiz | auditoria | `CONTEM_MTIME=NAO` nas **duas** rodadas | uma linha de `8` campos em qualquer das duas raízes | PÓS-RODADAS | **POST** | **NÃO** |
+| 105 | `$EXEC\I9_METADADOS_POR_RODADA.txt` | `I9` `Set-Content` | após comparar as duas rodadas | `Assert-Evidencia $I9F 14` | piso `14` | `I10` | `MTIME_CONSUMIDO_POR_I9=NAO` e `0` divergências | `$i9Dif.Count ≠ 0` | PÓS-RODADAS | **POST** | **NÃO** |
+| 106 | `$EXEC\I10_LACRE.txt` | `I10` `Set-Content` | último artefato da execução bem-sucedida | `Assert-Evidencia $I10F 1` | piso `1` + `$n01`/`$n02` não nulos | encerramento | lacre gravado com as duas rodadas nomeadas | qualquer rodada sem contagem | PÓS-RODADAS | **POST** | **NÃO** |
+| 107 | `$RSTC\RB_INTERROMPIDO_LACRE.txt` | `catch` interno de §`5.0` `Set-Content` | quando `RB1`…`RB4` interrompem o *rollback* antes de `RB7` | `Assert-Evidencia $RBIF 14` | piso `14` | encerramento — nenhum passo lê | lacre gravado com `ROLLBACK_CONCLUIDO=NAO` e `DEVICE_STATE=INDETERMINATE` | ausente ou `< 14` linhas ⇒ `STOP` (e o `throw` terminal ocorre de todo modo) | COMUM | **POST** | **NÃO** — o veredito já é `STOP`; este artefato o **registra** |
 
 **Resultado da varredura:**
 
-| token | valor |
-|---|---|
-| caminhos de `EVIDÊNCIA` auditados | **71 linhas**, cobrindo **todo** caminho declarado |
-| `WRITER_COMMAND_EXISTS = NÃO` | **0** |
-| `CONSUMED_LATER = SIM` **e** `WRITER_COMMAND_EXISTS = NÃO` | **0** ← *a propriedade exigida* |
-| `REAL_ASSERTION_EXISTS = NÃO` | **1** — `07C_MTIME.txt`, **exceção declarada**, `CONSUMED_LATER = NÃO` |
+| token | valor | prova |
+|---|---|---|
+| artefatos auditados | **107 linhas**, cobrindo **todo** caminho declarado em qualquer linha `EVIDÊNCIA` | a tabela acima |
+| `CONSUMED_EVIDENCE_WITHOUT_WRITER` | **0** | toda linha com `CONSUMIDOR ≠ nenhum` tem coluna `ESCRITOR` preenchida com comando literal |
+| `ARBITER_WITHOUT_ASSERTION` | **0** | toda linha cuja coluna `DECISÃO DESTRUTIVA` é `AUTORIZA`, `DIRIGE` ou `ACIONA ROLLBACK` tem asserção de existência **e** de cardinalidade |
+| `EMPTY_COLLECTION_FALSE_PASS_VECTORS` | **0** | ver §13.2 — **seis** vazios legítimos, todos com valor medido gravado **mais** canário independente; e os **cinco** arquivos de *stderr*, lidos só por `Assert-Stderr`, para o qual **ausência é `STOP`** |
+| artefatos **sem** asserção | **3**, e nenhum deles arbitra — linhas `1` e `2` (`00_PREVOO.txt` e `12_dumpsys_package_raw.txt`: custódia de campanha **anterior**, sem escritor **neste** desenho, `CONSUMIDOR = nenhum`) e linha `60` (`07C_MTIME.txt`) | as três com `CONSUMIDOR = NENHUM` e `DECISÃO DESTRUTIVA = NÃO`; conferível varrendo a coluna `EXISTÊNCIA` da tabela acima em busca de `—` |
+| artefatos que carregam `%Y` | **3** — `04B_MODE_PRE_BRUTO.txt`, `07B_MODE_POST_BRUTO.txt`, `07C_MTIME.txt` | os três com `DECISÃO DESTRUTIVA = NÃO`; ver §13.4 |
 
-> **A propriedade que importa está satisfeita sem exceção:** **não existe, no documento, um único
-> caminho que seja consumido por um passo posterior e não seja gravado em disco.** A única linha
-> sem asserção (`07C_MTIME.txt`) é terminal por construção — se ela não existisse, **nada** a
-> leria — e é assim que `MTIME_CAN_STOP = NÃO` continua sendo propriedade estrutural, não
-> promessa textual.
+> **A propriedade que importa, dita sem rodeio.** Não existe, neste documento, um caminho que
+> seja **lido** por um passo e não seja **gravado** por outro; e não existe um caminho capaz de
+> produzir `PASS` ou `STOP` sem asserção executável sobre existência e cardinalidade. As três
+> linhas sem asserção são **terminais por construção** — duas delas nem sequer têm escritor neste
+> desenho (são custódia de campanha anterior, arroladas só para que a varredura seja exaustiva) e
+> a terceira é `07C_MTIME.txt`; se qualquer uma não existisse, **nada** a leria. É essa estrutura,
+> e não a prosa, que sustenta `MTIME_CAN_STOP = NÃO`.
+
+---
+
+### 13.1.1 Escritores que são *helpers*, não passos
+
+Cinco artefatos da tabela acima **não** são gravados pelo passo que os nomeia, e sim por um
+*helper* de §2.6. Isso é deliberado: o *helper* é o **único** lugar onde a asserção existe, e
+por isso ela não pode ser esquecida em nenhum ponto de uso.
+
+| *helper* | artefato que ele grava | asserção que ele impõe | por que o escritor é o *helper* |
+|---|---|---|---|
+| `Assert-Stderr` | `<captura>.PROVA.txt` | `Assert-Evidencia $prova 8` | separa **captura inexistente** de **captura vazia** antes de qualquer contagem — o vetor de `03_ROLLBACK_STDERR.txt` |
+| `Assert-Identidade` | o `$Log` recebido | `Assert-Evidencia $Log 12` | nomeia cada sobra e cada falta; cardinalidade igual **não** é identidade |
+| `Assert-Projecao` | o `$Log` recebido | `Assert-Evidencia $Log 9` | relê o **arquivo gravado** e exige `6` campos — é onde `MTIME_CAN_STOP = NÃO` deixa de ser promessa |
+| `Assert-RaizNova` | a própria raiz | preexistência ⇒ `STOP` | impede que `-Append` de uma rodada acumule sobre a outra |
+| `Set-CausaRollback` | `$ROLLBACK_PASSO` / `$ROLLBACK_MOTIVO` (memória, lidos por `RB0`) | valores vazios viram `NAO_INFORMADO` explicitamente | antes, `RB0` lia duas variáveis que **nenhuma linha escrevia** |
 
 ---
 
@@ -3482,12 +4528,14 @@ comparação antes de `Assert-Colecao` nos dois lados; esta tabela lista onde o 
 | `RB3.1` lista carregada | sim | validação integral de **todas** as linhas antes do 1º `rm` | sim, com log |
 | `RB5` diferenças | sim | classificação executável em `RECUPERADO`/`INDETERMINATE` | é registro, não `PASS` |
 | `I3`/`I6`/`I7`/`I8` | sim | `Read-Comparador` + interseção nomeada com `$PRODUTO_8` | não |
+| `I4` `E1'` `pidof` e `E2'` portas/`node`/`reverse` | **sim, e é o `PASS`** | `Assert-Evidencia $I4_E1 5` e `Assert-Evidencia $I4_E2 10`; as condições são sobre **contagens gravadas**, nunca sobre ausência | **sim** — mesmo aparato de `E1`/`E2`, na rodada `02` |
 | `I9`/`I10` | sim | 4 arquivos por rodada + `$n01`/`$n02` não nulos | não |
+| **os cinco arquivos de *stderr*** (`03_ROLLBACK`, `04C_STDIN_PROBE`, `13_TAR`, `I2_TAR01`, `I5_TAR02`) | **não** — `2> arquivo` sob `cmd.exe /c` **cria** o arquivo mesmo vazio | **`Assert-Stderr`**: ausência do arquivo é `STOP`; grava e autoafere `"$Caminho.PROVA.txt"` com `Assert-Evidencia … 8` | **não** — coleção vazia **sem** arquivo é falha de redirecionamento, não silêncio |
 
 **`EMPTY_COLLECTION_FALSE_PASS_VECTORS = 0`.**
 
-> **A distinção que sustenta o número.** Existem **cinco** pontos em que a coleção vazia é o
-> resultado **correto** (`E1`, `E2`, `E5.3`, item `13`, `RB2`). Em nenhum deles o `PASS` decorre
+> **A distinção que sustenta o número.** Existem **seis** pontos em que a coleção vazia é o
+> resultado **correto** (`E1`, `E2`, `E5.3`, item `13`, `RB2`, `I4`). Em nenhum deles o `PASS` decorre
 > da ausência: decorre de um **valor medido e gravado** (`PIDS_ENCONTRADOS=0`,
 > `PORTAS_OCUPADAS=0`, `ARQUIVOS_LISTADOS=0`) mais um **canário independente** que prova que o
 > canal de medição estava vivo. Vazio **medido** e vazio **por falha** deixam de ser
@@ -3503,15 +4551,173 @@ falha; o *stderr* do aparelho chega como **texto na saída**. Por isso:
 
 | exigência | como o desenho cumpre |
 |---|---|
-| Todo comando externo tem seu `$LASTEXITCODE` **capturado em variável na linha imediatamente seguinte** — **36 capturas**, nenhuma lida depois de outro comando ter rodado | `$g_ec1` `$g_ec2` `$g_ec3` · `$e1_ec` · `$e2_ec_rev` · `$rb_exit` `$rb_ec_list` · `$a3a_ec_tar` `$a3a_ec_cmp` · `$e4_ec_f` `$e4_ec_d` · `$p4c_exit` · `$pl_ec` · `$sl_ec` · `$df_ec` · `$e5_ec_rm` `$e5_ec_rd` `$e5_ec_d` `$e5_ec_f` · `$e6_ec` · `$a7_ec` · `$t_exit` `$t_ec_list` · `$a14_ec_tar` `$a14_ec_cmp` · `$a8_ec` · `$rb1_ec` · `$rb2_ec_f` `$rb2_ec_d` · `$rb3_ec` · `$rb4_ec` · `$rb5_ec` · `$t01_ec` · `$i4_ec_pid` `$i4_ec_rev` · `$t02_ec` |
-| *stderr* de todo canal binário é **redirecionado para arquivo** e **contado** | `03_ROLLBACK_STDERR.txt` · `04C_STDIN_PROBE_STDERR.txt` · `13_TAR_STDERR.txt` · `I2_TAR01_STDERR.txt` · `I5_TAR02_STDERR.txt`; `06_EXTRACAO.txt` e `RB4_EXTRACAO.txt` capturam `2>&1` **e** gravam a linha `…_EXTRACAO_EXIT` |
-| Nenhuma linha inesperada de *stderr* é tolerada | `if (…Count -ne 0) { throw }` em cada um dos cinco arquivos de *stderr*; em `E6`, `$e6_ruido` conta linhas fora do conjunto esperado |
+| Todo comando externo tem seu `$LASTEXITCODE` **capturado em variável na linha imediatamente seguinte** — **`44` linhas de captura**, sob **`39` nomes distintos**, nenhuma lida depois de outro comando ter rodado | inventário literal, captura a captura, em §`13.3.1` |
+| Existe uma **segunda forma legítima**: arbitragem direta de `$LASTEXITCODE` **na linha imediatamente seguinte ao comando**, sem variável intermediária | **`9` pontos**, todos em comandos de *host* (`tar`, `python`) nos passos `I2`, `I3`, `I5`, `I6/I7/I8` — inventariados em §`13.3.1`, tabela `B` |
+| Total de pontos de arbitragem de código de saída | **`53`** = `44` capturas nomeadas + `9` arbitragens diretas. **`48`** terminam em `throw 'R2P1_STOP_ENTRY_RESET_FAILED'` |
+| Exceções à cláusula `throw` | **`5`**, todas **declaradas, justificadas e gravadas em arquivo de evidência** — §`13.3.1`, tabela `C`. Nenhuma delas conclui `PASS` por ausência de exceção |
+| **Não existe função `Assert-Exit`** | a arbitragem é `inline`. `DESIGN_02` declarava um `Assert-Exit` **sem nenhum ponto de chamada**: a disciplina era prometida por uma função morta. A promessa foi removida e substituída pelo inventário desta seção |
+| *stderr* de todo canal binário é **redirecionado para arquivo** e lido **apenas** por `Assert-Stderr` | `03_ROLLBACK_STDERR.txt` · `04C_STDIN_PROBE_STDERR.txt` · `13_TAR_STDERR.txt` · `I2_TAR01_STDERR.txt` · `I5_TAR02_STDERR.txt`; `06_EXTRACAO.txt` e `RB4_EXTRACAO.txt` capturam `2>&1` **e** gravam a linha `…_EXTRACAO_EXIT` |
+| Nenhuma linha inesperada de *stderr* é tolerada | `Assert-Stderr` faz `STOP` na **ausência** do arquivo (regra `A-4`) e `STOP` em qualquer linha; em `E6`, `$e6_ruido` conta linhas fora do conjunto esperado |
 | O código de saída é **barreira auxiliar, nunca prova** | declarado em `A-3` e repetido na ressalva de `E5`: `rm -f` devolve `0` para arquivo inexistente e `$LASTEXITCODE` só atravessa `adb shell` com *shell protocol* `v2` |
-| Existe **um** caso em que código ≠ 0 é o `PASS` | `pidof` devolve `1` quando não encontra processo (`E1`, `I4/E1'`, item `13`). Nesses três pontos o desenho **não** testa o código: testa `PIDS_ENCONTRADOS = 0`, gravado em arquivo. Está anotado no próprio passo, para que nenhum editor futuro "conserte" o que não está quebrado |
 
 > **Consequência direta:** **nenhum passo deste documento conclui `PASS` por não ter havido
 > exceção.** Todo `PASS` é a comparação explícita de um valor medido contra um valor esperado, e
 > todo valor medido está gravado em disco antes de ser comparado.
+
+---
+
+#### 13.3.1 Inventário literal das arbitragens de código de saída
+
+Esta seção existe porque `DESIGN_02` afirmava uma disciplina de código de saída servida por uma
+função (`Assert-Exit`) que **nunca era chamada**. A correção não foi criar pontos de chamada: foi
+**inventariar o mecanismo que de fato existe** — arbitragem `inline` — captura a captura, para que
+nenhuma linha desta auditoria descreva verificação inexistente.
+
+**Tabela `A` — as `44` capturas nomeadas.** `THROW` significa `if (… -ne 0) { throw
+'R2P1_STOP_ENTRY_RESET_FAILED' }`. A coluna `EVIDÊNCIA` diz se o valor observado também é
+**gravado em arquivo**, e não só testado.
+
+| # | passo | variável | comando externo | arbitragem | evidência |
+|---|---|---|---|---|---|
+| 1 | `E0` | `$g_ec1` | `git rev-parse --abbrev-ref HEAD` | `THROW` conjunto com `$g_ec2` e `$g_ec3` | `00_E0_INTEGRIDADE.txt` |
+| 2 | `E0` | `$g_ec2` | `git rev-parse HEAD` | `THROW` conjunto | `00_E0_INTEGRIDADE.txt` |
+| 3 | `E0` | `$g_ec3` | `git status --porcelain -uall` | `THROW` conjunto | `00_E0_INTEGRIDADE.txt` |
+| 4 | `E1` | `$e1_ec` | `adb shell pidof` | **exceção `X-1`** — ver tabela `C` | `PIDOF_EXIT=` em `01_PIDOF_ANTES.txt` |
+| 5 | `E2` | `$e2_ec_rev` | `adb reverse --list` | `THROW` | `REVERSE_LIST_EXIT=` em `02_INFRA_AUSENTE.txt` |
+| 6 | `E3` | `$rb_exit` | `cmd.exe /c … exec-out … tar -c … > TAR` | `THROW` | `03_ROLLBACK_META.txt` |
+| 7 | `E3` | `$rb_ec_list` | `tar -tvf` (*host*) | `THROW` | `03_ROLLBACK_LISTAGEM.txt` |
+| 8 | `E3A` | `$a3a_ec_tar` | `tar -xf` (*host*) | `THROW` | `03A_PRE_RESET_vs_ARTEFATO30.txt` |
+| 9 | `E3A` | `$a3a_ec_cmp` | `python $CMP` | `THROW` | idem + `03A_VEREDITO.txt` |
+| 10 | `E4` | `$e4_ec_f` | `adb shell … find -type f` | `THROW` | `04_ENUM_ARQUIVOS.txt` |
+| 11 | `E4` | `$e4_ec_d` | `adb shell … find -type d` | `THROW` | `04_ENUM_DIRS.txt` |
+| 12 | `E4A` | `$ec` *(laço)* | `adb shell … ls -Zd` | `THROW` **dentro do laço**, após gravar | `EXIT=` em `04A_SELINUX_PRE_BRUTO.txt` |
+| 13 | `E4B` | `$ec` *(laço)* | `adb shell … stat -c $FMT_BRUTO` | `THROW` **dentro do laço**, após gravar | `EXIT=` em `04B_MODE_PRE_BRUTO.txt` |
+| 14 | `E4C` | `$p4c_exit` *(ramo `1`)* | `cmd.exe /c … tar -x` com `stdin` | `THROW` único, após os dois ramos | `04C_STDIN_PROBE_META.txt` |
+| 15 | `E4C` | `$p4c_exit` *(ramo `2`)* | idem, segundo canal | `THROW` único | `04C_STDIN_PROBE_META.txt` |
+| 16 | `E4D` | `$pl_ec` | `adb shell … stat -c $FMT_BRUTO` (sonda) | `THROW` | `PROBE\|…\|EXIT=` em `04D_STAT_PROBE.txt` |
+| 17 | `E4E` | `$sl_ec` | `adb shell … ls -Zd` (sonda) | `THROW` | `PROBE\|…\|EXIT=` em `04E_SELINUX_PROBE.txt` |
+| 18 | `E4F` | `$df_ec` | `adb shell df /data` | `THROW` | `04F_ESPACO.txt` |
+| 19 | `E5` | `$e5_ec_rm` | `adb shell … rm -f` | `THROW` **dentro do laço**, após gravar | `RM\|…\|EXIT=` em `05_REMOCAO_LOG.txt` |
+| 20 | `E5` | `$e5_ec_rd` | `adb shell … rmdir` | `THROW` **dentro do laço**, após gravar | `RMDIR\|…\|EXIT=` em `05_REMOCAO_LOG.txt` |
+| 21 | `E5` | `$e5_ec_d` | `adb shell … find -type d` | `THROW` | `05_POS_REMOCAO_DIRS.txt` |
+| 22 | `E5` | `$e5_ec_f` | `adb shell … find -type f` | `THROW` | `05_POS_REMOCAO.txt` |
+| 23 | `E6` | `$e6_ec` *(ramo `1`)* | `cmd.exe /c … tar -x` `2>&1` | `THROW` único, após os dois ramos | `E6_EXTRACAO_EXIT=` em `06_EXTRACAO.txt` |
+| 24 | `E6` | `$e6_ec` *(ramo `2`)* | idem, segundo canal | `THROW` único | `E6_EXTRACAO_EXIT=` em `06_EXTRACAO.txt` |
+| 25 | `E7` | `$a7_ec` | `adb shell … find` (estrutura pós) | `THROW` | `07_ESTRUTURA_POS.txt` |
+| 26 | `E7A` | `$ec` *(laço)* | `adb shell … ls -Zd` | `THROW` **dentro do laço**, após gravar | `EXIT=` em `07A_SELINUX_POST_BRUTO.txt` |
+| 27 | `E7B` | `$ec` *(laço)* | `adb shell … stat -c $FMT_BRUTO` | `THROW` **dentro do laço**, após gravar | `EXIT=` em `07B_MODE_POST_BRUTO.txt` |
+| 28 | item `13` | `$pid13_ec` | `adb shell pidof` | **exceção `X-2`** — ver tabela `C` | `PIDOF_EXIT=` em `13_PIDOF.txt` |
+| 29 | item `13` | `$t_exit` | `cmd.exe /c … exec-out … tar -c … > TAR` | `THROW` | `13_TAR_META.txt` |
+| 30 | item `13` | `$t_ec_list` | `tar -tvf` (*host*) | `THROW` | `13_TAR_LISTAGEM.txt` |
+| 31 | item `14` | `$a14_ec_tar` | `tar -xf` (*host*) | `THROW` | `14_POS-RESET-vs-BASELINE.txt` |
+| 32 | item `14` | `$a14_ec_cmp` | `python $CMP` | `THROW` | idem |
+| 33 | `E8` | `$a8_ec` | `python $CMP` | `THROW` | `E8_POS-RESET-vs-ARTEFATO30.txt` |
+| 34 | `RB1` | `$rb1_ec` | `tar -tf` (*host*) | `THROW` | `RB1_LISTAGEM.txt` |
+| 35 | `RB2` | `$rb2_ec_f` | `adb shell … find -type f` | `THROW` | `RB2_ENUM_PARCIAL.txt` |
+| 36 | `RB2` | `$rb2_ec_d` | `adb shell … find -type d` | `THROW` | `RB2_ENUM_PARCIAL_DIRS.txt` |
+| 37 | `RB3.2` | `$rb3_ec` | `adb shell … rm -f` | `THROW` **dentro do laço**, após gravar | `RB3\|…\|EXIT=` em `RB3_REMOCAO_LOG.txt` |
+| 38 | `RB4` | `$rb4_ec` | `cmd.exe /c … tar -x` | `THROW` | `RB4_EXTRACAO_EXIT=` em `RB4_EXTRACAO.txt` |
+| 39 | `RB5` | `$rb5_ec` | `adb shell … find` (estrutura recuperada) | **exceção `X-4`** — ver tabela `C` | `RB5_ESTRUTURA_RECUPERADA.txt` |
+| 40 | `RB6` | `$rb6_ec_rev` | `adb reverse --list` | **exceção `X-5`** — ver tabela `C` | `REVERSE_LIST_EXIT=` em `RB6_NAO_CONTINUACAO.txt` |
+| 41 | `I2` | `$t01_ec` | `cmd.exe /c … exec-out … tar -c … > TAR01` | `THROW` | `I2_TAR01_META.txt` |
+| 42 | `I4` | `$i4_ec_pid` | `adb shell pidof` | **exceção `X-3`** — ver tabela `C` | `PIDOF_EXIT=` em `I4_E1_PIDOF_ANTES.txt` |
+| 43 | `I4` | `$i4_ec_rev` | `adb reverse --list` | `THROW` | `REVERSE_LIST_EXIT=` em `I4_E2_INFRA_AUSENTE.txt` |
+| 44 | `I5` | `$t02_ec` | `cmd.exe /c … exec-out … tar -c … > TAR02` | `THROW` | `I5_TAR02_META.txt` |
+
+> **Sobre as quatro capturas de laço (`$ec` em `E4A`, `E4B`, `E7A`, `E7B`) e as três de `E5`/`RB3`:**
+> em todas elas a **gravação da linha bruta precede o `throw`**. Se o comando remoto falhar no
+> alvo `k`, o arquivo de evidência já contém as `k` linhas produzidas até ali, e o `STOP` é
+> auditável a partir do disco. O contrário — testar antes de gravar — apagaria a única prova de
+> onde a execução parou.
+
+**Tabela `B` — as `9` arbitragens diretas, sem variável intermediária.** Em todas, o `if` está na
+**linha imediatamente seguinte** ao comando, sem nenhum outro comando externo no meio; `$LASTEXITCODE`
+ainda é, portanto, o código daquele comando. Todas são comandos de *host* — nenhuma atravessa `adb`.
+
+| # | passo | comando | forma |
+|---|---|---|---|
+| 1 | `I2` | `tar -tvf $T01` | `if ($LASTEXITCODE -ne 0) { throw … }` |
+| 2 | `I2` | `tar -xf $T01 -C $X01` | idem |
+| 3 | `I3` | `python $CMP $BASE_REF $X01 $I3F` | idem |
+| 4 | `I5` | `tar -tvf $T02` | idem |
+| 5 | `I5` | `tar -xf $T02 -C $X02` | idem |
+| 6 | `I6` | `python $CMP $BASE_REF $X02 $I6F` | idem |
+| 7 | `I7` | `python $CMP $X01 $X02 $I7F` | idem |
+| 8 | `I8` | `python $CMP $A30_REF $X01 $I8A` | idem |
+| 9 | `I8` | `python $CMP $A30_REF $X02 $I8B` | idem |
+
+**Tabela `C` — as `5` exceções declaradas à cláusula `throw`.** São `5`, não `3`: `DESIGN_02`
+contava apenas os três `pidof` e omitia `RB5` e `RB6`. **Nenhuma das cinco conclui `PASS` por
+ausência de exceção**, e **todas as cinco gravam o código observado em arquivo**.
+
+| id | passo | variável | por que não há `throw` | o que decide no lugar |
+|---|---|---|---|---|
+| `X-1` | `E1` | `$e1_ec` | `pidof` devolve **`1`** quando **não** encontra processo — e "não encontrar" é exatamente o `PASS` deste passo | `PIDS_ENCONTRADOS = 0`, **lido do arquivo** `01_PIDOF_ANTES.txt` após `Assert-Evidencia`. Arbitrar o código aqui reprovaria o estado correto |
+| `X-2` | item `13` | `$pid13_ec` | idem `X-1`, no *pidof* que antecede o TAR pós-reset | `PIDS_ENCONTRADOS = 0` lido de `13_PIDOF.txt` |
+| `X-3` | `I4` (`E1'`) | `$i4_ec_pid` | idem `X-1`, na revalidação de `E1` na rodada `02` | `PIDS_ENCONTRADOS = 0` lido de `I4_E1_PIDOF_ANTES.txt` |
+| `X-4` | `RB5` | `$rb5_ec` | **`RB5` classifica, não lança.** Um `throw` em `RB5` pularia `RB6` e `RB7` e apagaria o lacre final do *rollback* | `if ($rb5_ec -ne 0) { $rb5_ok_leitura = $false }` — a falha **rebaixa o veredito** para `INDETERMINATE`, que `RB7` grava. Não existe caminho em que `$rb5_ec ≠ 0` produza `RECUPERADO` |
+| `X-5` | `RB6` | `$rb6_ec_rev` | **`RB6` registra, não lança**, pela mesma razão de `RB5`: a execução **já** termina em `R2P1_STOP_ENTRY_RESET_FAILED` por força de `RB7`, e um `throw` aqui pularia `RB7` | `REVERSE_LIST_EXIT=$rb6_ec_rev` é gravado em `RB6_NAO_CONTINUACAO.txt`, arquivo submetido a `Assert-Evidencia $RB6F 16`. O código fica **legível na evidência**, sem poder suprimir o lacre |
+
+> **`X-4` e `X-5` são a disciplina de *rollback*, não um relaxamento dela.** Todo o bloco `RB0..RB7`
+> roda **dentro do `catch`** de §`5.0` — a execução **já está reprovada** quando `RB5` e `RB6`
+> começam. A única coisa que um `throw` ali poderia fazer é **impedir o registro do que aconteceu**.
+> É por isso que `ROLLBACK_DISCIPLINE_COMPLETE = SIM` depende de `RB5` e `RB6` **não** lançarem.
+
+---
+
+### 13.4 Varredura de `mtime` — prova de `MTIME_CAN_STOP = NÃO`
+
+`MTIME_CAN_STOP = NÃO` **não** é sustentado por `E7C` não ter `throw`. Essa alegação, sozinha,
+seria exatamente o tipo de argumento narrativo que a auditoria final reprovou: `E7C` é **um**
+consumidor; a pergunta correta é se existe **algum outro**. Esta seção percorre **todos os
+produtores e todos os consumidores** de tempo de modificação no documento inteiro.
+
+**`mtime` só pode entrar no desenho por um lugar: o campo `%Y` de `stat`.** Não há `date`, não há
+`ls -l`, não há `Get-ItemProperty LastWriteTime` sobre arquivo do aparelho, e o comparador
+`compare_state.py` — instrumento lacrado, `4380 B`, `SHA256 A7649DD2…1EFDFD` — **não lê tempo**
+(§`3.2`). Logo, a varredura de `%Y` é exaustiva por construção.
+
+| # | ocorrência de `%Y` / `mtime` | natureza | pode causar `STOP`? |
+|---|---|---|---|
+| 1 | `$FMT_BRUTO = '%n:%a:%u:%g:%U:%G:%s:%Y'` | **produção** — declaração única do formato de `8` campos | **NÃO** — é uma *string*; o `STOP` que ela participa é o de **formato** (`Assert-Projecao` exige `6` campos no árbitro) |
+| 2 | `04B_MODE_PRE_BRUTO.txt` | **registro** — `E4B`, `Out-File -Append`, `8` campos | **NÃO** — único leitor é `E7C` |
+| 3 | `07B_MODE_POST_BRUTO.txt` | **registro** — `E7B`, `Out-File -Append`, `8` campos | **NÃO** — único leitor é `E7C` |
+| 4 | `04A/07A_SELINUX_*_BRUTO.txt` | **registro** de `ls -Zd` | **NÃO** — `ls -Zd` não emite tempo; não há `%Y` nestes arquivos |
+| 5 | `Read-MtimeBruto` | **leitura** — helper de `E7C`; `$c[7]` é o `%Y` | **NÃO** — a função **não contém `throw`**; devolve mapa vazio se o arquivo faltar |
+| 6 | `07C_MTIME.txt` | **registro diagnóstico** — `E7C`, `Out-File -Append` | **NÃO** — `CONSUMIDOR = NENHUM`; terminal por construção (§`13.1`, item `60`) |
+| 7 | §`2.2`, coluna *mtime* (−03:00) | **tabela documental** de baseline | **NÃO** — nenhuma linha executável a lê |
+| 8 | §`3.2` `MTIME_GATE = DIAGNOSTIC_ONLY` | **norma** | **NÃO** — é a própria proibição |
+| 9 | §`12`, matriz de *writers* (coluna `COMPROVAÇÃO`) e §`14` (`storage-info.pb`) | **evidência forense** de `logcat`/*mtime* da campanha **já ocorrida** | **NÃO** — documental; nenhuma linha executável lê essas tabelas |
+
+**Os consumidores possíveis de metadado estrutural, e o que cada um lê:**
+
+| consumidor | lê | contém `%Y`? | arbitra? |
+|---|---|---|---|
+| `E4B` (`Import-Meta` sobre `$A4B`) | **árbitro** `04B_MODE_PRE.txt`, `6` campos | **não** | sim |
+| `E7B` (`Import-Meta` sobre `$A7B`) | **árbitro** `07B_MODE_POST.txt`, `6` campos | **não** | sim |
+| `E7C` (`Read-MtimeBruto`) | **os dois `*_BRUTO.txt`** | **sim** | **não** — sem `throw` |
+| `I9` | **árbitros das duas rodadas**, `$RST01\07B_MODE_POST.txt` e `$RST02\07B_MODE_POST.txt`, **cada um revalidado por `Assert-Projecao` antes da primeira comparação** | **não** | sim |
+| `I10` | `I9_METADADOS_POR_RODADA.txt` (que grava `MTIME_CONSUMIDO_POR_I9=NAO`) | **não** | sim |
+| item `14` / `E8` / `E3A` / `I3` / `I6` / `I7` / `I8` | saída de `compare_state.py` | **não** — o comparador não lê tempo | sim |
+
+**Conclusão da varredura, verificável em tempo de execução e não só em prosa:**
+
+1. `%Y` é **produzido** uma vez (`$FMT_BRUTO`), **registrado** em dois arquivos `*_BRUTO.txt` e
+   **lido** por uma função (`Read-MtimeBruto`) que não tem `throw`. Não há quarto lugar.
+2. Todo consumidor que **arbitra** lê **exclusivamente** um arquivo árbitro de `6` campos.
+3. Cada arquivo árbitro é conferido por `Assert-Projecao`, que **relê o arquivo gravado** e faz
+   `STOP` em qualquer linha fora de `6` campos — em `E4B`, `E4D.3`, `E7B` e **duas vezes** dentro
+   de `I9`, uma por rodada. Uma única linha de `8` campos derruba a execução **no ponto que a
+   produziu**, antes de o `mtime` alcançar qualquer comparação.
+4. Portanto **`MTIME_CAN_STOP = NÃO`**, e a razão não é "`E7C` não lança": é que **nenhum caminho
+   de `STOP` do desenho abre um arquivo que contenha `%Y`**.
+
+> **O que exatamente foi corrigido.** Em `DESIGN_02`, `04B`/`07B` guardavam a saída **inteira** de
+> `stat`, com `%Y`, e `I9` comparava essas linhas **byte a byte** entre as duas rodadas. Como `tar`
+> restaura o `mtime`, mas duas restaurações do mesmo TAR podem legitimamente divergir em tempo,
+> `I9` era capaz de reprovar a execução **por uma diferença esperada**. `MTIME_CAN_STOP = NÃO`
+> estava escrito no documento e era **falso no aparato**. A correção não foi reescrever a frase:
+> foi retirar `%s` e `%Y` do árbitro e tornar a ausência deles uma **asserção de tempo de execução**.
 
 ---
 
@@ -3576,17 +4782,49 @@ relação causal.** Efeito sobre vereditos: **nenhum**.
 
 ## 17. O que este documento **NÃO** autoriza
 
-`HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION` — **NÃO CONCEDIDO**.
+`HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION` é **NÃO CONCEDIDO**.
 
 Continuam **não autorizados**: qualquer comando ao tablet · qualquer restauração física ·
 qualquer remoção física · abertura do aplicativo · Metro · `PS3` · `adb reverse` · *deep link* ·
 execução real da idempotência · qualquer *retry* · mudança de baseline · qualquer tolerância ·
 qualquer *allowlist* · `AC_5` · concessão de `F6_SG_A` · `R2P1_RETRY_03`.
 
-**`compare_state.py` permanece selado em `A7649DD2B92C7877ADAF12635E032DBC559F4074558B572CA1EDF8A9821EFDFD` e este desenho não depende de editá-lo.**
+**`compare_state.py` permanece selado em `A7649DD2B92C7877ADAF12635E032DBC559F4074558B572CA1EDF8A9821EFDFD` e este desenho não depende de alterá-lo.**
+
+### 17.1 Escopo do `HUMAN GATE` — **um gate por tentativa**, sem herança
+
+**Defeito corrigido.** O `HUMAN GATE` de primeira execução estava redigido de modo a poder ser
+lido como cobrindo `RETRY_04`, `RETRY_05` e seguintes. Uma autorização destrutiva que se
+**estende sozinha** para tentativas futuras é ampliação silenciosa: o responsável autorizaria
+**uma** janela e o executor herdaria **todas**. Esta seção fecha isso pela raiz.
+
+| tentativa | `HUMAN GATE` exigido | estado nesta data | o que ele cobre |
+|---|---|---|---|
+| `RETRY_03` | `HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION` | **NÃO CONCEDIDO** | **exatamente uma** execução do reset `E0..E8` + itens `13`/`14` + `I1..I10`, na versão deste documento cujo `SHA256` o gate citar |
+| `RETRY_04` | `HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_04` | **NÃO CONCEDIDO** | idem, **nova concessão**; não é renovação automática nem consequência do gate anterior |
+| `RETRY_05` | `HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_05` | **NÃO CONCEDIDO** | idem |
+| `RETRY_06..N` | `HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_<NN>` | **NÃO CONCEDIDO** | a série continua **nominalmente**; não existe gate "aberto" nem gate "de série" |
+
+**Sete regras de escopo, todas em vigor:**
+
+| # | regra |
+|---|---|
+| `G-1` | **Um gate autoriza uma tentativa.** Concluída ou interrompida a tentativa, o gate está **consumido** — mesmo que nenhum arquivo tenha sido removido |
+| `G-2` | **Nenhum gate se estende** a `RETRY` seguinte, a outra baseline, a outro aparelho ou a outra raiz de evidência |
+| `G-3` | **Todo gate cita o `SHA256` integral do documento** que autoriza. `E0.0` **exige** esse valor em `$GATE_SHA` e para em `R2P1_STOP_GATE_SEM_SHA` se ele não vier |
+| `G-4` | **Documento diferente ⇒ gate diferente.** Se o desenho for alterado por qualquer motivo, o `SHA256` muda e o gate anterior deixa de conferir em `E0.0` — `R2P1_STOP_DESIGN_CUSTODY_DIVERGED` |
+| `G-5` | O `ROLLBACK` (`RB0..RB7`) **faz parte** da mesma autorização da tentativa que o disparou: não exige segundo gate depois que a mutação começou. É a única extensão admitida, e ela é **para trás**, nunca para frente |
+| `G-6` | **Nenhum gate desta série está concedido nesta data.** Esta emenda é documental; ela **não** concede, **não** solicita e **não** antecipa concessão |
+| `G-7` | A concessão é ato **do responsável**, registrada em `docs/DECISIONS.md`. Nenhum agente concede a si mesmo, e nenhum relatório de agente equivale a concessão |
+
+> **Por que a regra é nominal e não numérica.** Um gate chamado *"execução do reset"* seria
+> reutilizável por leitura. Um gate chamado `HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_04` só pode
+> autorizar `RETRY_04`: **o nome carrega o escopo**. Isso é deliberado, e é o que impede que a
+> autorização de uma janela destrutiva vire autorização permanente por desgaste de leitura.
 
 O futuro `HUMAN GATE` de execução **deverá citar o `SHA256` integral deste documento**, de modo
-que o executor não possa executar comandos diferentes dos auditados.
+que o executor não possa executar comandos diferentes dos auditados — e `E0.0` transforma essa
+exigência em **barreira executável**, não em recomendação.
 
 ---
 
@@ -3595,30 +4833,94 @@ que o executor não possa executar comandos diferentes dos auditados.
 Cada linha abaixo é uma afirmação **verificável por leitura deste documento**, sem execução.
 A coluna *onde verificar* dá a âncora — quem auditar não precisa acreditar em nenhuma delas.
 
+**Tabela `I` — os `27` tokens terminais desta emenda.**
+
 | # | token | valor | onde verificar |
 |---:|---|---|---|
-| 1 | `WILDCARDS_IN_DESTRUCTIVE_COMMANDS` | **0** | `E5.1`/`E5.2`/`RB3.2` — `rm -f -- <caminho>` e `rmdir -- <caminho>`, um caminho literal por chamada; §2.4 rejeita `*`, `?`, `[`, `]` |
-| 2 | `PATH_TRAVERSAL_VECTOR` | **NONE** | §2.4 — `$RX_CAMINHO` **mais** validação por segmento; a tabela `ORIGEM` prova que a regex sozinha **não** basta |
-| 3 | `VALIDATE_ALL_BEFORE_FIRST_DELETE` | **SIM** | `RB3.1` (`READ-ONLY`, valida a lista inteira e grava `RB3_VALIDACAO.txt`) precede `RB3.2`; `E4` valida tudo e faz `throw` antes de `E5` |
-| 4 | `ROLLBACK_META_PERSISTED` | **SIM** | `E3` grava `03_ROLLBACK_META.txt` (10 chaves) + `Assert-Evidencia … 10` |
-| 5 | `ROLLBACK_HASH_ASSERTED` | **SIM** | `RB1` — `Get-FileHash` recalculado e comparado a `ROLLBACK_TAR_SHA256` do meta |
-| 6 | `ROLLBACK_SIZE_ASSERTED` | **SIM** | `RB1` — `Get-Item … .Length` comparado a `ROLLBACK_TAR_BYTES` do meta |
-| 7 | `EMPTY_COLLECTION_FALSE_PASS_VECTORS` | **0** | §13.2, tabela integral: 5 pontos com vazio legítimo, todos com valor gravado **e** canário independente |
+| 1 | `DESIGN_REPO_VS_CUSTODY` | **IDÊNTICOS** | `E0.0` — `SHA256` e *bytes* de `$DESIGN_REPO`, `$DESIGN_CUST` e `$GATE_SHA` comparados **antes** de `E0.1`; divergência ⇒ `R2P1_STOP_DESIGN_CUSTODY_DIVERGED` |
+| 2 | `ROLLBACK_META_PERSISTED` | **SIM** | `E3` grava `03_ROLLBACK_META.txt` (`14` linhas) + `Assert-Evidencia … 14`; `RB1` **consome** as `5` chaves nomeadas |
+| 3 | `ROLLBACK_HASH_ASSERTED` | **SIM** | `RB1` (4)/(5) — `Get-FileHash` **recalculado agora** e comparado a `ROLLBACK_TAR_SHA256` do meta |
+| 4 | `ROLLBACK_SIZE_ASSERTED` | **SIM** | `RB1` (4)/(5) — `Get-Item … .Length` comparado a `ROLLBACK_TAR_BYTES` do meta |
+| 5 | `ROLLBACK_EXEC_ROOT_ASSERTED` | **SIM** | `RB1` (2) — `$M['EXEC_ROOT'] -ne $EXEC`, `$M['ROLLBACK_TAR_PATH'] -ne $RB` e `-not $RB.StartsWith($EXEC)`, três `throw` distintos |
+| 6 | `VALIDATE_ALL_BEFORE_FIRST_DELETE` | **SIM** | `RB3.1` (`READ-ONLY`, valida a lista **inteira** e grava `RB3_VALIDACAO.txt`) precede `RB3.2`, e `E3` prova `$rb_itens = 22` **antes** de `E5` |
+| 7 | `PATH_TRAVERSAL_VECTOR` | **NONE** | §2.4 — `$RX_CAMINHO` **mais** validação por segmento; `Test-CaminhoSeguro` roda em `E5`, `RB3.1` e `RB3.2` |
 | 8 | `STAT_PROBE_BEFORE_E5` | **SIM** | `E4D`, e `E5` lista `E4D PASS` como pré-condição cumulativa |
-| 9 | `SELINUX_PROBE_BEFORE_E5` | **SIM** | `E4E`, idem |
-| 10 | `SELINUX_EMPTY_PASS_VECTOR` | **NONE** | `E4A` exige `context.Length > 0`; `E7A` prova `PRE_PATH_COUNT`, `POST_PATH_COUNT` e domínio de comparação **antes** de comparar valores |
-| 11 | `MODE_4XX_MUST_NOT_PASS_OWNER_RW_CHECK` | **SIM** | `E7B` — o teste é sobre o **dígito** do dono, exigindo equivalência a `6`; `4` reprova |
-| 12 | `I5_LITERAL_COMMANDS_PRESENT` | **SIM** | §8, `I5` é bloco **completo e literal**; não existe "trocar `01` por `02`" em lugar algum |
-| 13 | `I4_REVALIDATES_E1_E2` | **SIM** | §8, `I4` → `E1'` (`pidof`) e `E2'` (portas, `node`, `reverse`), cada um com arquivo e asserção próprios |
-| 14 | `IDEMPOTENCE_EVIDENCE_PATHS_UNIQUE` | **SIM** | §8, `$R01` e `$R02`; `I9` audita rodada a rodada; `I10` discrimina `RODADA01`/`RODADA02`/`COMUM` |
-| 15 | `SCOPE_HISTORICAL_CONFLICT_EXPLICITLY_SUPERSEDED` | **SIM** | §1.1 — cita `14_R2_SESSAO_2.md` §11 item `14` e §8.1 **literalmente** e delimita a supersessão |
-| 16 | `MTIME_CAN_STOP` | **NÃO** | `E7C` não contém `throw`, `if` de reprovação nem comparação com valor esperado |
-| 17 | `PM_CLEAR_PRESENT` | **NÃO** | busca textual por `pm clear` no documento: só aparece como **proibição** |
-| 18 | `INSTALL_PRESENT` | **NÃO** | nenhum `pm install`, `adb install` ou `install-multiple` |
-| 19 | `UNINSTALL_PRESENT` | **NÃO** | nenhum `pm uninstall` ou `adb uninstall` |
-| 20 | `ROOT_REQUIRED` | **NÃO** | todo acesso ao *sandbox* é por `run-as`; nenhum `adb root`, `su` ou `setenforce` |
-| 21 | `COMPARE_STATE_EDIT_REQUIRED` | **NÃO** | o instrumento é **consumido**, nunca parametrizado; `E0.4` confere `SHA256` e `bytes` antes de usar |
+| 9 | `STAT_EMPTY_PASS_VECTOR` | **NONE** | `E4D` — `Assert-Evidencia` + *parse* com `throw`; saída vazia de `stat` **não** atravessa |
+| 10 | `SELINUX_PROBE_BEFORE_E5` | **SIM** | `E4E`, idem, e `E5` a lista como pré-condição |
+| 11 | `SELINUX_EMPTY_PASS_VECTOR` | **NONE** | `E4A` exige `context.Length > 0` **e** `$RX_SECTX` (≥ `3` `:`); contexto vazio é `STOP` no produtor |
+| 12 | `SELINUX_CHECK_DESIGN_SAFE` | **SIM** | `E7A` — **duas** provas por `Assert-Identidade`: (A) `POST` **igual** aos `22` selados; (B) `PRE` **cobre** os `22`, condição que torna `POST ⊆ PRE` significativo. Contagem igual **nunca** decide sozinha |
+| 13 | `META_EMPTY_PASS_VECTOR` | **NONE** | `E7B` grava `META_EMPTY_PASS_VECTOR=NONE` após `Assert-Colecao … 22` nos dois mapas e `Assert-Projecao` sobre o árbitro |
+| 14 | `MODE_4XX_MUST_NOT_PASS_OWNER_RW_CHECK` | **SIM** | `E7B` — o teste é sobre o **dígito** do dono, exigindo equivalência a `6`; `4xx` reprova |
+| 15 | `MTIME_CAN_STOP` | **NÃO** | §13.4, varredura integral: `%Y` existe em `$FMT_BRUTO`, em dois `*_BRUTO.txt` e em `Read-MtimeBruto` — e em mais lugar nenhum. **Nenhum caminho de `STOP` abre arquivo que contenha `%Y`**; `Assert-Projecao` reprova qualquer linha de `8` campos no árbitro, em `E4B`, `E4D.3`, `E7B` e **duas vezes** em `I9` |
+| 16 | `SCOPE_HISTORICAL_CONFLICT_EXPLICITLY_SUPERSEDED` | **SIM** | §1.1 — cita `14_R2_SESSAO_2.md` §11 item `14` e §8.1 **literalmente**, e declara qual passa a valer |
+| 17 | `I5_LITERAL_COMMANDS_PRESENT` | **SIM** | §8, `I5` — bloco **completo e literal**; não existe "trocar `01` por `02`" em lugar algum |
+| 18 | `I4_REVALIDATES_E1_E2` | **SIM** | §8, `I4` — `E1'` (`pidof`, `Assert-Evidencia $I4_E1 5`) e `E2'` (portas, `node`, `reverse`, `Assert-Evidencia $I4_E2 10`) |
+| 19 | `IDEMPOTENCE_EVIDENCE_PATHS_UNIQUE` | **SIM** | §2.7 — `$RSTC`/`$RST01`/`$RST02`; `Assert-RaizNova` **proíbe preexistência** de cada uma; nenhum `-Append` de uma rodada toca arquivo da outra |
+| 20 | `IDEMPOTENCE_DESIGN_COMPLETE` | **SIM** | `I2` (raiz `02` **ainda não existe**), `I5` (`6` medições `Assert-Evidencia … 22` nas duas raízes, gravadas em `I5_CARDINALIDADE_POR_RODADA.txt`), `I9` (projeção revalidada por rodada), `I10` (discrimina `RODADA01`/`RODADA02`). `22 + 22`; **nenhuma rodada produz `44` por acumulação** |
+| 21 | `CONSUMED_EVIDENCE_WITHOUT_WRITER` | **0** | §13.1, matriz de `107` artefatos — coluna `ESCRITOR` preenchida em **todas** as linhas; `INV-1` |
+| 22 | `ARBITER_WITHOUT_ASSERTION` | **0** | §13.1 — coluna `EXISTÊNCIA` preenchida em toda linha com `DECISÃO DESTRUTIVA ≠ NÃO`; `INV-2`. As **três** linhas sem asserção — `1`, `2` e `60` — têm `CONSUMIDOR = nenhum` e `DECISÃO DESTRUTIVA = NÃO`; **nenhuma arbitra** |
+| 23 | `EMPTY_COLLECTION_FALSE_PASS_VECTORS` | **0** | §13.2, tabela integral: `6` pontos com vazio legítimo, **todos** com valor medido gravado **e** canário independente; os `5` arquivos de *stderr* são lidos **apenas** por `Assert-Stderr`, para o qual ausência é `STOP` |
+| 24 | `CRITICAL_EXIT_CODES_ASSERTED` | **SIM** | §13.3.1 — `44` capturas nomeadas + `9` arbitragens diretas = `53` pontos; `48` terminam em `throw`; as `5` exceções são nomeadas, justificadas **e gravadas em evidência** (tabela `C`) |
+| 25 | `STDIN_CHANNEL_PROBE_BEFORE_DESTRUCTION` | **SIM** | `E4C` — prova **não destrutiva** do canal `stdin` (`tar -t` por `exec-in`), com `Assert-Stderr`, `Assert-Identidade` e `Assert-Evidencia $P4C_MET 15`, **antes** de `E5` |
+| 26 | `ROLLBACK_DISCIPLINE_COMPLETE` | **SIM** | `Set-Passo` (**9** pontos de chamada literais: `6` na janela — `E5`,`E6`,`E7`,`E7A`,`E7B`,`E7C` — e `3` no *rollback* — `RB0`,`RB6`,`RB7`), `Set-CausaRollback` (escritor real de `$ROLLBACK_PASSO`/`$ROLLBACK_MOTIVO`), `try/catch` de §5.0 (acionador) e `RB0..RB7` **todos com bloco executável**, incluindo `RB6` e `RB7`; e o `catch` **interno** de §`5.0`, que grava `RB_INTERROMPIDO_LACRE.txt` quando `RB1`..`RB4` interrompem a cadeia — **nenhum desfecho termina sem arquivo de veredito** |
+| 27 | `ULTRACODE_PLAN_SAFE` | **SIM** | artefato `33_R2P1_ULTRACODE_NEXT_EXECUTION_PLAN.md` — documental, sem comando executado, **sem gate concedido**, citando o `SHA256` deste desenho e o do objeto reprovado |
+
+**Tabela `II` — tokens complementares, já vigentes e reconferidos.**
+
+| # | token | valor | onde verificar |
+|---:|---|---|---|
+| 28 | `WILDCARDS_IN_DESTRUCTIVE_COMMANDS` | **0** | `E5.1`/`E5.2`/`RB3.2` — `rm -f -- <caminho>` e `rmdir -- <caminho>`, um caminho por chamada |
+| 29 | `PM_CLEAR_PRESENT` | **NÃO** | busca textual por `pm clear`: só aparece como **proibição** |
+| 30 | `INSTALL_PRESENT` | **NÃO** | nenhum `pm install`, `adb install` ou `install-multiple` |
+| 31 | `UNINSTALL_PRESENT` | **NÃO** | nenhum `pm uninstall` ou `adb uninstall` |
+| 32 | `ROOT_REQUIRED` | **NÃO** | todo acesso ao *sandbox* é por `run-as`; nenhum `adb root`, `su` ou `setenforce` |
+| 33 | `COMPARE_STATE_EDIT_REQUIRED` | **NÃO** | o instrumento é **consumido**, nunca parametrizado; `E0.4` confere `SHA256` e *bytes* |
+| 34 | `DEVICE_COMMANDS_NESTA_EMENDA` | **0** | esta emenda é documental; nenhum comando foi emitido ao aparelho para produzi-la |
 
 > **O que este quadro NÃO é.** Não é prova de que os comandos **funcionam** no aparelho — nada
 > aqui foi executado. É prova de que as **propriedades de segurança** afirmadas pelo documento
 > são verificáveis **na letra do documento**, por qualquer auditor, **sem** ligar o tablet.
+
+---
+
+### 18.1 Varredura adversarial **desta** emenda — achados próprios, corrigidos antes do lacre
+
+Os oito achados do `VERDE` estão fechados nos blocos acima. Esta seção registra o que a
+**varredura própria** desta emenda encontrou **depois** de fechá-los — vetores que ninguém
+apontou e que teriam sobrevivido ao lacre. Estão aqui porque **achado escondido é o defeito
+que a próxima auditoria encontra**, e porque um documento que só relata o que lhe foi cobrado
+não é auditável: é obediente.
+
+**Método.** Varredura textual integral sobre o documento inteiro, eixo a eixo: toda ocorrência de
+`-Append`; de `-ErrorAction SilentlyContinue`; de `Get-Content`; de `Test-Path`; de
+`Assert-Evidencia`, `Assert-Colecao`, `Assert-Stderr`, `Assert-Identidade`, `Assert-Projecao`,
+`Assert-RaizNova`; de `throw`; de `%Y` e de qualquer consumidor de *mtime*; de cada par
+`PRE`/`POST`; de cada escritor e cada leitor de `SELinux`; de cada caminho de *rollback*; de
+`HUMAN GATE`; de `RETRY_03`, `RETRY_04`, `RETRY_05`. Cada afirmação numérica das tabelas foi
+**recontada contra o corpo executável**, e não relida da tabela anterior.
+
+| # | vetor encontrado **nesta** varredura | por que era um defeito real | correção literal aplicada |
+|---:|---|---|---|
+| `V-1` | `RB1` reconferia a lista do TAR de *rollback* com `Assert-Evidencia $RB1_LIST 1` — **piso `1`** | a cardinalidade `22` chegava a `RB1` **apenas** herdada do meta gravado em `E3`. Um meta adulterado para `1` compraria passagem para o `restore` com **uma** entrada. Barreira única é barreira frágil | `$rb1_itens = [int](Assert-Evidencia $RB1_LIST 22)` **mais** `if ($rb1_itens -ne 22) { throw }` **mais** conferência de formato e igualdade contra `ROLLBACK_TAR_ENTRADAS`. §`13.1` linha `73` atualizada para `exata 22` |
+| `V-2` | a regra `A-3` declarava **três** exceções de arbitragem de `$LASTEXITCODE` | a contagem estava simplesmente **errada**. A medição linha a linha achou **cinco** pontos em que o código capturado não termina em `throw`. Uma regra normativa com contagem falsa é pior que regra ausente: ela **autoriza** o que não inventariou | `A-3` reescrita para **cinco**, e §`13.3.1` criada com a tabela `C` nomeando `X-1`…`X-5`, cada uma com passo, variável, motivo e **arquivo de evidência** em que o código observado é gravado |
+| `V-3` | §`13.3` afirmava `36` capturas de código de saída | número herdado de uma versão anterior do corpo executável. A recontagem deu **`44` linhas de captura** / `39` nomes distintos, mais `9` arbitragens diretas de comando de *host* = **`53` pontos**, `48` terminando em `throw` | §`13.3` e §`13.3.1` passam a declarar os números **medidos**, com a tabela `A` nomeando as `44` capturas uma a uma |
+| `V-4` | §`5.0` afirmava que `Set-Passo` tinha **seis** pontos de chamada | verdadeiro para a janela destrutiva, **incompleto para o documento**: `RB0`, `RB6` e `RB7` também chamam. Total real: **`9`**. Quem auditasse por busca textual acharia `9` e concluiria — corretamente — que a tabela mentia | §`5.0` passa a declarar `6` na janela **mais** `3` no *rollback* = `9`, e o token `26` de §`18` repete os `9` com os passos nomeados |
+| `V-5` | §`13.1` afirmava **`1`** artefato sem asserção (`07C_MTIME.txt`) | a varredura da coluna `EXISTÊNCIA` acha **`3`** traços: linhas `1` e `2` (`00_PREVOO.txt` e `12_dumpsys_package_raw.txt`) além da linha `60`. As duas primeiras são custódia de **campanha anterior**, sem escritor neste desenho — mas a tabela dizia `1` e a tabela era conferível | §`13.1` passa a declarar **`3`**, nomeando as três linhas e provando que as três têm `CONSUMIDOR = nenhum` e `DECISÃO DESTRUTIVA = NÃO`. `INV-2` continua valendo: **nenhuma delas arbitra** |
+| `V-6` | §`13.2` afirmava **cinco** pontos de coleção legitimamente vazia | com a revalidação `E1'`/`E2'` de `I4`, são **seis**. E os **cinco arquivos de *stderr*** não apareciam na tabela, embora sejam exatamente o caso em que vazio é ambíguo | §`13.2` passa a declarar **seis**, com linha própria para `I4`, **mais** uma linha para os cinco arquivos de *stderr* registrando que `Assert-Stderr` é seu **único** leitor e que **ausência é `STOP`** |
+| `V-7` | `R2P1_STOP_EVIDENCE_ROOT_PREEXISTS` era lançado por `Assert-RaizNova` e **não constava** da tabela de *tokens* de `STOP` de §`3.1` | um `STOP` que o documento pode emitir e não declara é um `STOP` que o operador não sabe interpretar quando acontece | §`3.1` recebe a linha, mais as de `R2P1_STOP_GATE_SEM_SHA` e `R2P1_STOP_DESIGN_CUSTODY_DIVERGED` |
+| `V-8` | `DESIGN_REPO_VS_CUSTODY` era **afirmação de relatório**: nada no procedimento comparava repositório, custódia e `SHA256` citado no gate | o executor poderia rodar, de boa-fé, uma **versão diferente** da auditada — que é precisamente o risco que a custódia existe para eliminar. Afirmação sem barreira é a família de defeito que motivou esta emenda inteira | novo bloco **`E0.0`**, o **primeiro** ato do desenho e `READ-ONLY`: exige `$GATE_SHA` preenchido (`R2P1_STOP_GATE_SEM_SHA`), confere *bytes* e `SHA256` de `$DESIGN_REPO` e `$DESIGN_CUST` entre si **e** contra `$GATE_SHA` (`R2P1_STOP_DESIGN_CUSTODY_DIVERGED`), e grava as `8` linhas correspondentes em `00_E0_INTEGRIDADE.txt` (piso de `26` → **`34`**) |
+
+| `V-9` | `RB1`, `RB2`, `RB3` e `RB4` **lançam** — corretamente —, mas o `catch` de §`5.0` **não** envolvia a cadeia `RB0..RB7`. Um `throw` em qualquer uma dessas barreiras **saía do `catch`** e a execução terminava **sem passar por `RB7`** | havia, portanto, um caminho **real** de término **sem nenhum arquivo de veredito**: nem `RB7_VEREDITO_FINAL.txt`, nem qualquer outro. `ROLLBACK_DISCIPLINE_COMPLETE = SIM` seria verdadeiro para o caminho feliz e **falso** para o caminho em que as próprias barreiras do *rollback* disparam — exatamente o caso em que o registro é mais necessário | a cadeia `RB0..RB7` passa a rodar dentro de um `try` **interno** ao `catch` de §`5.0`; o `catch` interno grava `$RSTC\RB_INTERROMPIDO_LACRE.txt` (`14` linhas, `Assert-Evidencia $RBIF 14`) com `ROLLBACK_CONCLUIDO=NAO`, `DEVICE_STATE=INDETERMINATE` e a exceção observada, e **relança** `R2P1_STOP_ENTRY_RESET_FAILED`. **Nenhum `throw` de `RB1`..`RB4` foi removido**; eles continuam interrompendo o *rollback* — passam apenas a deixar registro. §`13.1` ganha a linha `107` |
+
+**Nenhum destes nove foi encontrado por execução.** Todos saíram de leitura do próprio texto,
+antes do lacre e antes de qualquer `HUMAN GATE`. Nenhum deles enfraqueceu barreira existente:
+`V-1` **endureceu** uma; `V-8` e `V-9` **criaram** uma cada; os demais alinharam a tabela ao corpo
+executável — sempre corrigindo a **tabela**, nunca afrouxando o **código**.
+
+> **A assimetria que esta seção protege.** Quando tabela e corpo executável divergem, existem
+> duas correções possíveis, e elas **não** são equivalentes: mudar a tabela para descrever o
+> código, ou mudar o código para satisfazer a tabela. A segunda é tentadora e é como se destrói
+> um desenho de janela destrutiva — porque o código passa a servir à narrativa. Aqui, **sete**
+> dos nove achados foram corrigidos na tabela, e os dois que tocaram o corpo executável (`V-1` e
+> `V-9`) **aumentaram** o rigor. Nenhum `throw` foi removido, nenhum piso foi baixado, nenhuma asserção
+> foi relaxada.

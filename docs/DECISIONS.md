@@ -3848,15 +3848,21 @@ bloqueios — e **somente** eles.
 
 O procedimento integral, com **todos** os comandos destrutivos visíveis literalmente, está em
 [artefato `32`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/32_R2P1_ENTRY_RESET_DESIGN_01.md),
-**versão `DESIGN_02`** (`212435` *bytes*, `3624` linhas,
-`SHA256 2CB45E1B1A2E885652C0C8D91561B0BCF5284860F54EFE8E5D94125D635B3B44`). Cópia lacrada,
-auditoria estática, vinculação de decisões e manifesto em
-`C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_02\`.
+**versão `DESIGN_03`** (`327924` *bytes*, `4926` linhas,
+`SHA256 5B0083D49C0AAC484F3D77CD9C4770028CE346945915E52EEA3BE38CCF9E14D2`). O plano da próxima
+execução física está em
+[artefato `33`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/33_R2P1_ULTRACODE_NEXT_EXECUTION_PLAN.md)
+(`13515` *bytes*, `SHA256 0C8A8794CC2DD05CAB33317B0413833D11687B0E5DAA89A18BDA7040743B7DAA`).
+Cópia lacrada, auditoria estática, vinculação de decisões e manifesto em
+`C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_03\`.
 
-A versão anterior (`DESIGN_01`, commit `033ac60`, `92029` *bytes*) permanece **intacta e
-consultável** em `C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_01\`, como registro histórico da
-versão que recebeu `R2P1_ENTRY_RESET_MATERIALIZED_AUDIT_STOP`. Ela **não** foi alterada, apagada,
-renomeada nem sobrescrita — ver item `15`.
+As versões anteriores permanecem **intactas e consultáveis**: `DESIGN_01` (commit `033ac60`,
+`92029` *bytes*) em `C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_01\` e `DESIGN_02` (commit
+`a275ee6`, `212435` *bytes*, `SHA256 2CB45E1B…3B44`) em
+`C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_02\`, como registro histórico das versões que
+receberam, respectivamente, `R2P1_ENTRY_RESET_MATERIALIZED_AUDIT_STOP` e
+`R2P1_ENTRY_RESET_HARDENED_FINAL_AUDIT_STOP`. **Nenhuma delas** foi alterada, apagada, renomeada
+ou sobrescrita — ver itens `15` e `16`.
 
 **Conteúdo normativo:**
 
@@ -3976,6 +3982,45 @@ renomeada nem sobrescrita — ver item `15`.
       `TAR_RESTORE = 0` · `FILES_DELETED_ON_DEVICE = 0` · nenhuma restauração ·
       `HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION` **NÃO CONCEDIDO** · `R2P1_RETRY_03`
       **NÃO INICIADA** · `F6-SG-A` **NÃO CONCEDIDO** · baseline **inalterada**.
+16. **Terceira auditoria adversarial, correção integral e ESCOPO NOMINAL DO `HUMAN GATE`
+    (2026-08-14).** O `DESIGN_02`, selado no commit `a275ee6`, voltou do `VERDE` com
+    **`R2P1_ENTRY_RESET_HARDENED_FINAL_AUDIT_STOP`**. Pela **terceira** vez a **arquitetura foi
+    aceita** e a **execução foi bloqueada** — desta vez por **afirmação sem implementação**:
+    tabelas que descreviam guardas inexistentes. A correção foi **prospectiva e integral**;
+    `a275ee6` **não** foi reescrito, e nenhum *hash* histórico foi alterado.
+    - **Um gate autoriza uma tentativa — e o nome carrega o escopo.** A redação anterior podia
+      ser lida como cobrindo tentativas futuras. Fica estabelecido: `RETRY_03` exige
+      `HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION`; `RETRY_04` exige
+      `HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_04`; `RETRY_05` exige
+      `HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_05`; e a série continua **nominalmente**
+      (`..._REEXECUTION_<NN>`). **Não existe gate "aberto", gate "de série" nem renovação
+      automática.** Concluída ou interrompida a tentativa, o gate está **consumido**, ainda que
+      nenhum arquivo tenha sido removido. Regras integrais `G-1`…`G-7` em §`17.1` do artefato `32`.
+    - **Nenhum gate se estende** a outra baseline, a outro aparelho ou a outra raiz de evidência.
+      A **única** extensão admitida continua sendo a do item `5` — o *rollback* pertence à
+      autorização da tentativa que o disparou —, e ela é **para trás**, nunca para frente.
+    - **Todo gate cita o `SHA256` integral do desenho, e isso agora é barreira executável.** O
+      bloco `E0.0` do artefato `32` compara *bytes* e `SHA256` do desenho no repositório, do
+      desenho em custódia e do valor citado no gate **antes** de qualquer outro passo:
+      `R2P1_STOP_GATE_SEM_SHA` se o gate não citar `SHA256` de `64` dígitos;
+      `R2P1_STOP_DESIGN_CUSTODY_DIVERGED` se os três não forem o mesmo objeto.
+    - **`SHA256` vinculante a partir de agora:**
+      `5B0083D49C0AAC484F3D77CD9C4770028CE346945915E52EEA3BE38CCF9E14D2` (`327924` *bytes*).
+      **É o único valor que o `HUMAN GATE` de execução pode citar.** O valor
+      `2CB45E1B…3B44` (`DESIGN_02`) fica **aposentado para efeito de autorização** e permanece
+      apenas como proveniência histórica, ao lado dos de `DESIGN_01`.
+    - **Fica criado o token `R2P1_STOP_EVIDENCE_ROOT_PREEXISTS`** — raiz de evidência
+      preexistente (`$EXEC`, `$RSTC`, `$RST01`, `$RST02`) é `STOP`, nunca reaproveitamento.
+    - **Plano da próxima execução física materializado** como artefato `33`
+      (`R2P1_ULTRACODE_NEXT_EXECUTION_PLAN`), versionado e lacrado. Ele define
+      `HUMAN_GATE_R2P1_BLOCK_B_READY` — o gate **posterior** ao reset, que autoriza a retomada dos
+      itens `21`..`24` do `BLOCO B` e **nada além disso**.
+    - **Estado das autorizações, inalterado por esta etapa:**
+      `HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION` **NÃO CONCEDIDO** ·
+      `HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_04` **NÃO CONCEDIDO** ·
+      `HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_05` **NÃO CONCEDIDO** ·
+      `HUMAN_GATE_R2P1_BLOCK_B_READY` **NÃO CONCEDIDO** · `R2P1_RETRY_03` **NÃO INICIADA** ·
+      `F6-SG-A` **NÃO CONCEDIDO** · baseline **inalterada** · `DEVICE_COMMANDS = 0`.
 
 > ⛔ **Materialização não é execução.** Nesta etapa: `DEVICE_COMMANDS = 0` · `TAR_RESTORE = 0` ·
 > `FILES_DELETED_ON_DEVICE = 0` · `APP_OPEN = 0` · `METRO_START = 0` · `PS3_START = 0` ·
