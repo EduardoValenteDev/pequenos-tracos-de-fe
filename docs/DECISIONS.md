@@ -3847,9 +3847,16 @@ destrutivo ainda não existia em forma **auditável, versionada ou selada**, e p
 bloqueios — e **somente** eles.
 
 O procedimento integral, com **todos** os comandos destrutivos visíveis literalmente, está em
-[artefato `32`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/32_R2P1_ENTRY_RESET_DESIGN_01.md)
-(`92029` *bytes*, `SHA256 B87D58FC…B0B6`). Cópia lacrada, auditoria estática, vinculação de
-decisões e manifesto em `C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_01\`.
+[artefato `32`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/32_R2P1_ENTRY_RESET_DESIGN_01.md),
+**versão `DESIGN_02`** (`212435` *bytes*, `3624` linhas,
+`SHA256 2CB45E1B1A2E885652C0C8D91561B0BCF5284860F54EFE8E5D94125D635B3B44`). Cópia lacrada,
+auditoria estática, vinculação de decisões e manifesto em
+`C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_02\`.
+
+A versão anterior (`DESIGN_01`, commit `033ac60`, `92029` *bytes*) permanece **intacta e
+consultável** em `C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_01\`, como registro histórico da
+versão que recebeu `R2P1_ENTRY_RESET_MATERIALIZED_AUDIT_STOP`. Ela **não** foi alterada, apagada,
+renomeada nem sobrescrita — ver item `15`.
 
 **Conteúdo normativo:**
 
@@ -3915,6 +3922,60 @@ decisões e manifesto em `C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_01\`.
     **não** foi iniciada · **`F6-SG-A` permanece NÃO CONCEDIDO**. O futuro `HUMAN GATE` de
     execução **deverá citar o `SHA256` integral do desenho autorizado**, de modo que o executor
     não possa executar comandos diferentes dos auditados.
+14. **⛔ Supersessão LIMITADA e EXPRESSA da proibição histórica de restaurar `TAR`.** Esta cláusula
+    existe porque o conflito é **real**, não aparente, e porque a resolução **não pode depender**
+    da regra tácita *"a decisão mais nova prevalece"*. As duas passagens em conflito são citadas
+    **nominalmente**: `14_R2_SESSAO_2.md` §11, **condição de `STOP` nº `14`** — *"Necessidade de
+    restaurar `TAR` para «consertar» o estado de entrada"* — e `14_R2_SESSAO_2.md` §8.1 (`G-09`) —
+    *"🔴 NÃO restaurar `TAR` por reflexo. O aparelho já está no estado correto […] Restaurar é
+    operação destrutiva e desnecessária. Primeiro compara-se; restaurar não é o caminho de
+    correção deste gate."* **Ambas continuam VÁLIDAS e em vigor**, integralmente, fora da janela
+    aqui delimitada. `D-FUND-R2P1-ENTRY-RESET-01` cria uma **exceção procedimental específica**, e
+    **somente** ela, assim delimitada: **(a) natureza** — supersessão **limitada** e
+    **prospectiva**; não revoga, não reescreve e não reinterpreta o §8.1 nem o item `14` do §11;
+    **(b) janela** — exclusivamente o intervalo delimitado por
+    `HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION`, fora do qual o item `14` volta a valer **sem
+    qualquer atenuação**; **(c) posição** — sempre **anterior ao item `13`**, nunca durante, nunca
+    depois; **(d) pré-condições cumulativas** — app parado · sem Metro · sem `PS3` · sem *reverse* ·
+    sem *deep link* · *rollback* capturado e verificado · invariantes de produto pré-reset
+    aprovadas · comando integral auditado e selado por `SHA256`. **O que a exceção NÃO faz:**
+    ⛔ não cria tolerância de estado; ⛔ não transforma restauração em resposta genérica a `STOP`;
+    ⛔ **não** autoriza restauração depois de `R2P1_STOP_ENTRY_BASELINE_DIVERGED`; ⛔ não altera o
+    artefato `30`; ⛔ não altera a baseline; ⛔ não cria `AC-5`, *allowlist* ou tolerância nova.
+    **A distinção material:** o §8.1 proíbe restaurar **como conserto** — divergiu, restaura-se
+    por cima e o gate passa —, o que destrói a evidência da divergência e continua
+    **terminantemente proibido, inclusive dentro desta janela**. Esta janela autoriza **outra**
+    operação: fabricar deliberadamente, **antes** do gate, o estado de entrada conhecido, para que
+    os itens `13` e `14` tenham algo **honesto** para medir. O gate continua sendo julgado
+    **depois** e continua podendo reprovar.
+    `SCOPE_HISTORICAL_CONFLICT_EXPLICITLY_SUPERSEDED = SIM`.
+15. **Endurecimento após a segunda auditoria adversarial — supersessão documental limitada.** A
+    materialização do commit `033ac60` foi ao `VERDE` e voltou com
+    **`R2P1_ENTRY_RESET_MATERIALIZED_AUDIT_STOP`**. Pela **segunda** vez a **arquitetura foi
+    aceita** e a **execução foi bloqueada** — agora por **defeitos literais de execução**, não por
+    lacuna normativa. Registro:
+    - **O que foi superseded:** apenas a **redação executável** do artefato `32` e o `SHA256` que
+      o `HUMAN GATE` deve citar. **Nenhum item `1`..`13` acima foi revogado, reaberto ou
+      reinterpretado**; nenhum passo do procedimento foi removido; **nenhum comando novo ao
+      aparelho foi introduzido**.
+    - **`SHA256` vinculante a partir de agora:**
+      `2CB45E1B1A2E885652C0C8D91561B0BCF5284860F54EFE8E5D94125D635B3B44` (`212435` *bytes*).
+      **É o único valor que o `HUMAN GATE` de execução pode citar.**
+    - **Hash anterior — aposentado para autorização, preservado como história.** O manifesto de
+      `DESIGN_01` registra `B87D58FC3E8D7D2D…B0B6`; a auditoria do `VERDE` reporta
+      `B87D58FC8E3D…` (dois dígitos transpostos **entre os dois registros textuais**, não entre
+      dois arquivos: a cópia lacrada continua byte-idêntica ao artefato do commit `033ac60`).
+      **Ambos os valores ficam aposentados para efeito de autorização** e permanecem apenas como
+      **proveniência histórica**. Nenhum dos dois pode ser citado por `HUMAN GATE` futuro.
+    - **Custódia:** `C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_02\` (raiz nova; `PREEXISTIA =
+      NÃO`). **`…\R2P1_ENTRY_RESET_DESIGN_01\` permanece intacta** — nenhum arquivo dela foi
+      alterado, apagado, renomeado ou sobrescrito.
+    - **`compare_state.py` permanece lacrado** em `A7649DD2…FDFD`, **não editado** e **não
+      parametrizado**: `COMPARE_STATE_EDIT_REQUIRED = NÃO`.
+    - **Estado das autorizações, inalterado por esta etapa:** `DEVICE_COMMANDS = 0` ·
+      `TAR_RESTORE = 0` · `FILES_DELETED_ON_DEVICE = 0` · nenhuma restauração ·
+      `HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION` **NÃO CONCEDIDO** · `R2P1_RETRY_03`
+      **NÃO INICIADA** · `F6-SG-A` **NÃO CONCEDIDO** · baseline **inalterada**.
 
 > ⛔ **Materialização não é execução.** Nesta etapa: `DEVICE_COMMANDS = 0` · `TAR_RESTORE = 0` ·
 > `FILES_DELETED_ON_DEVICE = 0` · `APP_OPEN = 0` · `METRO_START = 0` · `PS3_START = 0` ·
