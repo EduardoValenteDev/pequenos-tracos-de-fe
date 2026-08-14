@@ -4022,6 +4022,32 @@ ou sobrescrita — ver itens `15` e `16`.
       `HUMAN_GATE_R2P1_BLOCK_B_READY` **NÃO CONCEDIDO** · `R2P1_RETRY_03` **NÃO INICIADA** ·
       `F6-SG-A` **NÃO CONCEDIDO** · baseline **inalterada** · `DEVICE_COMMANDS = 0`.
 
+17. **⚠️ `HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION` = `CONCEDIDO` (2026-08-14).** Concedido
+    **pelo fundador**, por mensagem direta, cujo ato de envio constitui a própria concessão. O
+    item `16` acima **não é reescrito**: ele permanece como registro histórico do estado
+    `NÃO CONCEDIDO` que vigorava até esta data. Esta concessão é **aditiva e posterior**.
+    - **Escopo:** **exatamente uma** execução de `R2P1_RETRY_03`. Nada além disso.
+    - **`HEAD` de entrada vinculado:** `2051e75b7ce22b9731c7e2952bdddfd85980239b`.
+    - **`DESIGN` (artefato `32`, `DESIGN_03`) — `SHA256` citado pelo gate:**
+      `5B0083D49C0AAC484F3D77CD9C4770028CE346945915E52EEA3BE38CCF9E14D2` (`327924` *bytes*).
+      É o valor que `E0.0` exige em `$GATE_SHA`.
+    - **`ULTRACODE PLAN` (artefato `33`) — `SHA256` citado pelo gate:**
+      `0C8A8794CC2DD05CAB33317B0413833D11687B0E5DAA89A18BDA7040743B7DAA` (`13515` *bytes*).
+    - **Custódia executável:** `C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_03\`. As custódias
+      `_01` e `_02` permanecem **históricas** e **não** são objeto executável.
+    - **Consumo:** a concessão é **consumida** tanto por `PASS` quanto por `STOP`. Encerrada a
+      tentativa — concluída ou interrompida —, o gate está **gasto**.
+    - **`HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_04` — `NÃO CONCEDIDO`.** `RETRY_04` **não** pode
+      ser iniciada por nenhum motivo, inclusive após `STOP`.
+    - **`HUMAN_GATE_R2P1_ENTRY_RESET_REEXECUTION_05` e posteriores — `NÃO CONCEDIDOS`.**
+    - **`HUMAN_GATE_R2P1_BLOCK_B_READY` — `NÃO CONCEDIDO`,** inclusive em caso de `PASS`. O
+      artefato `33` pode **medir e reportar** as pré-condições desse gate; **não** pode concedê-lo.
+      `CASO 7`, `CASO 8`, `BLOCO B` e `F6-SG-A` seguem **não autorizados**.
+    - **Não autorizados por esta concessão:** instalação, reinstalação ou troca de binário ·
+      desinstalação · `pm clear` · `root` / `adb root` · `setenforce` / `restorecon` / `chcon` ·
+      tolerância, *allowlist* ou `AC-5` · edição de `compare_state.py` · troca de baseline ·
+      `push`, `merge`, `rebase`, `amend` ou `squash`.
+
 > ⛔ **Materialização não é execução.** Nesta etapa: `DEVICE_COMMANDS = 0` · `TAR_RESTORE = 0` ·
 > `FILES_DELETED_ON_DEVICE = 0` · `APP_OPEN = 0` · `METRO_START = 0` · `PS3_START = 0` ·
 > `DEEPLINK = 0`. Nenhuma baseline foi trocada, nenhuma tolerância criada, nenhuma *allowlist*
