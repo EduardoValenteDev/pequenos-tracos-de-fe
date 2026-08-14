@@ -364,6 +364,44 @@ function pointerUri(value) {
 }
 
 /**
+ * [Fase 6 · F6-SG-A · CASO 17 / TK-A-079] CAMPOS LÓGICOS DO PAYLOAD — atravessam o ponteiro.
+ *
+ * O motor (`ColoringCanvas.exportPaint`) emite quatro campos que não são nem envelope nem
+ * geometria de exibição: `paintSchemaVersion` (QUE CAMPOS o payload tem), `layoutVersion` (O QUE
+ * as coordenadas significam) e o par `logicalW`/`logicalH` (o espaço lógico em que o bitmap foi
+ * escrito, 1:1). Até aqui a whitelist do envelope enumerava só nove campos, e os quatro morriam
+ * na ida ao disco — o payload voltava do ponteiro SEM os eixos que ele mesmo declarara. O efeito
+ * observável era exatamente o do `CASO 11`: obra gravada pelo formato de hoje reabrindo pelo ramo
+ * `v2-legado`, e `TK-A-079` — que exige abrir uma obra COM os dois eixos — sem estado físico
+ * capaz de satisfazê-lo.
+ *
+ * Três regras que este bloco preserva, e que valem para as duas direções:
+ *   1. cada campo é copiado PELO PRÓPRIO NOME, um por vez. Nenhum é deduzido de outro, do
+ *      envelope (`v`/`fmt`/`uri`) ou da geometria (§11.5.3 regra 5 · `G-VER-3` · `MT-29`);
+ *   2. campo AUSENTE continua ausente — nunca vira `null` escrito nem valor inventado. Ausência
+ *      de `paintSchemaVersion` significa payload legado, ausência de `layoutVersion` significa
+ *      geometria legada, e as duas ausências são INDEPENDENTES (`TK-A-002`);
+ *   3. só o SAVE seguinte escreve o formato novo (write-forward, `Q8` r.8). Ler não promove,
+ *      não migra e não regrava: um ponteiro legado resolve HOJE nos mesmos bytes de ontem,
+ *      porque nada é acrescentado quando nada foi persistido.
+ *
+ * `POINTER_VERSION` NÃO muda: o acréscimo é estritamente aditivo, `isPointer60` e
+ * `confirmPromotion` só testam `v === POINTER_VERSION` e a URI, e o contrato canônico congela
+ * o eixo do envelope em 3 (`G-VER-2` · `TK-A-005`; subir para 4 é o mutante `MT-28`).
+ */
+const LOGICAL_SCHEMA_FIELDS = ['paintSchemaVersion', 'layoutVersion', 'logicalW', 'logicalH'];
+
+/** Copia para `target` cada campo lógico PRESENTE em `source`, um a um. Devolve `target`. */
+function carryLogicalSchema(source, target) {
+  if (!source || typeof source !== 'object') return target;
+  for (const nome of LOGICAL_SCHEMA_FIELDS) {
+    const valor = source[nome];
+    if (valor !== undefined && valor !== null) target[nome] = valor;
+  }
+  return target;
+}
+
+/**
  * writeSlot(slotName, payload, protectUri) — grava o blob grande no slot informado (INATIVO) e
  * monta o ponteiro v3. Retorna `{ ptr, uri }` em sucesso, ou `null` em falha — limpando qualquer
  * arquivo parcial NO SLOT INATIVO (nunca toca o slot ativo/anterior).
@@ -400,6 +438,8 @@ async function writeSlot(slotName, payload, protectUri) {
       paintedPx: p.paintedPx ?? null,
       paintablePx: p.paintablePx ?? null,
     };
+    // Os campos LÓGICOS do payload sobem junto, cada um pelo seu nome e só quando existem.
+    carryLogicalSchema(p, layout);
   }
 
   const mime = dataUrlMime(dataUrl, 'image/png');
@@ -435,7 +475,7 @@ async function resolvePointer60(value) {
     // A medida da tinta volta EXATAMENTE como foi gravada (C60 · Parte 4). Ponteiros antigos, sem
     // esses campos, devolvem `null` — e `coloring60PaintMetrics` trata ausência de medida como
     // "não comprovado", nunca como "tem cor". Nenhum leitor antigo quebra: `v` continua 2.
-    return JSON.stringify({
+    const restored = {
       v: 2, W: p.W ?? null, H: p.H ?? null,
       imgX: p.imgX ?? null, imgY: p.imgY ?? null,
       imgW: p.imgW ?? null, imgH: p.imgH ?? null,
@@ -443,7 +483,11 @@ async function resolvePointer60(value) {
       paintedPx: p.paintedPx ?? null,
       paintablePx: p.paintablePx ?? null,
       data: dataUrl,
-    });
+    };
+    // Os campos LÓGICOS voltam PELO NOME, e SÓ os que foram persistidos. Ponteiro sem eles
+    // resolve exatamente nos mesmos bytes de antes desta correção — ler não promove nada.
+    carryLogicalSchema(p, restored);
+    return JSON.stringify(restored);
   }
   return dataUrl; // fmt 1
 }

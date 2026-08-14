@@ -37434,6 +37434,216 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         'a substituição atômica escreve no slot inativo antes de liberar o anterior');
     }
 
+    /* ── D2 · CASO 17 · `TK-A-079`: os campos LÓGICOS do payload ATRAVESSAM o ponteiro ─────────
+     *
+     * O motor sempre emitiu `paintSchemaVersion`, `layoutVersion`, `logicalW` e `logicalH`
+     * (`ColoringCanvas.exportPaint`), mas a whitelist do envelope enumerava só nove campos e os
+     * quatro morriam na ida ao disco. Medido fisicamente no `CASO 11`: a obra regravada pelo
+     * formato de hoje reabriu pelo ramo `v2-legado`, e o ponteiro persistido trouxe exatamente
+     * treze chaves — nenhuma delas os eixos. `TK-A-079` exige ABRIR uma obra COM os dois eixos;
+     * sem persistência não existia estado físico capaz de satisfazê-lo, e o caso era
+     * estruturalmente inexecutável — não reprovado.
+     *
+     * As doze provas abaixo cobrem as duas direções do defeito e, principalmente, o que NÃO pode
+     * mudar junto: ausência continua sendo legado, ler não promove, o double-buffer continua
+     * atômico e a falha continua preservando a geração anterior. Elas rodam sobre o writer REAL
+     * (`mkEnv`) e, nas duas últimas, sobre o MOTOR REAL da WebView — quem classifica o ramo é o
+     * mesmo código que roda no aparelho, não uma reimplementação. */
+    {
+      const {
+        bootMotor: bootC17, RASTER: RASTER_C17,
+        codificarPixels: codC17, fabricarPintura: pinturaC17,
+      } = require('./testing/artworkVersionHarness');
+
+      const LW17 = 64;
+      const LH17 = 48;
+      const TINTA17 = codC17(LW17, LH17, pinturaC17(LW17, LH17, 17), 'image/png');
+      /* Payload v2 REAL. `eixos` entra por fora justamente para que cada prova varie UM eixo por
+         vez — é a ortogonalidade de `TA-11` aplicada ao caminho de persistência. */
+      const obra17 = (eixos) => JSON.stringify(Object.assign(
+        { v: 2 },
+        eixos || {},
+        {
+          W: LW17, H: LH17, imgX: 0, imgY: 0, imgW: LW17, imgH: LH17,
+          rev: 4, paintedPx: 900, paintablePx: 3072, data: TINTA17,
+        },
+      ));
+      const OS_QUATRO = ['paintSchemaVersion', 'layoutVersion', 'logicalW', 'logicalH'];
+      const NOVA17 = obra17({ paintSchemaVersion: 1, layoutVersion: 1, logicalW: LW17, logicalH: LH17 });
+      const LEGADA17 = obra17(null);
+      const SO_PAINT17 = obra17({ paintSchemaVersion: 1 });
+      const SO_LAYOUT17 = obra17({ layoutVersion: 1, logicalW: LW17, logicalH: LH17 });
+      const ptr17 = (e) => JSON.parse(e.store.get(KEY_LIGHT));
+      const lido17 = async (e) => JSON.parse(await e.W.getColoring60SavedDrawing('creation', 'light'));
+      const salvar17 = async (payload) => {
+        const e = mkEnv({ plan: 'premium' });
+        const r = await e.W.saveColoring60DrawingState('creation', 'light', payload);
+        return { e, r };
+      };
+
+      // 1 · o eixo do PAYLOAD VISUAL chega ao disco.
+      {
+        const { e, r } = await salvar17(NOVA17);
+        check('C17-1 · `TK-A-079`: o save PERSISTE `paintSchemaVersion` no ponteiro',
+          r === R.SAVED && ptr17(e).paintSchemaVersion === 1,
+          `o ponteiro gravado não trouxe o eixo do payload visual: ${e.store.get(KEY_LIGHT)}`);
+        // 2 · o eixo da GEOMETRIA chega ao disco, e é outro campo, com vida própria.
+        check('C17-2 · `TK-A-079`: o save PERSISTE `layoutVersion` no ponteiro',
+          ptr17(e).layoutVersion === 1,
+          `o ponteiro gravado não trouxe o eixo de geometria: ${e.store.get(KEY_LIGHT)}`);
+        // 3 · ida-e-volta completa. `logicalW`/`logicalH` viajam junto porque quem DECLARA
+        //     `layoutVersion` se comprometeu a trazer a geometria explícita (`origemBruta`
+        //     recusa deduzir o retângulo de um payload que declara o eixo e não a traz).
+        const volta = await lido17(e);
+        check('C17-3 · `TK-A-079`: os dois eixos (e o espaço lógico) SOBREVIVEM a save → leitura',
+          volta.paintSchemaVersion === 1 && volta.layoutVersion === 1
+            && volta.logicalW === LW17 && volta.logicalH === LH17 && volta.v === 2,
+          `a volta pelo ponteiro perdeu campo lógico: ${JSON.stringify(Object.keys(volta))}`);
+      }
+
+      // 4 · AUSÊNCIA de `paintSchemaVersion` continua significando payload LEGADO — o writer não
+      //     completa, não normaliza e não inventa o eixo que o motor não declarou.
+      {
+        const { e } = await salvar17(SO_LAYOUT17);
+        const volta = await lido17(e);
+        check('C17-4 · `TK-A-002`: `paintSchemaVersion` ausente continua AUSENTE (payload legado, sem erro)',
+          !('paintSchemaVersion' in ptr17(e)) && !('paintSchemaVersion' in volta),
+          `o eixo visual ausente foi materializado: ${e.store.get(KEY_LIGHT)}`);
+      }
+      // 5 · AUSÊNCIA de `layoutVersion` continua significando geometria LEGADA.
+      {
+        const { e } = await salvar17(SO_PAINT17);
+        const volta = await lido17(e);
+        check('C17-5 · `TK-A-002`: `layoutVersion` ausente continua AUSENTE (geometria legada, sem erro)',
+          !('layoutVersion' in ptr17(e)) && !('layoutVersion' in volta),
+          `o eixo de geometria ausente foi materializado: ${e.store.get(KEY_LIGHT)}`);
+      }
+      // 6 · as duas ausências são INDEPENDENTES nos dois sentidos: declarar um eixo jamais
+      //     fabrica o outro. É `G-VER-3` medido no caminho de persistência (o mutante que o
+      //     derruba é `MT-29`, "inferir `layoutVersion` a partir de `paintSchemaVersion`").
+      {
+        const so1 = await salvar17(SO_PAINT17);
+        const so2 = await salvar17(SO_LAYOUT17);
+        const p1 = ptr17(so1.e);
+        const p2 = ptr17(so2.e);
+        check('C17-6 · `G-VER-3`: a ausência de um eixo NÃO fabrica o outro (nos dois sentidos)',
+          p1.paintSchemaVersion === 1 && !('layoutVersion' in p1)
+            && p2.layoutVersion === 1 && !('paintSchemaVersion' in p2),
+          `contaminação entre eixos — só-paint=${JSON.stringify(p1)} · só-layout=${JSON.stringify(p2)}`);
+      }
+
+      // 7 · LER NÃO PROMOVE. Um ponteiro legado (escrito antes desta correção) resolve HOJE nos
+      //     MESMOS bytes de ontem, e a leitura não faz nenhuma escrita física. É o que separa
+      //     "write-forward" de "migração na abertura" — e é o que garante que os casos físicos
+      //     já provados sobre obras legadas continuam valendo.
+      {
+        const e = mkEnv({ plan: 'premium' });
+        const uriLeg = `file://ptf_blobs/drawings60/${KEY_LIGHT.replace(/[^A-Za-z0-9_-]/g, '_')}.a.png`;
+        // Ponteiro na forma EXATA de antes da correção: nove campos de layout, nenhum eixo.
+        const ptrLegado = JSON.stringify({
+          v: 3, fmt: 2, uri: uriLeg, mime: 'image/png',
+          W: LW17, H: LH17, imgX: 0, imgY: 0, imgW: LW17, imgH: LH17,
+          rev: 4, paintedPx: 900, paintablePx: 3072,
+        });
+        e.store.set(KEY_LIGHT, ptrLegado);
+        e.blob.set(uriLeg, TINTA17);
+        const antes = { setItem: e.calls.setItem, writeBlob: e.calls.writeBlob, deleteBlob: e.calls.deleteBlob, removeItem: e.calls.removeItem };
+        const bruto = await e.W.getColoring60SavedDrawing('creation', 'light');
+        await e.W.hasColoring60SavedDrawing('creation', 'light');
+        const volta = JSON.parse(bruto);
+        const esperadoLegado = JSON.stringify({
+          v: 2, W: LW17, H: LH17, imgX: 0, imgY: 0, imgW: LW17, imgH: LH17,
+          rev: 4, paintedPx: 900, paintablePx: 3072, data: TINTA17,
+        });
+        check('C17-7 · `Q8` r.8: abrir/ler um ponteiro LEGADO não promove, não migra e não escreve',
+          bruto === esperadoLegado
+            && OS_QUATRO.every((f) => !(f in volta))
+            && e.store.get(KEY_LIGHT) === ptrLegado
+            && e.calls.setItem === antes.setItem && e.calls.writeBlob === antes.writeBlob
+            && e.calls.deleteBlob === antes.deleteBlob && e.calls.removeItem === antes.removeItem,
+          `a leitura mexeu no registro legado (escritas: setItem ${e.calls.setItem - antes.setItem}, `
+            + `blob ${e.calls.writeBlob - antes.writeBlob}, delete ${e.calls.deleteBlob - antes.deleteBlob})`);
+      }
+
+      // 8 · o double-buffer A/B continua atômico COM os campos novos a bordo.
+      {
+        const e = mkEnv({ plan: 'premium' });
+        await e.W.saveColoring60DrawingState('creation', 'light', NOVA17);
+        const uA = ptr17(e).uri;
+        // Segunda arte REALMENTE diferente (outra semente de tinta, outra revisão): o teste tem de
+        // provar que o conteúdo NOVO venceu, não apenas que o slot alternou.
+        const TINTA17B = codC17(LW17, LH17, pinturaC17(LW17, LH17, 71), 'image/png');
+        const SEGUNDA = JSON.stringify({
+          v: 2, paintSchemaVersion: 1, layoutVersion: 1, logicalW: LW17, logicalH: LH17,
+          W: LW17, H: LH17, imgX: 0, imgY: 0, imgW: LW17, imgH: LH17,
+          rev: 5, paintedPx: 950, paintablePx: 3072, data: TINTA17B,
+        });
+        await e.W.saveColoring60DrawingState('creation', 'light', SEGUNDA);
+        const uB = ptr17(e).uri;
+        const volta = await lido17(e);
+        check('C17-8 · `G-CMP-4`: o double-buffer A/B segue correto com os campos lógicos a bordo',
+          uA.endsWith('.a.png') && uB.endsWith('.b.png') && !e.blob.has(uA) && e.deleted.includes(uA)
+            && volta.data === TINTA17B && volta.rev === 5
+            && volta.paintSchemaVersion === 1 && volta.layoutVersion === 1,
+          `slot A=${uA} B=${uB} — a alternância, o conteúdo novo ou os eixos se perderam no re-save`);
+      }
+      // 9 · falha de escrita PRESERVA a geração anterior — inclusive os eixos dela.
+      {
+        const e = mkEnv({ plan: 'premium' });
+        await e.W.saveColoring60DrawingState('creation', 'light', NOVA17);
+        const antesPtr = e.store.get(KEY_LIGHT);
+        const eFalha = mkEnv({ plan: 'premium', writeBlobFails: true });
+        eFalha.store.set(KEY_LIGHT, antesPtr);
+        eFalha.blob.set(JSON.parse(antesPtr).uri, TINTA17);
+        const r = await eFalha.W.saveColoring60DrawingState('creation', 'light', LEGADA17);
+        const volta = await lido17(eFalha);
+        check('C17-9 · `Q8` r.9: falha de escrita preserva a geração anterior COM os eixos intactos',
+          r === R.WRITE_FAILED && eFalha.store.get(KEY_LIGHT) === antesPtr
+            && volta.paintSchemaVersion === 1 && volta.layoutVersion === 1,
+          'uma gravação falha rebaixou a obra anterior ou perdeu os eixos dela');
+      }
+      // 10 · CONTROLE NEGATIVO do bloqueador `SD-8`: o eixo do ENVELOPE não é atalho para o eixo
+      //      do payload. O ponteiro continua `v:3`, o payload que volta continua `v:2`, e nenhum
+      //      dos dois usa `v` para dizer "tem eixos" (`G-VER-1` · `G-VER-2` · `TK-A-005`).
+      {
+        const { e } = await salvar17(NOVA17);
+        const volta = await lido17(e);
+        check('C17-10 · `G-VER-1`/`G-VER-2`: `v:3` NÃO é substituto dos eixos (envelope 3, payload 2, congelados)',
+          ptr17(e).v === 3 && volta.v === 2
+            && /const POINTER_VERSION = 3;/.test(readSrc('src/services/coloring60DrawingStorage.js')),
+          `envelope=${ptr17(e).v} payload=${volta.v} — o eixo do envelope foi usado como discriminador de evolução`);
+      }
+
+      /* 11 e 12 · O MOTOR REAL fecha o ciclo. Até aqui as provas mediram o writer; estas medem o
+         LEITOR que roda no aparelho, sobre o payload que volta do ponteiro REAL. Sem isto, o mais
+         que se provaria é que o disco guardou um campo — não que o produto passou a enxergá-lo. */
+      {
+        const ramoDe = (payloadResolvido) => {
+          const m = bootC17(RASTER_C17, { largura: LW17, altura: LH17 });
+          m.limpar();
+          m.janela.validatePaint(payloadResolvido);
+          const bruto = m.ultima('PAINT_BRANCH:');
+          return bruto ? JSON.parse(bruto) : null;
+        };
+        const eNova = (await salvar17(NOVA17)).e;
+        const eLeg = (await salvar17(LEGADA17)).e;
+        const ramoNova = ramoDe(await eNova.W.getColoring60SavedDrawing('creation', 'light'));
+        const ramoLeg = ramoDe(await eLeg.W.getColoring60SavedDrawing('creation', 'light'));
+        // 11 · cada eixo é lido pelo PRÓPRIO nome: a obra nova entra pelo ramo lógico, a legada
+        //      continua entrando pelo ramo legado — e as DUAS continuam candidatas (ZERO #4).
+        check('C17-11 · `G-VER-3` [motor real]: o ramo vem do eixo NOMEADO — lógico p/ obra nova, legado p/ obra legada',
+          ramoNova && ramoNova.ramo === 'logico' && ramoNova.candidato === true
+            && ramoLeg && ramoLeg.ramo === 'v2-legado' && ramoLeg.candidato === true,
+          `nova=${JSON.stringify(ramoNova)} legada=${JSON.stringify(ramoLeg)}`);
+        // 12 · o bloqueio do CASO 17 caiu: existe estado persistido que o motor classifica como
+        //      "obra COM `paintSchemaVersion` + `layoutVersion`" — a precondição literal de
+        //      `TK-A-079`. Antes desta correção nenhum save do Colorir 60 podia produzi-lo.
+        check('C17-12 · `TK-A-079` deixa de ser estruturalmente inexecutável (existe obra persistida COM os dois eixos)',
+          ramoNova && ramoNova.ramo === 'logico' && ramoNova.ramo !== ramoLeg.ramo,
+          'nenhum estado persistível satisfaz a precondição do caso 17 — o bloqueio continua de pé');
+      }
+    }
+
     // ── E · FALHAS PARCIAIS: write_failed, sem resíduo, com o desenho anterior PRESERVADO ──
     {
       // Falha ao escrever o arquivo (numa arte NOVA): write_failed, nada persistido, sem órfão.
