@@ -3837,6 +3837,91 @@ Registro técnico integral em
 > iniciada: nenhum aplicativo aberto, nenhum *deep link*, nenhum Metro, nenhum `adb reverse`,
 > nenhum `TAR` restaurado, **nenhum comando emitido ao aparelho** nesta etapa.
 
+## `D-FUND-R2P1-ENTRY-RESET-01` — reset determinístico da baseline de entrada (2026-08-13)
+
+Decisão explícita do fundador, tomada **depois** de aceitar integralmente o
+`R2P1_ENTRY_RESET_AUDIT_STOP` emitido pela auditoria adversarial independente. O `STOP`
+**não** rejeitou a arquitetura do reset: bloqueou sua **execução**, porque o procedimento
+destrutivo ainda não existia em forma **auditável, versionada ou selada**, e porque restavam
+**lacunas normativas** a resolver antes da primeira restauração. Esta decisão elimina esses
+bloqueios — e **somente** eles.
+
+O procedimento integral, com **todos** os comandos destrutivos visíveis literalmente, está em
+[artefato `32`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/32_R2P1_ENTRY_RESET_DESIGN_01.md)
+(`92029` *bytes*, `SHA256 B87D58FC…B0B6`). Cópia lacrada, auditoria estática, vinculação de
+decisões e manifesto em `C:\tmp\ptf_evidencias\R2P1_ENTRY_RESET_DESIGN_01\`.
+
+**Conteúdo normativo:**
+
+1. **`R2P1_RETRY_ENTRY_BASELINE_01` continua sendo a ÚNICA baseline operacional de entrada** e
+   **não** é substituída a cada *retry*. O que muda é que ela passa a poder ser **reproduzida**,
+   de forma determinística, **antes** do item `13`, sob **`HUMAN GATE` próprio**.
+2. **Finalidade:** tornar os *retries* repetíveis **sem** baseline nova, **sem** tolerância nova,
+   **sem** *allowlist*, **sem** `AC-5` e **sem** alterar o `compare_state.py`.
+3. **Os dois papéis permanecem, e nenhum é removido:**
+   `ARTEFATO 30 = proveniência e invariantes históricas de produto` ·
+   `R2P1_RETRY_ENTRY_BASELINE_01 = estado operacional de entrada reproduzível`.
+   **A verificação das invariantes contra o artefato `30` continua obrigatória.**
+4. **Fica criado o token `R2P1_STOP_ENTRY_RESET_FAILED`**, de uso **exclusivo** para falha
+   **dentro** da operação de reset, **antes** de a restauração ter sido concluída e validada
+   pelos itens `13` e `14`: falha de remoção, falha de extração, `adb` perdido durante mutação,
+   estado parcial, necessidade de *rollback*, estrutura restaurada inválida, metadado estrutural
+   crítico divergente, `SELinux` divergente da referência pré‑remoção, ou qualquer estado
+   parcialmente restaurado ou indeterminado. **Ele NÃO substitui
+   `R2P1_STOP_ENTRY_BASELINE_DIVERGED`**, que continua sendo o token de restauração **concluída**
+   cujo item `14` acusou divergência. **A distinção é normativa.**
+5. **O *rollback* pertence à MESMA autorização de execução** e **não** exige segundo
+   `HUMAN GATE` depois que a operação destrutiva começou. Condições cumulativas: `E3` concluído
+   com sucesso · `TAR` no *host* · tamanho e `SHA256` registrados · listagem registrada · falha
+   posterior ao início de `E5` · nenhuma dúvida sobre a qual execução o *rollback* pertence.
+6. **`ROLLBACK_ATTEMPTS = 1`.** Proibidos: laço de *rollback*, nova restauração "para testar",
+   segunda tentativa automática e reexecução de `E5`/`E6` para fazer passar. **Um *rollback*
+   bem‑sucedido NÃO converte a execução em `PASS`:** o resultado continua
+   `R2P1_STOP_ENTRY_RESET_FAILED`. Se o *rollback* **não** puder ser executado: **não** improvisar,
+   **não** restaurar de novo, **não** abrir o aplicativo, **não** usar `pm clear`, **não** instalar,
+   **não** apagar mais nada — classificar `R2P1_STOP_ENTRY_RESET_FAILED` com
+   `DEVICE_STATE = INDETERMINATE` e aguardar novo `HUMAN GATE`.
+7. **`MTIME_GATE = DIAGNOSTIC_ONLY`.** `mtime` **não** entra no veredito de igualdade do item `14`
+   e **não** pode, sozinho, produzir `R2P1_STOP_ENTRY_BASELINE_DIVERGED`. É registrado para
+   forense, atribuição temporal e comparação entre restaurações. **Nenhum *gate* novo é criado
+   por `mtime`.**
+8. **`RESET_WINDOW_SCOPE_RULE = HARD_STOP`.** Entre o início de `E5` e o encerramento válido do
+   item `14`, `ESCOPO_OK = NAO` **não** autoriza recaptura, repetição de captura, prosseguimento
+   nem explicação como "falha de comando". A regra histórica de recaptura — criada para capturas
+   **não** destrutivas — **não** se aplica dentro da janela de reset.
+9. **Invariantes de produto ANTES da remoção.** Antes de qualquer `E5`, o estado físico **atual**
+   é comparado ao artefato `30`, exigindo **`8`/`8`** invariantes idênticas **e**
+   `KEYS_ADDED`/`KEYS_CHANGED`/`KEYS_DELETED`/`KEYS_ROWID_MOVED` em **zero**
+   (`PRE_RESET_PRODUCT_INVARIANTS = PASS`). Divergência **anterior** ao reset produz
+   **`STOP` ANTES DA REMOÇÃO** — para que a restauração não apague a evidência dela. **Isto não
+   substitui `E8`:** as invariantes são verificadas **duas** vezes, antes e depois.
+10. **`SELinux`.** **Não existe referência histórica pré‑existente de `ls -Z`** e nenhum valor
+    histórico é presumido. A referência é o `SELINUX_PRE` **da própria execução** (`E4A`),
+    comparado ao `SELINUX_POST` (`E7A`). Divergência material produz
+    `R2P1_STOP_ENTRY_RESET_FAILED` — **sem** correção silenciosa por `restorecon`, `chcon`, *root*
+    ou qualquer mecanismo não autorizado.
+11. **Modos, dono e grupo.** Esperado `uid 10364` / `gid 10364`, reconfirmado no item `12`. Como o
+    comportamento real do `tar -x` do *toybox* **nunca foi exercido** neste aparelho, a reprodução
+    de modos **não** é presumida: `MODE_PRE` (`E4B`) e `MODE_POST` (`E7B`). Conteúdo correto com
+    modos de acesso divergentes produz `R2P1_STOP_ENTRY_RESET_FAILED`. **Nenhum `chmod` corretivo
+    silencioso** — a primeira execução existe justamente para **medir** o comportamento real do
+    mecanismo, e **nenhum `chmod` passa a ser autorizado**.
+12. **`RESTORE_ATOMIC = NAO` · `PARTIAL_FAILURE_DETECTABLE = SIM`.** O procedimento **não** finge
+    transação inexistente. A segurança vem de *rollback* prévio, lista explícita, verificação
+    estrutural, `TAR` posterior, comparador selado, invariantes antes e depois, `SELinux` antes e
+    depois, modo/dono antes e depois, e `STOP` duro.
+13. **Esta decisão NÃO autoriza execução.**
+    `HUMAN_GATE_R2P1_ENTRY_RESET_FIRST_EXECUTION` **não** foi concedido · `R2P1_RETRY_03`
+    **não** foi iniciada · **`F6-SG-A` permanece NÃO CONCEDIDO**. O futuro `HUMAN GATE` de
+    execução **deverá citar o `SHA256` integral do desenho autorizado**, de modo que o executor
+    não possa executar comandos diferentes dos auditados.
+
+> ⛔ **Materialização não é execução.** Nesta etapa: `DEVICE_COMMANDS = 0` · `TAR_RESTORE = 0` ·
+> `FILES_DELETED_ON_DEVICE = 0` · `APP_OPEN = 0` · `METRO_START = 0` · `PS3_START = 0` ·
+> `DEEPLINK = 0`. Nenhuma baseline foi trocada, nenhuma tolerância criada, nenhuma *allowlist*
+> aberta, nenhum `AC-5` cunhado e o `compare_state.py` permanece lacrado em
+> `A7649DD2…FDFD`.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
