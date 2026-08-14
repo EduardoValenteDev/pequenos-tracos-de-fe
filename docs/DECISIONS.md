@@ -4054,6 +4054,111 @@ ou sobrescrita — ver itens `15` e `16`.
 > aberta, nenhum `AC-5` cunhado e o `compare_state.py` permanece lacrado em
 > `A7649DD2…FDFD`.
 
+## `D-FUND-R2P1-CLOSURE-01` — encerramento documental do `R2P1_RETRY_03` (2026-08-14)
+
+Decisão **do fundador**, tomada após receber a análise causal fechada do `STOP` de `E3A`.
+Registro técnico integral em
+[artefato `34`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/34_R2P1_RETRY_03_CLOSURE_E_ARBITRAGEM_PROSPECTIVA.md).
+
+**Conteúdo normativo:**
+
+1. **`R2P1_RETRY_03` fica fixada, literalmente, como `STOP_PRE_MUTATION`.** O *token* terminal
+   histórico permanece **`R2P1_STOP_ENTRY_RESET_FAILED`**, emitido no local **`E3A`**. A etapa
+   **`E5` não foi executada**.
+2. **Fatos físicos lacrados da tentativa:** `FILES_DELETED_ON_DEVICE = 0` ·
+   `TAR_RESTORE_ON_DEVICE = 0` · *rollback* **não utilizado** · estado final do aparelho
+   **`INTACT`**.
+3. **O `STOP` permanece verdadeiro e preservado. Ele NÃO é convertido em `PASS`.** Nenhuma
+   tolerância, *allowlist* ou `AC-5` é criada para torná-lo retroativamente aprovado, e nenhum
+   critério é afrouxado com esse efeito.
+4. **O reset determinístico da baseline de entrada permanece `PHYSICAL_PROOF_INCOMPLETE`.** Ele
+   **não** foi provado fisicamente e **não** é declarado concluído.
+5. **`F6_CLOSURE_BLOCKER = NÃO`.** Motivo — e apenas este: o reset determinístico era uma
+   **camada posterior de endurecimento da infraestrutura de entrada**, não um requisito
+   funcional adicional do Roteiro para os blocos prospectivos `B`–`E` **já autorizados**. Sua
+   incompletude física **não** cria requisito novo de produto nem invalida a autorização
+   existente.
+6. **A origem da `R2` prospectiva permanece governada por `D-FUND-R2-CONTINUITY-01`** e pela
+   baseline lacrada no [artefato `30`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/30_CURRENT_BASELINE_R2_PROSPECTIVE_ORIGIN.md).
+   Nada nesta decisão desloca essa origem.
+7. **Ficam proibidos, sem exceção:** executar `RETRY_04` · recanonicalizar a entrada do `R2P1` ·
+   criar `BASELINE_02` · reabrir a auditoria `A`–`F` do reset · alterar o `DESIGN` (artefato `32`)
+   · alterar o `PLAN` (artefato `33`) · editar `compare_state.py`.
+
+> ⛔ **Encerrar documentalmente não é aprovar.** `R2P1_RETRY_03` continua sendo um `STOP`. Esta
+> decisão apenas **retira o reset determinístico do caminho crítico da Fase 6** — ela não o
+> declara feito, não o converte em evidência e não o apaga do histórico.
+
+## `D-FUND-R1-PEND5-EVIDENCE-GAP-01` — aceitação da lacuna de custódia do `R1-PEND-5` (2026-08-14)
+
+Decisão **do fundador**. Complementa — sem substituir — `D-FUND-R1-PEND5-01`.
+
+**Conteúdo normativo:**
+
+1. **`R1-PEND-5` é a ausência histórica do `raw.log` da `R1`**, que **não foi preservado à
+   época** e é, hoje, **irrecuperável**. O log não existe mais e nenhuma operação pode fazê-lo
+   existir.
+2. **É proibido:** fabricá-lo · reconstruí-lo · sintetizá-lo · retrodatá-lo · apresentar
+   qualquer log novo como se fosse o antigo. Nenhuma dessas condutas é aceitável sob nenhum
+   pretexto de completude.
+3. **Fica registrado o *token* terminal `R1_PEND_5 = EVIDENCE_GAP_ACCEPTED_BY_FOUNDER`.**
+4. **O que esta decisão fecha:** exclusivamente a **lacuna de custódia**. **O que ela não faz:**
+   não altera o resultado funcional observado da `R1` · não cria evidência inexistente · não
+   autoriza esconder nenhum `FAIL` real, presente ou futuro.
+
+## `D-FUND-R2-PROSPECTIVE-STATE-ARBITER-01` — árbitro de estado da `R2` prospectiva (2026-08-14)
+
+Decisão **do fundador**, aplicável **somente de forma prospectiva** à campanha `B`–`E`.
+
+**Conteúdo normativo:**
+
+1. **Separação de eixos.** Passam a ser julgados separadamente o **`ESTADO LÓGICO DE PRODUTO`**
+   e o **`BOOKKEEPING / INFRAESTRUTURA DA PLATAFORMA`**. Os dois continuam sendo **medidos e
+   registrados**; apenas deixam de ser confundidos num único veredito.
+2. **`compare_state.py` permanece LACRADO e NÃO PODE SER EDITADO** (`SHA256`
+   `A7649DD2…FDFD`, `4380` *bytes*). Seu resultado global continua sendo **evidência de
+   primeira ordem e é preservado integralmente**. O que muda é apenas isto: **o *token* agregado
+   de igualdade binária deixa de ser, sozinho, o árbitro de `PASS`/`FAIL` dos casos
+   prospectivos**.
+3. **`RKStorage` — árbitros de produto:** conjunto de chaves · tipos · valores serializados ·
+   chaves adicionadas · chaves removidas · valores alterados.
+4. **`RKStorage` — diagnósticos físicos, que sozinhos não produzem `FAIL`:** *file change
+   counter* do SQLite · *version-valid-for* · mudança de `rowid` **quando chave, tipo e valor
+   permanecem idênticos**.
+5. **`KEYS_ADDED`, `KEYS_CHANGED` e `KEYS_DELETED` inesperados permanecem materialmente
+   relevantes.** **Nenhuma alteração lógica pode ser mascarada.**
+6. **`files/phenotype_storage_info/shared/storage-info.pb`** fica classificado, **de forma
+   prospectiva**, como **`PLATFORM_BOOKKEEPING_DIAGNOSTIC`** — bookkeeping do Phenotype /
+   Google Play Services, **não** dado lógico infantil. Esta classificação **não** modifica
+   relatórios históricos e **não** transforma nenhum `STOP` histórico em `PASS`.
+7. **Superfícies de infraestrutura já classificadas** — registradas **separadamente** sempre
+   que mudarem: `files/profileInstalled` · `shared_prefs/WebViewChromiumPrefs.xml` ·
+   `shared_prefs/android.app.ActivityThread.IDS.xml` ·
+   `shared_prefs/expo.modules.devlauncher.recentyopenedapps.xml` ·
+   `files/DevLauncherApp-*DevBundle.js` ·
+   `files/phenotype_storage_info/shared/storage-info.pb`. Elas **devem ser registradas, nunca
+   ocultadas**, **não recebem `AC_5`** e **não reprovam um caso sozinhas**.
+8. **Escritor novo ⇒ `HARD STOP`.** Qualquer caminho mutado que **não** esteja classificado no
+   corpus, **não** seja efeito previsto da própria ação do caso e **não** seja atribuível com
+   evidência produz **`HARD STOP`**. **É proibido criar `AC_5`.**
+
+## `D-FUND-R2-CASO6-ANTECEDENT-01` — ciclo antecedente do `CASO 6` (2026-08-14)
+
+Decisão **do fundador**, aplicável à campanha prospectiva `B`–`E`.
+
+**Conteúdo normativo:**
+
+1. **O ciclo antecedente exigido pelo `CASO 6` é o Bloco `B` imediatamente anterior**
+   (`CASO 7` → `CASO 8`). Nenhum ciclo histórico é herdado para esse papel.
+2. **O antecedente só é válido se a comparação pós-Bloco `B` provar, cumulativamente:** nenhuma
+   gravação lógica de produto incompatível com os critérios dos casos `7` e `8` · nenhum
+   trabalho perdido · nenhuma alteração lógica de valor inesperada · nenhuma violação das
+   invariantes `ZERO`.
+3. **Bookkeeping de infraestrutura já classificado não constitui "gravação de produto"** para
+   efeito deste antecedente.
+4. **Se o Bloco `B` produzir alteração lógica de produto real e inesperada, o `CASO 6` NÃO é
+   executado** — emite-se `STOP` antes dele.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
