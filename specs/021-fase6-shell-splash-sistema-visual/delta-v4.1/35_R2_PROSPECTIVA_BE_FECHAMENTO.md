@@ -430,5 +430,101 @@ nova de evidência** por causa do método de encerramento · não altera código
 
 ---
 
+### 10.10 · `ERRATA-02` — precisão semântica do rótulo `POWER_SAFE` · 2026-08-14
+
+> ⚠️ **Correção de PRECISÃO, não de fato.** Nenhuma medição do §10 é desmentida. Nenhum *byte* do
+> `raw_campaign.log` é tocado. **O texto histórico acima NÃO é apagado**: o *token*
+> `R2_RAW_CAMPAIGN_LOG_SEALED_POWER_SAFE` permanece legível onde foi emitido (§10, cabeçalho, e o
+> bloco final deste artefato), e esta errata registra o que ele prova e o que ele **não** prova.
+
+#### 10.10.1 · Reconferência independente do lacre (2026-08-14, host-side, somente leitura)
+
+| Campo | Valor medido nesta errata | Valor selado no §10.4 | Confere |
+|---|---|---|---|
+| Caminho | `C:\tmp\ptf_evidencias\R2_PROSPECTIVE_BE_01\logcat\raw_campaign.log` | idem | — |
+| Tamanho | `66 308 703` *bytes* | `66 308 703` | ✅ |
+| `LastWriteTime` | `2026-08-14 20:49:43.411` | `2026-08-14 20:49:43.411` | ✅ |
+| `SHA256` | `CCA75FB345E3176A56A6669D53BE46F545549E917BEFD4D82009B3C8847D81E2` | idem | ✅ |
+| *Handle* | LIVRE (abertura exclusiva `FileShare.None` bem-sucedida) | LIVRE | ✅ |
+
+Inventário recursivo reconferido no mesmo ato: **`350` arquivos · `694 141 406` *bytes* · `6`
+subdiretórios** (`acervo` `18` · `extract` `238` · `logcat` `4` · `out` `66` · `preflight` `12` ·
+`tools` `12`) · **`159`** diretórios · **`0`** arquivos na raiz. Varredura de abertura exclusiva
+sobre os `350`: **`349` LIVRES**, **`1` preso** — `preflight/PS1_METRO.log`, detido pela cadeia do
+Metro (`cmd.exe` PID `20352`, que redireciona a saída de `npm run start:dev`; o processo Metro em si
+é `node.exe` PID `4372`, à escuta em `:8081`). Conforme §10.8, esse arquivo **não é evidência de
+caso**.
+
+> 🔧 **Correção pontual ao §10.3.** A linha *"Metro `20352` · **VIVO**"* nomeia como "Metro" o
+> processo **errado**: `20352` é o `cmd.exe` lançador que detém o *handle* de escrita do
+> `PS1_METRO.log`; o Metro propriamente dito é `node.exe` PID `4372`. A afirmação de fato — **o
+> Metro foi preservado vivo** — está correta; apenas o número do PID estava trocado. Ambos
+> permanecem vivos nesta reconferência.
+
+#### 10.10.2 · As oito camadas, separadas — o que o §10 realmente provou
+
+| # | Camada | Estado | Prova / razão |
+|---|---|---|---|
+| 1 | Processo escritor encerrado | **PROVADO** | `PID 27288` **AUSENTE** após `Stop-Process` (§10.3) |
+| 2 | *Handle* de escrita liberado | **PROVADO** | abertura exclusiva `FileShare.None` bem-sucedida (§10.4) e reconferida em 10.10.1 |
+| 3 | Tamanho estável | **PROVADO** | `66 308 703` B em duas medições separadas por mais de um ato |
+| 4 | *Hash* estável | **PROVADO** | `CCA75FB3…D81E2` idêntico em duas medições independentes |
+| 5 | Arquivo fechado (nenhum escritor ativo) | **PROVADO** | 1 + 2 combinados |
+| 6 | *Flush* do buffer de aplicação | **NÃO PROVADO** | `Stop-Process -Force` é `TerminateProcess`: **não** executa *flush* de buffer de usuário. O que está provado é adjacente e mais fraco: o último *byte* é `0x0A` e o *delta* pós-*kill* foi `0` *bytes* — logo **nenhuma linha parcial se perdeu** e nada estava pendente **no instante medido**. Isso **não** é um *flush* comprovado |
+| 7 | *Flush* explícito do SO | **NÃO EXECUTADO** | nenhum `FlushFileBuffers`, nenhum `FILE_FLAG_WRITE_THROUGH`, nenhum *flush* de volume foi disparado |
+| 8 | Durabilidade contra queda **abrupta** de energia | **NÃO MEDIDA** | não há medição no §10, e nenhuma medição de hoje poderia produzi-la **retroativamente** |
+
+#### 10.10.3 · Onde o rótulo excede a prova
+
+O sufixo **`POWER_SAFE`** afirma a **camada 8**. A campanha provou as camadas **1 a 5**. As camadas
+**6, 7 e 8 não foram medidas**. Portanto o rótulo, lido ao pé da letra, **é mais forte que a sua
+prova**.
+
+**Redação precisa, dentro da convenção já existente do próprio artefato:**
+
+> ### `R2_RAW_CAMPAIGN_LOG_SEALED_AND_HASHED`
+> — arquivo **fechado**, *handle* **livre**, tamanho **estável**, `SHA256` **estável e reconferido**,
+> continuidade de prefixo **provada** (§10.5). Nada além disso é afirmado.
+
+Nenhum identificador canônico novo é criado: o *token* preciso permanece na família
+`R2_RAW_CAMPAIGN_LOG_SEALED_*` já usada pelo §10.
+
+#### 10.10.4 · Por que NENHUM *flush* foi executado
+
+A missão autorizava *flush* host-side **apenas** se provadamente não destrutivo. Ele **não foi
+executado**, por duas razões — a segunda é decisiva:
+
+1. **Escopo e risco.** Todo método file-scoped (`FlushFileBuffers`, reabertura com
+   `FILE_FLAG_WRITE_THROUGH`) exige *handle* de **escrita** sobre a evidência lacrada — abrir para
+   escrita mexe em metadado e admite risco de mutação. Métodos de volume não são file-scoped.
+2. **Um *flush* de hoje não repara a afirmação.** `POWER_SAFE` é uma asserção sobre o **lacre**, no
+   instante `20:49:43.411`. Um *flush* executado agora provaria durabilidade **a partir de agora** —
+   jamais retroativamente. **Logo a correção semântica seria necessária de qualquer modo**, e
+   executar operação duvidosa sobre evidência lacrada para nada seria injustificável.
+
+> ✅ **Conclusão operacional:** corrigiu-se a **precisão da afirmação**, não o arquivo. O
+> `raw_campaign.log` permanece **bit a bit idêntico** ao que foi selado.
+
+#### 10.10.5 · Defasagem documental sinalizada — `docs/DECISIONS.md`
+
+`docs/DECISIONS.md:4189-4193` (item 6 do encerramento da `R2`) ainda declara, VERBATIM, que o
+`raw_campaign.log` está *"**aberto para escrita** pelo `PS3`"* e possui *"apenas **hash de prefixo**
+datado"*. Essa redação é **anterior** ao §10 deste artefato e hoje está **defasada**: o arquivo está
+fechado e possui *hash* integral reconferido.
+
+**Nada é editado em `docs/DECISIONS.md` por esta errata.** O livro de decisões é do fundador;
+atualizá-lo é ato dele. Fica **apenas o registro cruzado**, e o item entra no registro
+`PENDING HUMAN DECISION` do artefato `37`.
+
+#### 10.10.6 · O que esta errata NÃO faz
+
+Não reabre caso · não altera veredito · não concede portão · não toca o arquivo · não toca o tablet ·
+não fecha o Metro · não edita `docs/DECISIONS.md` · não apaga a redação histórica · **não** cria
+exigência nova de evidência.
+
+---
+
 > ### `R2_PROSPECTIVE_BE = PASS`
 > ### `R2_RAW_CAMPAIGN_LOG_SEALED_POWER_SAFE`
+> *(rótulo histórico preservado — leia com a `ERRATA-02` do §10.10, que o precisa como*
+> ***`R2_RAW_CAMPAIGN_LOG_SEALED_AND_HASHED`***)*
