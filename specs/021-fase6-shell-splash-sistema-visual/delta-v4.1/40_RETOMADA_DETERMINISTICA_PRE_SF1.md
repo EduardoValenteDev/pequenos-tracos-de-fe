@@ -459,3 +459,107 @@ empacotado** a contenha — essa medição nunca foi feita (`28:328-337`).
 > escrita e não atribui ao fundador decisão que ele não tenha tomado. O que ela entrega é o
 > **`HUMAN GATE` verdadeiro**: quatro decisões humanas, cada uma reduzida ao menor enunciado
 > possível, com recomendação explícita e fundamento verificado.
+
+---
+
+## `ERRATA-08` — o sentido do "acervo misto" está invertido no corpus, e isso muda duas recomendações deste próprio artefato (aditiva; nada acima foi reescrito)
+
+> **Origem.** Verificação tardia do roteiro `07` §`G5`–`G7`, integralmente. **Nada acima foi
+> apagado ou reescrito** — os pontos abaixo corrigem, datados, o que ficou errado, inclusive erros
+> **meus**, escritos nas seções `5.3`, `5.5` e `6.2` deste artefato.
+
+### `E8-1` — `GH2b` **não cria** o acervo misto: ele o **encerra**
+
+`39:371-372` afirma: *"No SM-X510 o 'misto' dependeria do salvamento de §28 `#7` (`GH2b`) … **Se
+`GH2b` não for autorizado, `SF2` fica sem pré-condição**"*. **O sentido está invertido**, e a prova
+é a definição operacional do misto, não uma interpretação:
+
+- `07:621` passo 5 define `E6` como *"abrir a **galeria** com o acervo misto; conferir miniaturas;
+  **abrir uma de cada formato**"*. Misto ⇒ **um de cada** ⇒ o formato antigo tem de **sobreviver**.
+- `13:321` mede o acervo: **`len(index) == 1`**. Existe **uma única** obra do Ateliê.
+- `GH2b` promove essa única obra (`39:620`: *"deixa de ser legada **para sempre**"*). Depois dela,
+  o acervo tem **zero** obras do formato antigo — **o misto deixa de existir**.
+
+**Quem cria o misto é a obra NOVA**, não o salvamento da antiga. Enumerando as quatro combinações:
+
+| `ARB-OBRA-NOVA` | `ARB-28-7-TIRO-UNICO` | Antigas | Novas | Misto? |
+|---|---|---|---|---|
+| SIM | **NÃO** | 1 | 1 | ✅ **é a única combinação que produz misto** |
+| SIM | SIM | 0 | 2 | ❌ |
+| NÃO | SIM | 0 | 1 | ❌ |
+| NÃO | NÃO | 1 | 0 | ❌ |
+
+> **Retifico o que escrevi.** `ERRATA-07` `E7-9` diz que a pré-condição de `SF2` *"só desaparece se
+> **ambas** forem negadas"*. **Errado, e errado no mesmo sentido que `39:372`.** Ela desaparece em
+> **três** das quatro combinações, e sobrevive **exatamente** naquela em que `GH2b` é **negado**.
+
+### `E8-2` — `CASO 13` exige obra do formato antigo **sobrevivente**, e `SF1` a consumiria
+
+`07:661` passo 5, verbatim: **"Abrir uma obra do *formato antigo*"** — e o passo 6, *"Abrir uma obra
+do **formato novo** (salva em `G5`)"*. `CASO 13` precisa dos **dois**. Como `06:464-465` lavra que,
+não executado, *"o caso 13 fica **NÃO EXECUTADO** — e continua **bloqueando** `F6-SG-A`, porque é um
+dos 17 obrigatórios"*, **consumir a obra legada em `SF1` bloqueia o portão em `SF2`**.
+
+**A raiz é que `07` pressupõe estoque plural de obras antigas.** Quatro passos exigem uma obra
+antiga **depois** de outro passo já ter salvado sobre uma: `G5` passo 1 (`Caso 11` — *"abrir obra
+antiga, pintar, **salvar**"*, `07:605`), `G6` passo 3 (`§28 #9`, `07:621`), `G6` passo 5 (`E6` —
+*"uma de cada formato"*) e `G7` passo 5 (`CASO 13`). Isso é coerente num iPad com galeria povoada —
+e `07:600`, `:616` e `:653` dizem literalmente **"Aparelho: iPad"**. **No SM-X510 há uma só obra**
+(`13:321`), e o roteiro deixa de fechar.
+
+### `E8-3` — existe ordem que preserva TUDO, logo a escolha consuntiva **não é inevitável**
+
+O §11 do mandato manda provar isto antes de devolver `HUMAN DECISION`. **A prova fecha:**
+
+```
+SF1  Bloco 0/1        leitura pura                          [obra antiga intacta]
+SF1  Bloco 3  §28 #8 e/ou E1/GH3  → cria obra NOVA          [1 antiga + 1 nova = MISTO ✅]
+SF1  Bloco 3  E6 / GH1            → "uma de cada formato"   [consome o misto, sem gastá-lo]
+SF1  Bloco 3  #7→GH2a e #9→girar  → observar SEM SALVAR     [39:606, reversível]
+SF2  CASO 13                      → passo 5 antiga + 6 nova [MISTO ainda existe ✅]
+DEPOIS de CASO 13   →  salvamento único de #7 ∪ #9          ← ponto de não retorno, por último
+```
+
+**Nenhum insumo morre antes do seu último consumidor.** O salvamento sobre a obra legada deixa de
+ser um dilema e passa a ser um **item de ordenação**: ele é o **último ato consuntivo da campanha
+inteira**, não um passo no meio de `SF1`.
+
+### `E8-4` — as recomendações que mudam
+
+| Seção | O que eu recomendei | O que passa a valer |
+|---|---|---|
+| `5.3` `ARB-28-7-TIRO-UNICO` | *"**SIM**, condicionada a três coisas"* | **NÃO salvar durante `SF1`.** `#7` para em `GH2a` — desfecho que `P3-8` (`39:385`) **já prevê** — e `#9` para antes do salvamento. A decisão humana encolhe para: **"autorizo mover as metades de salvamento de `#7` e `#9` para depois do `CASO 13`?"** |
+| `5.4` `ARB-OBRA-NOVA` | *"**UMA** obra, em `living_world`"* | **Mantida, e agora é NECESSÁRIA, não apenas aceitável** — sem obra nova não há misto, e sem misto morrem `E6` (`07:621` passo 5) **e** `CASO 13` (`07:661` passo 6) |
+| `5.5` `ARB-ORDEM-R4R5` | *"não bloqueia `SF1`; precede `SF2`"* | **Precisa estar resolvida antes do BLOCO 3 de `SF1`**, não antes de `SF2`. `SF1` pode **abrir** (Blocos 0 e 1 são leitura pura), mas o Bloco 3 contém o passo que consome o insumo de `R4` |
+| `4.2` / `6.2` fusão `#7` ∪ `#9` | fundir num salvamento único | **Mantida e reforçada** — a fusão continua certa; o que muda é **quando**: depois do `CASO 13`, não dentro de `SF1` |
+
+**A ordem congelada pelo fundador estava causalmente certa.** `DECISIONS:2287-2288` põe `R4` (caso 13)
+**antes** de `R5`. A inversão para `SF1`(`R5`) → `SF2`(`R4`), declarada em `39:367` como
+*"**Resolvido por leitura, não por arbitragem**"*, repousa sobre a premissa invertida de `E8-1`.
+**`ARB-ORDEM-R4R5` não é higiene documental: é a arbitragem que decide se `CASO 13` sobrevive.**
+
+### `E8-5` — `CASO 11` recebeu dois `PASS` sem que a obra seja identificada
+
+`35:43-44` lavra `CASO 11` (histórico **e** reexecução causal) como **`PASS`**, descrito como
+*"Obra modificada e **salva no formato novo**"*. **O artefato não nomeia a obra** — buscas por
+`1786479103982`, `atelier_arts`, `screation_alight` e `drawing60` em `35` retornam **zero
+ocorrências**. Somado a `E7-11` (o `TAR` cresceu **+390 656 B** entre o lacre de `39 §4.1` e o
+fecho da `R2`), a consequência é dura e **não é mensurável do *host***:
+
+> **Não está estabelecido que a obra legada ainda seja legada.** Um `PASS` de *"obra modificada e
+> salva no formato novo"* é exatamente o gesto que a promoveria.
+
+Isso **não** invalida nada retroativamente — e reforça `E7-12`: `INS-01` precisa registrar **dois**
+bits que hoje não registra — se o ponteiro C60 traz `logicalW`/`logicalH`, **e** se a obra do Ateliê
+ainda está sem `paintSchemaVersion`. **Sem esses dois bits, `ARB-28-7-TIRO-UNICO` e `ARB-OBRA-NOVA`
+podem estar discutindo um estado que já não existe.**
+
+### O que esta errata NÃO faz
+
+Não converte `☐` em `PASS`, não decide arbitragem, não autoriza escrita, *build*, Metro, `adb` nem
+toque no aparelho, e não atribui decisão ao fundador. O tablet permanece **`HANDS OFF`**.
+
+> **Nota de método.** Estes pontos nasceram de um *workflow* de verificação em segundo plano. Ele
+> apontou consumidores não contabilizados — e **errou o sentido**, afirmando que `GH2b` *criaria* o
+> insumo de `E6`. `07:621` passo 5 (*"abrir uma de cada formato"*) refuta isso. **O achado
+> aproveitado foi o rastro, não a conclusão.**
