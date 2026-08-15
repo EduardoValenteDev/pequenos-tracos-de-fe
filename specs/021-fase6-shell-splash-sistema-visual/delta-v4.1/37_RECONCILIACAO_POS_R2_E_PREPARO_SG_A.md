@@ -1027,3 +1027,27 @@ execução (`36:328`), porque é *"um item que **execução nenhuma resolve**"*.
 ### `R2_PROSPECTIVE_BE` = `PASS` *(inalterado)*
 ### `R2_RAW_CAMPAIGN_LOG_SEALED_AND_HASHED` *(precisão de `ERRATA-02`; rótulo histórico preservado no artefato `35`)*
 ### `SF1` = `AGUARDANDO S0.1 E AUTORIZAÇÃO DO FUNDADOR`
+
+---
+
+## `ERRATA-03` — remissão (aditiva; nenhuma linha acima foi alterada)
+
+> **Posterior a este artefato.** O fundador respondeu `S0.1 = REOBSERVAR`
+> (`D-FUND-SG-A-S01-REOBSERVAR-01`). O protocolo do Bloco 1 de `SF1` foi então fechado em
+> [`38_SF1_BLOCO_1_REOBSERVACAO_BLOCO_A.md`](38_SF1_BLOCO_1_REOBSERVACAO_BLOCO_A.md), e essa
+> redação corrige **quatro** pontos deste documento, de forma aditiva e rastreável — o texto
+> acima **permanece íntegro, não reescrito e não reordenado**, conforme `§25`:
+>
+> | # | Ponto deste artefato | Correção | Onde |
+> |---|---|---|---|
+> | `E3-1` | descrição do `CASO 10` | correta, porém **incompleta**: o caso exige **três subjanelas**, não um par simples | `38` §7.5 |
+> | `E3-2` | registro `PENDING`, item `ARB-CASO14v1` | **colapsa em `ARB-17-OBRIG`** — o corpus já resolve a forma de reporte da `v1`. **16 → 15** itens pendentes | `38` §9.2 |
+> | `E3-3` | §9, método de `TAR` | o par **por bloco** herdado do doc `10` está **superado** pelo método por caso | `38` §3 |
+> | `E3-4` | matriz `SG-A`, item `11` | passa a **"confirmado executável, protocolo fechado, bloqueado por `ARB-ARBITRO`"** | `38` §4 |
+>
+> **Consequência de estado:** a linha `SF1 = AGUARDANDO S0.1 E AUTORIZAÇÃO DO FUNDADOR` acima
+> permanece verdadeira quanto à autorização, mas a **causa próxima** do bloqueio mudou. `S0.1`
+> está respondida; o que impede o início de `SF1` agora é **`ARB-ARBITRO`** (`38` §4), somado ao
+> Bloco 3 (`R5`) ainda **sem roteiro gesto a gesto** (`38` §11).
+>
+> ### `SF1` = `NÃO INICIÁVEL` — `ARB-ARBITRO` pendente *(ver `38` §12)*
