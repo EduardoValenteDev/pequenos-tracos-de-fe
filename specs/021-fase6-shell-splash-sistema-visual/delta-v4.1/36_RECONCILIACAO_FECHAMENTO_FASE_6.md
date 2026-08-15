@@ -29,6 +29,56 @@ nenhum `EAS`, nenhuma campanha física, nenhuma alteração de código de produt
 
 ---
 
+## 1.1 · `ERRATA-01` — correção material sobre `R1-PEND-1..4` · 2026-08-14
+
+> ⚠️ **Esta reconciliação classificou `R1-PEND-1..4` de forma ERRADA na sua primeira redação.** A
+> correção é registrada aqui de forma explícita — **o texto errado não é apagado em silêncio**.
+
+**O que foi afirmado, e estava errado:** que a campanha `B`–`E` não havia capturado as pendências
+porque *"não existe artefato de pré-voo em `out/`"*, que elas eram *"quatro capturas de HOST"* que
+*"fecham-se no pré-voo da PRÓXIMA sessão física"*, e que eram *"o item de melhor relação
+custo/benefício de toda a matriz"* — classe **`B`**.
+
+**A causa do erro:** a varredura original procurou o artefato de pré-voo **apenas em `out/`**. O
+acervo tem um **sexto subdiretório, `preflight/`**, que não havia sido inventariado. Ele foi
+descoberto durante o lacre de `raw_campaign.log`.
+
+**O que o corpus realmente diz.** O artefato
+`preflight/PV11_R1_PEND_1_A_4.txt` (`3 642 B`, `SHA256 8246E4CF…C8C5B1`) já auditou literalmente
+cada pendência contra o `§7.2` do protocolo `06`, sob a autoridade
+`PF6SGA-R2-GATE-SANEAMENTO`, e concluiu:
+
+| Pendência | Qualificador literal | Reobtenível pelo método previsto? |
+|---|---|---|
+| `R1-PEND-1` | *"do momento da rodada"* | **NÃO** — amarra a evidência ao instante da `R1`, já passado; o *scrollback* não foi arquivado |
+| `R1-PEND-2` | **ausente** (classificado como omisso) | **SIM quanto à redação** — `PS1_METRO.log` já contém *"Starting project at `C:\tmp\ptf_fase6_shell_splash_wt`"* |
+| `R1-PEND-3` | *"agora"* — prova de **instante** | **NÃO** — prova de instante não se reproduz fora do instante |
+| `R1-PEND-4` | *"da rodada"* | **NÃO** — mesmo vício de `PEND-1` |
+
+Síntese do próprio `PV11`: `RECUPERADAS_PELO_METODO_PREVISTO = 0 de 4` ·
+`REDACAO_LITERAL_SATISFEITA_POR_CAPTURA_NOVA = 1 de 4` · `SUBSTITUTOS_INVENTADOS = 0` ·
+`ARTEFATOS_RETRODATADOS = 0`.
+
+**Classificação corrigida — `B` → `D` para as quatro.**
+
+- `R1-PEND-1`, `R1-PEND-3`, `R1-PEND-4`: **`D` — deferido com *owner* futuro.** **Nenhuma execução
+  futura pode fechá-las**, porque o qualificador literal as prende a um instante que já passou. Só
+  uma decisão do fundador — análoga a `D-FUND-R1-PEND5-EVIDENCE-GAP-01` — as resolve.
+- `R1-PEND-2`: **`D`, custo zero.** A redação literal **já está satisfeita** por captura de hoje;
+  `PF6SGA-R2-GATE-SANEAMENTO` apenas reserva o fechamento a **decisão explícita do fundador**.
+
+> 🔁 **A inversão que importa:** o que a primeira redação chamou de *"melhor relação
+> custo/benefício"* é, na verdade, **o oposto** — um item que **execução nenhuma resolve**. Ele saiu
+> da lista de trabalho e entrou na lista de decisões. Isso **remove `S1` do caminho de execução** e
+> **não** cria exigência nova.
+
+**Impacto sobre a `R2`: NENHUM.** O próprio `PV11` registra que a regra dura do `§3.3` é **por
+sessão**, e que *"a `R2` produz as SUAS PRÓPRIAS quatro confirmações no Bloco `0`"* — presentes em
+`preflight/PV1`, `PV3`, `PV4`, `PV5`, `PV10`, `PV12`. As pendências de `R1` são **históricas** e
+nunca bloquearam a campanha `B`–`E`.
+
+---
+
 ## 2 · Vocabulário de classificação
 
 | Classe | Significado | Consequência |
@@ -98,20 +148,28 @@ Governados por `CASO12-PARCIAL-01`, com o alcance literal lacrado em `35` §3.
 
 ### 4.2 · Pendências históricas de `R1`
 
-**`R1-PEND-1`, `R1-PEND-2`, `R1-PEND-3`, `R1-PEND-4` → classe `B`, custo baixo.**
-Continuam **ABERTAS** (artefato `27` §10–§13). A campanha `B`–`E` **não** as capturou: não existe
-artefato de pré-voo em `out/` — os arquivos próximos (`PV6`–`PV9`, `PV13`) são provas do árbitro de
-estado prospectivo, coisa diferente.
+> 🔁 **Redação corrigida pela [`ERRATA-01`](#11--errata-01--correção-material-sobre-r1-pend-14--2026-08-14).
+> A primeira redação classificou estas quatro como `B` e as chamou de item de melhor relação
+> custo/benefício. Estava errado.**
 
-São quatro **capturas de HOST**, não gestos no aparelho:
+**`R1-PEND-1`, `R1-PEND-3`, `R1-PEND-4` → classe `D`.** Continuam **ABERTAS** (artefato `27`
+§10–§13) e são **irreobteníveis pelo método previsto**: o qualificador literal de cada uma
+(*"do momento da rodada"*, *"agora"*, *"da rodada"*) amarra a evidência ao **instante da `R1`**, que
+já passou e cujo *scrollback* não foi arquivado. **Nenhuma sessão física futura as fecha.** Só uma
+decisão do fundador, análoga a `D-FUND-R1-PEND5-EVIDENCE-GAP-01`, as resolve.
 
-1. as quatro saídas `Write-Host` + `git diff --stat aa58849..HEAD`;
-2. o cabeçalho do Metro exibindo `C:\tmp\ptf_fase6_shell_splash_wt`;
-3. a linha do Metro registrando a requisição do *bundle* **naquele instante**;
-4. `adb reverse --list` com exatamente um `tcp:8081 tcp:8081`.
+**`R1-PEND-2` → classe `D`, custo zero.** Sua redação literal **já está satisfeita** por captura
+desta campanha — `preflight/PS1_METRO.log` registra *"Starting project at
+`C:\tmp\ptf_fase6_shell_splash_wt`"* e *"Waiting on `http://localhost:8081`"*.
+`PF6SGA-R2-GATE-SANEAMENTO` reserva o fechamento a **decisão explícita do fundador**.
 
-> ✅ **Fecham-se no pré-voo da PRÓXIMA sessão física — sem repetir `R1`.** É o item de melhor
-> relação custo/benefício de toda a matriz.
+Fonte: `preflight/PV11_R1_PEND_1_A_4.txt` (`SHA256 8246E4CF…C8C5B1`), com
+`RECUPERADAS_PELO_METODO_PREVISTO = 0 de 4`, `SUBSTITUTOS_INVENTADOS = 0` e
+`ARTEFATOS_RETRODATADOS = 0`.
+
+> ✅ **A `R2` produziu as suas próprias quatro confirmações no Bloco `0`** (`preflight/PV1`, `PV3`,
+> `PV4`, `PV5`, `PV10`, `PV12`). A regra dura do `§3.3` é **por sessão** — as pendências de `R1` são
+> **históricas** e nunca bloquearam a campanha `B`–`E`.
 
 **`R1-PEND-5` → classe `C`.** `R1_PEND_5 = EVIDENCE_GAP_ACCEPTED_BY_FOUNDER`
 (`D-FUND-R1-PEND5-EVIDENCE-GAP-01`). O `raw.log` daquela sessão é **irrecuperável**; o gap já está
@@ -159,8 +217,9 @@ Fase 6 pelo `v5`.
 
 ### 4.8 · Subportões
 
-**`F6-SG-A` → classe `B`.** **NÃO CONCEDIDO.** Depende de `R1-PEND-1..4`, `R3` (metade
-*resize*), `R4`, `R5`, `R6` (ou sua aceitação) e `R7`, seguidos do *Human Gate*.
+**`F6-SG-A` → classe `B`.** **NÃO CONCEDIDO.** Depende de `R1-PEND-1..4` (**por decisão, não por
+execução** — ver [`ERRATA-01`](#11--errata-01--correção-material-sobre-r1-pend-14--2026-08-14)),
+`R3` (metade *resize*), `R4`, `R5`, `R6` (ou sua aceitação) e `R7`, seguidos do *Human Gate*.
 **`R2_PROSPECTIVE_BE = PASS` NÃO concede `F6-SG-A`** — concede exatamente uma das sete rodadas.
 
 **`F6-SG-B` → classe `B`. É o maior gap de CÓDIGO de toda a Fase 6.**
@@ -215,7 +274,8 @@ portões anteriores.
 | `R2` histórica Bloco `A` (`1`,`10`,`14`,`15`,`16`) | **B** | Artefato `14` §25 — `PASS` reais no `HEAD` `92781ea` | Binário substituído + telas de observação alteradas | Reobservar os 5 casos **ou** o fundador aceitar o Bloco `A` (→ `C`) | Não | Não | Sim | **Sim**, até decidir |
 | `CASO 9` | **C** | Varredura do log: zero ocorrências | — | Registrar; **não provocar** | Não | Não | Não | **Não** |
 | `CASO 12` — `E1`/`E2`/4 injetados | **C** | `CASO12-PARCIAL-01`; artefato `35` §3 | Estágios não exercitados | Nenhuma nesta fase | Não | Não | Não | **Não** |
-| `R1-PEND-1..4` | **B** | Artefato `27` §10–§13 (ABERTAS) | 4 capturas de HOST nunca colhidas | Colher no **pré-voo** da próxima sessão física | Não | Não | Não¹ | **Sim** |
+| `R1-PEND-1`, `R1-PEND-3`, `R1-PEND-4` | **D**¹ | `preflight/PV11_R1_PEND_1_A_4.txt`; artefato `27` §10–§13 | **Irreobteníveis** — qualificador literal amarra ao instante da `R1` | **Decisão do fundador:** aceitar o gap (→ `C`), como em `R1-PEND-5` | Não | Não | **Não** | **Sim**, até decidir |
+| `R1-PEND-2` | **D**¹ | `preflight/PS1_METRO.log` já satisfaz a redação literal | Nenhum gap material — só falta o ato de fechar | **Decisão do fundador** (custo zero) | Não | Não | **Não** | **Sim**, até decidir |
 | `R1-PEND-5` | **C** | `D-FUND-R1-PEND5-EVIDENCE-GAP-01` | `raw.log` irrecuperável | Nenhuma — **não reabrir** | Não | Não | Não | **Não** |
 | `R3` — metade rotação (`2`,`3`,`4`,`5`,`E2`,`E3`) | **C** | `§3.5` do protocolo `06`; `app.json` retrato global | Política congelada em `F6-R1.1`/`SG-C` | Marcar `NÃO EXECUTÁVEL EM ANDROID` | Não | Não | Não | **Não** |
 | `R3` — metade *resize* | **B** | — | Janela dividida / multi-janela nunca medida | Executar no `SM-X510` já instalado | Não | Não | Sim | **Sim** |
@@ -235,7 +295,7 @@ portões anteriores.
 | `B7` — *smoke* integral + `expo-doctor` (`T091`) | **B** *(parcial `A`)* | `HEAD` `2ffcd829`: `bundle:check` verde, `smoke` `4954/4954`, `doctor` `18/18` | Consolidação dos **17** + varredura das **32 telas** | Reexecutar gates no estado final + consolidar | Não | Não | Sim | **Sim** |
 
 **Notas da matriz:**
-¹ `R1-PEND-1..4` são capturas de **HOST**; exigem apenas que a sessão física esteja **montada**, não gesto no aparelho.
+¹ **Linhas corrigidas pela [`ERRATA-01`](#11--errata-01--correção-material-sobre-r1-pend-14--2026-08-14).** A primeira redação as classificou como **`B`** ("colher no pré-voo da próxima sessão física"). `preflight/PV11_R1_PEND_1_A_4.txt` prova `RECUPERADAS_PELO_METODO_PREVISTO = 0 de 4`: **execução nenhuma as fecha**. Passaram a **`D`** — decisão, não trabalho.
 ² Não medido nesta reconciliação — o protocolo `R4`, já congelado, especifica o *worktree* de `a190b3e`. **Não inventado aqui.**
 ³ `BUILD NATIVE 01` já está instalado e provado idêntico (artefato `30`) — `TK-C-039`/`TK-C-040` deixaram de depender de *build*.
 ⁴ Ícone e *splash* nativos podem exigir *build* conforme a natureza da alteração; a decisão pertence ao plano de `B4`.
@@ -253,15 +313,19 @@ o exige.
 |---|---|---|
 | `S0.1` | Fundador decide sobre a **`R2` histórica Bloco `A`** | `B` → `C`, ou entra em `S2` |
 | `S0.2` | Fundador decide sobre **`R6`** (adquirir *hardware* × aceitar gap) | `D` → `C`, ou entra em `S5` |
+| `S0.3` | Fundador decide sobre **`R1-PEND-1`, `-2`, `-3`, `-4`** (aceitar o gap, como em `R1-PEND-5`) | `D` → `C`; **removeu `S1` do Trilho 1** |
 
-> Estes dois passos são as **únicas alavancas** capazes de encurtar a reta final **sem executar
-> nada**. Ambos são decisão do fundador — esta reconciliação **não** os antecipa.
+> Estes três passos são as **únicas alavancas** capazes de encurtar a reta final **sem executar
+> nada**. Todos são decisão do fundador — esta reconciliação **não** os antecipa.
+>
+> `S0.3` entrou aqui pela [`ERRATA-01`](#11--errata-01--correção-material-sobre-r1-pend-14--2026-08-14):
+> nasceu como `S1` no Trilho 1, sob a premissa falsa de que um pré-voo futuro o fecharia.
 
 ### Trilho 1 — fechar `F6-SG-A`
 
 | # | Passo | Cód? | Build? | Fís? |
 |---|---|---|---|---|
-| `S1` | Pré-voo da próxima sessão física → fecha **`R1-PEND-1..4`** | Não | Não | Não |
+| ~~`S1`~~ | ~~Pré-voo da próxima sessão física → fecha **`R1-PEND-1..4`**~~ — **REMOVIDO pela [`ERRATA-01`](#11--errata-01--correção-material-sobre-r1-pend-14--2026-08-14); virou `S0.3` no Trilho 0.** O número **não** é reaproveitado, para preservar as referências já emitidas. | — | — | — |
 | `S2` | Reobservar a **`R2` histórica Bloco `A`** — *só se `S0.1` não a aceitar* | Não | Não | Sim |
 | `S3` | **`R3`** — metade *resize*; metade rotação marcada `NÃO EXECUTÁVEL` | Não | Não | Sim |
 | `S4` | **`R4`** — `CASO 13`, *rollback*, isolado | Não | A definir | Sim |
@@ -326,6 +390,13 @@ Confundir os dois seria o mesmo erro de categoria que confundir `R2_PROSPECTIVE_
 - **Nenhum *build*, nenhum `EAS`, nenhuma campanha nova, nenhuma reabertura de `R2P1`.**
 - **Sem *push*, sem *merge*, sem *amend*, sem *rebase*, sem *squash*.**
 - Nenhum portão foi concedido por este documento. Ele **classifica**; não **promove**.
+
+**Revisão aplicada em 2026-08-14 (mesma data):** a
+[`ERRATA-01`](#11--errata-01--correção-material-sobre-r1-pend-14--2026-08-14) corrigiu a
+classificação de `R1-PEND-1..4` de **`B`** para **`D`**, com propagação em `§1.1`, `§4.2`, `§4.8`,
+na matriz do `§5` (duas linhas + nota `¹`) e no `§6` (`S1` removido do Trilho `1`, `S0.3` criado no
+Trilho `0`). A correção é **explícita e datada** — a redação errada **não** foi apagada em silêncio.
+Ela **remove** uma exigência inexistente; **não** cria exigência nova.
 
 ---
 

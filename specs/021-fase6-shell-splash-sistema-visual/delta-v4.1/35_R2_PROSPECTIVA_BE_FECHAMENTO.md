@@ -157,6 +157,11 @@ reescrito.** Os totais abaixo foram medidos no HOST em **2026-08-14 20:21**.
 | `out/` | 66 | `440 372` |
 | `extract/` | 238 | `293 840 557` |
 
+> ⚠️ **Este inventário está INCOMPLETO — corrigido no [`§10.7`](#107--correção-do-inventário-do-7--existe-um-sexto-subdiretório).**
+> Existe um **sexto** subdiretório, `preflight/` (`12` arquivos), não visto nesta varredura. O total
+> consolidado é **`350` arquivos · `694 141 406` *bytes***. A tabela acima fica registrada como foi
+> medida; a correção é aditiva e datada.
+
 ### 7.1 `acervo/` — cadeia de TARs
 
 | Arquivo | *Bytes* | `SHA256` |
@@ -203,6 +208,12 @@ atravessando a morte de processo do `CASO 12` e a reabertura subsequente.
 > **`421C2B947A747CDD1F2FF0E3DD338280EDEDB2D72D47A549EC8BA2DAE3E7C73F`**.
 > O lacre definitivo desse arquivo exige encerrar o `PS3` com `Ctrl+C` — ato **não autorizado por
 > esta missão** e portanto **não executado**. O log **nunca foi limpo** (`logcat -c` = 0 vezes).
+>
+> ✅ **SUPERADO PELO `§10`.** O fundador autorizou o encerramento em missão posterior, no mesmo dia.
+> O arquivo está **selado**: `66 308 703 bytes`, `SHA256`
+> **`CCA75FB345E3176A56A6669D53BE46F545549E917BEFD4D82009B3C8847D81E2`**. O *hash* de prefixo acima
+> permanece **válido e reconferido** — o `§10.5` prova que o arquivo selado é **extensão estrita**
+> dele. **Esta ressalva fica registrada, não apagada.**
 
 ### 7.3 `tools/` — instrumentos
 
@@ -278,4 +289,146 @@ marcas de início e o registro do incidente de rotação pré-`C8` — permanece
 
 ---
 
+## 10 · ANEXO · LACRE FINAL DE `raw_campaign.log` — 2026-08-14
+
+> ### `R2_RAW_CAMPAIGN_LOG_SEALED_POWER_SAFE`
+> ### `PS3_CLOSURE_METHOD = STOP_PROCESS_DUE_TO_LOST_CONSOLE`
+
+Este anexo **não reabre nenhum caso** e **não cria nenhuma exigência nova de evidência**. Ele
+apenas converte a ressalva do §7.2 — *hash* de prefixo sobre arquivo aberto — em **lacre
+definitivo sobre arquivo fechado**.
+
+### 10.1 · Por que o método mandado pelo `§3.6` não pôde ser usado
+
+O `Ctrl+C` do `§3.6` pressupõe uma **janela PS3 viva**. Ela não existe mais. Fatos medidos antes de
+qualquer ação:
+
+| Fato | Medição |
+|---|---|
+| O "PS3" real era o próprio `adb.exe` | PID `27288`, `adb.exe logcat -v threadtime`, iniciado `13:35:42` |
+| O *shell* que o lançou | PID `31060` — **não existe mais** |
+| Quem detinha o *handle* de escrita | O próprio `adb.exe` — não havia `Out-File` intermediário |
+| Console de `adb` | **Compartilhado com `claude.exe` PID `23272`** — um `Ctrl+C` de grupo atingiria o Claude Code junto |
+| `GenerateConsoleCtrlEvent(CTRL_C_EVENT, 27288)` | **falhou · erro `87`** (`ERROR_INVALID_PARAMETER`) |
+| `GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 27288)` | **falhou · erro `87`** |
+| Causa | `adb` **não é líder de grupo de processos** — sinal cirúrgico é impossível |
+| Último *byte* observado **antes** do encerramento | **`0x0A` (LF)** — as escritas chegavam **linha-completa** ao disco |
+
+O fundador confirmou que **não havia terminal PS3 visível** na interface e **recusou** pressionar
+`Ctrl+C` às cegas no painel do Claude. **Autorizou expressamente** a alternativa cirúrgica já
+medida.
+
+### 10.2 · Perda teórica — declarada e delimitada
+
+A perda teórica limita-se à **cauda ociosa posterior à campanha**. A campanha encerrou por volta
+das `19:43`; o encerramento ocorreu às `20:49`, ou seja, **mais de uma hora de ruído de sistema**
+(`wpa_supplicant Heartbeat`, `io_stats`, `SemWifiUsabilityStatsMonitor`).
+
+**Nenhuma evidência causal da campanha depende dessa cauda.** E a medição pós-lacre mostra que a
+perda foi, de fato, **nula**:
+
+- último *byte* do arquivo selado = **`0x0A` (LF)** → **termina em linha completa, nenhuma linha
+  parcial perdida**;
+- `delta` entre a última leitura com o arquivo aberto e o tamanho final = **`0` *bytes***.
+
+### 10.3 · Execução
+
+| Etapa | Resultado |
+|---|---|
+| Trava de identidade antes do disparo | `adb.exe` · `logcat` — **confere** |
+| `Stop-Process -Id 27288 -Force` | disparado `20:49:43.529` · retornou `20:49:43.547` |
+| `PID 27288` | **AUSENTE** (confirmado) |
+| `claude.exe` `23272` | **VIVO** |
+| Metro `20352` | **VIVO** |
+| `adb` *fork-server* `5576` | **VIVO** — único `adb.exe` restante |
+| Tablet | **não tocado** · `RX2XC003LTJ device` |
+| `logcat -c` | **não executado** |
+
+### 10.4 · Lacre definitivo
+
+| Campo | Valor |
+|---|---|
+| Arquivo | `logcat/raw_campaign.log` |
+| **Tamanho final** | **`66 308 703` *bytes*** |
+| **`LastWriteTime`** | **`2026-08-14 20:49:43.411`** |
+| **`SHA256` definitivo** | **`CCA75FB345E3176A56A6669D53BE46F545549E917BEFD4D82009B3C8847D81E2`** |
+| *Timestamp* do encerramento | `2026-08-14 20:49:43.529` (disparo) |
+| *Timestamp* do lacre | `2026-08-14 20:49:45.136` |
+| *Handle* de escrita | **LIVRE** — provado por abertura **exclusiva** (`FileShare.None`) bem-sucedida |
+
+### 10.5 · Prova de continuidade — o arquivo é extensão estrita do que já fora medido
+
+O *hash* de prefixo declarado no §7.2 foi **reconferido contra o arquivo selado**:
+
+```
+bytes conferidos : 63 979 073
+hash do prefixo  : 421C2B947A747CDD1F2FF0E3DD338280EDEDB2D72D47A549EC8BA2DAE3E7C73F
+esperado (20:21) : 421C2B947A747CDD1F2FF0E3DD338280EDEDB2D72D47A549EC8BA2DAE3E7C73F
+CONFERE          : SIM
+```
+
+> ✅ **Isto prova que o arquivo selado é extensão ESTRITA do que já havia sido medido às
+> `20:21:48`: nada foi reescrito, nada foi truncado, nada foi substituído.** A ressalva do §7.2
+> fica assim **resolvida**, não apenas encerrada.
+
+### 10.6 · Defasagem de relógio — por que a cauda diz `20:49:54`
+
+O arquivo contém linhas carimbadas `20:49:54`, **posteriores** ao seu próprio fechamento em
+`20:49:43.411`. **Não é anomalia:** carimbos de `logcat` são do **relógio do aparelho**, e o
+`LastWriteTime` é do **relógio do HOST**. A defasagem é **constante**, medida em dois pontos
+independentes **do próprio arquivo selado**:
+
+| Ponto de medição | HOST | Aparelho | Defasagem |
+|---|---|---|---|
+| *byte* `63 979 073` | `20:21:48` | `20:21:58.705` | **`+10,7 s`** |
+| fim do arquivo | `20:49:43.411` | `20:49:54.005` | **`+10,6 s`** |
+
+O aparelho adianta ~`10,6 s` em relação ao HOST. **Nenhuma conclusão de caso muda**, porque toda a
+arbitragem da campanha comparou carimbos de *logcat* **entre si**, sempre no mesmo relógio.
+
+### 10.7 · Correção do inventário do §7 — existe um sexto subdiretório
+
+O §7 inventariou **cinco** subdiretórios. São **seis**: faltou **`preflight/`**, com `12` arquivos
+e `59 671 B`. Correção registrada aqui, sem alterar o §7 original.
+
+| Arquivo | *Bytes* | `SHA256` |
+|---|---|---|
+| `PV1_ESTADO_GIT.txt` | `4498` | `DE033D6750412622761928D4252D526FF5AC63174ADC1D8A4D33126F8421C522` |
+| `PV3_IDENTIDADE_APARELHO.txt` | `1482` | `D0E32633826840D38D80000A69CB35703247E529977572AD7F713EF48DA41808` |
+| `PV4_IDENTIDADE_BINARIA.txt` | `657` | `83FC4FD8B91CBDC6B201E8ABB73E2F39ABD2312F21B951AB28C171E1BC38968D` |
+| `PV5_ADB_REVERSE.txt` | `519` | `6FB3623AA7DB213FC1FFC118EDDBA1A97BBCBB6219C9A3ADDA5FBDB3E3BB965C` |
+| `PV10_ABERTURA_CANONICA.txt` | `3315` | `6A29E8EC6FEE8F559882CB4F8D0E914E9901BE5332E2B0BE386418EB7624FD0A` |
+| **`PV11_R1_PEND_1_A_4.txt`** | `3642` | `8246E4CFA4F843F509D64E9F4AB011763252C135781CB561BB395B4050C8C5B1` |
+| `PV12_IDENTIDADE_DE_CODIGO.txt` | `2000` | `357170EBD745A9C0953D749BE6DA59DE56B1B4F34B694E13336982CA038E7431` |
+| `PV14_SEGMENTO_0_E_QUEBRA_USB.txt` | `12182` | `0B0CEF70E33D2F1551B1F1AC3872431BB36FEF1834BF1217F1582C5067EB1E7F` |
+| `PV15_TENTATIVA_ABORTADA_NAV_01.txt` | `4963` | `6806D0F4BC4C5FCBCC3862A3BFD94B4456BD5E20EB5365C4E60B75A7D17242A8` |
+| `PV16_REFERENCIA_PRE_BLOCO_B.txt` | `3244` | `2CC65107ED404575EA0474DC7136AEA023FDD40BAEFD4F0BDCFD1DD78CDC2710` |
+| `CRONOMETRO_T0.txt` | `42` | `1668B41BEB6B350AA5E5C6550B78AB510198B2203A2349B4DDB87EE24D3F7DCF` |
+| `PS1_METRO.log` | `23127` | `35BE85D01ED380173842B1EF469BFE95A4BDC50E2A1414E8F9C1EE13A73A1738` **(prefixo — Metro vivo)** |
+
+**Acervo total consolidado: `350` arquivos · `694 141 406` *bytes*** em seis subdiretórios
+(`acervo` `18` · `logcat` `4` · `preflight` `12` · `tools` `12` · `out` `66` · `extract` `238`).
+
+### 10.8 · Nenhuma evidência da `R2` continua aberta para escrita
+
+Varredura de **abertura exclusiva** (`FileShare.None`) sobre **os `350` arquivos** do acervo:
+
+- **`349` arquivos LIVRES** — nenhum escritor ativo;
+- **`1` arquivo aberto para escrita: `preflight/PS1_METRO.log`**, detido pelo **Metro PID `20352`**,
+  que o **item 9 da autorização manda expressamente manter vivo**.
+
+> ✅ **Nenhuma evidência da campanha `R2` continua aberta para escrita.** O único *handle* aberto
+> pertence ao log do Metro, que **não é evidência de caso** e cuja abertura é **consequência
+> necessária** da ordem de não fechar o Metro. Ele possui **hash de prefixo declarado** e será
+> lacrável quando o Metro for encerrado — **fora do escopo desta missão**.
+
+### 10.9 · O que este anexo não faz
+
+**Não reabre caso algum** · não altera nenhum veredito do §2 · não altera os limites do `CASO 12`
+do §3 · não toca o tablet · não limpa `logcat` · não fecha o Metro · **não cria nenhuma exigência
+nova de evidência** por causa do método de encerramento · não altera código de produto.
+
+---
+
 > ### `R2_PROSPECTIVE_BE = PASS`
+> ### `R2_RAW_CAMPAIGN_LOG_SEALED_POWER_SAFE`
