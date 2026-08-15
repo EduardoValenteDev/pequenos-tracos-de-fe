@@ -4205,6 +4205,47 @@ e
     encerramento é **documental**: sem alteração de código de produto, sem *push*, *merge*,
     *amend*, *rebase* ou *squash*.
 
+## `D-FUND-SG-A-S01-REOBSERVAR-01` — `S0.1` = `REOBSERVAR` (2026-08-15)
+
+Decisão **do fundador**, tomada no `HUMAN GATE` físico apresentado pelo
+[artefato `37`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/37_RECONCILIACAO_POS_R2_E_PREPARO_SG_A.md)
+§19. Registro operacional integral no
+[artefato `38`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/38_SF1_BLOCO_1_REOBSERVACAO_BLOCO_A.md).
+
+**Conteúdo normativo — o que foi decidido (uma coisa só):**
+
+1. **`S0.1 = REOBSERVAR`.** Os cinco casos do `BLOCO A` da `R2` — `CASO 1`, `CASO 10`,
+   `CASO 14 v2`, `CASO 15`, `CASO 16` — **serão reobservados fisicamente sobre o binário
+   atualmente instalado**, em vez de terem seu `PASS` histórico herdado. Fundamento invocado:
+   *"prova colhida sobre o binário anterior **não se herda** por este eixo"*
+   (`36_RECONCILIACAO_FECHAMENTO_FASE_6.md:94-96`).
+
+**O que esta decisão NÃO faz:**
+
+2. **Não anula, não converte e não apaga o `PASS` histórico.**
+   `CASO10_AND_BLOCO_A_FINAL_GATE_PASS` (`14_R2_SESSAO_2.md:3031`) permanece **íntegro e
+   verdadeiro para `92781ea`**. A reobservação **acrescenta** uma prova sobre o binário atual;
+   não aposenta a anterior nem a reescreve.
+3. **Não concede `F6-SG-A`**, `F6-SG-B`, `F6-SG-C`, `F6-SG-D` nem `F6_CLOSED`.
+4. **Não reabre a `R2` prospectiva `B`–`E`** (`D-FUND-R2-BE-CLOSURE-01` intacta), **não** reabre
+   o `CASO 9`, **não** amplia o `CASO 12` além de `CASO12-PARCIAL-01`, **não** retorna ao `R2P1`.
+5. **Não altera o estado de `CASO 14 v1`**, que permanece
+   `INEXECUTÁVEL_POR_AUSÊNCIA_DE_WRITER_REPRODUZÍVEL` (`CASO14-V1-INEXECUTAVEL-01`) e continua
+   sendo reportado **separadamente**, na forma fixada em `14_R2_SESSAO_2.md:134-140`.
+6. **Não cria `AC-5`** e **não** autoriza editar `compare_state.py`.
+
+**Consequências medidas — registro do agente, NÃO decisão do fundador:**
+
+7. A sessão física `SF1` passa a ter **três blocos**, com ordem interna causal
+   `Bloco 1 (BLOCO A) → Bloco 2 (R3 resize) → Bloco 3 (R5)`. A ordem interna do próprio
+   `Bloco 1` é a canônica de `10_RODADA_FISICA_2_F6_SG_A.md:329-405`:
+   `TAR` → `CASO 1` → `CASO 15` → `CASO 14 v2` → `CASO 16` → `CASO 10` → `TAR` → comparação.
+8. **Dependência bloqueante descoberta ao fechar o protocolo:** a reobservação com rigor
+   equivalente ao da prova histórica depende de `ARB-ARBITRO` — a extensão de escopo do
+   arcabouço de adjudicação de `D-FUND-R2-PROSPECTIVE-STATE-ARBITER-01`, hoje declarado
+   *"aplicável **somente de forma prospectiva** à campanha `B`–`E`"*. Ver artefato `38` §4.
+   **Enquanto `ARB-ARBITRO` não for respondido, `SF1` não começa.**
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
