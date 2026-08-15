@@ -2794,6 +2794,49 @@ indistinguível**.
 Caso 14 cuja distinção depende de estrutura persistida ausente. **Heurística de geometria não
 substitui prova quando o contrato exige prova.**
 
+> ### `ERRATA-C60-EIXOS-01` — a premissa desta subseção **caducou no `HEAD`** (2026-08-15)
+>
+> **Correção aditiva. Nenhuma linha acima foi reescrita, apagada ou reordenada** — o texto original
+> permanece como registro do que era verdade quando foi lavrado.
+>
+> **O que mudou.** O commit **`2ffcd82`** — *"fix(f6): persistir os campos logicos do payload atraves
+> do ponteiro do Colorir 60"*, **2026-08-14 16:53:20 -0300**, um arquivo, **+46 / −2** — acrescentou a
+> [`src/services/coloring60DrawingStorage.js`](../src/services/coloring60DrawingStorage.js):
+>
+> ```js
+> const LOGICAL_SCHEMA_FIELDS = ['paintSchemaVersion', 'layoutVersion', 'logicalW', 'logicalH'];
+> function carryLogicalSchema(source, target) { … }   // :395
+> ```
+>
+> chamado em **`writeSlot`** (`:442`) e em **`resolvePointer60`** (`:489`).
+>
+> **Efeito literal sobre o parágrafo acima.** A frase *"`paintSchemaVersion` e `layoutVersion` **nunca
+> alcançam o disco, em veículo nenhum, nem em `7de7085` nem no `HEAD`**"* passa a ser **falsa para o
+> `HEAD`**. Ela continua **verdadeira para `7de7085`** e **verdadeira para o binário `521d59c`** — que
+> é anterior a `2ffcd82`. A referência de apoio do parágrafo, `coloring60DrawingStorage.js:390-401`,
+> aponta hoje **exatamente para o código que o refuta** (`:392` e `:395-402`).
+>
+> **O que NÃO muda:**
+>
+> 1. **A conclusão do Caso 14 permanece intacta.** O Ateliê continua sendo o veículo de grau
+>    probatório, e `CASO14-V1-INEXECUTAVEL-01` (logo abaixo) não depende deste parágrafo.
+> 2. **A perícia de campo continua válida.** `13_PREP_LEGADO_03.md` §5 verificou a ausência dos quatro
+>    eixos no acervo do SM-X510 por busca recursiva **e** por *substring* nos bytes brutos do SQLite.
+>    O acervo lacrado **não** tem os eixos: `2ffcd82` só afeta escritas **futuras**.
+> 3. **Ler não promove.** `coloring60DrawingStorage.js:384-386`: *"só o SAVE seguinte escreve o formato
+>    novo (write-forward) … **Ler não promove, não migra e não regrava**"*.
+>
+> **Consequência operacional, e é a que importa.** Em Development Build o JS vem do Metro, não do APK
+> (*"Trocar o escritor não exige trocar o binário: exige trocar o Metro"*, acima). Logo **qualquer
+> sessão física servida a partir do `HEAD` grava os quatro eixos no ponteiro `v:3` a cada
+> salvamento** — o que muda o valor probatório de tudo que for salvo nela. O *checkpoint* `CK-JS` e a
+> arbitragem `ARB-JS-BINARIO` existem por causa disto:
+> [`39_SF1_BLOCO_3_R5_E_PROTOCOLO_UNICO.md`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/39_SF1_BLOCO_3_R5_E_PROTOCOLO_UNICO.md)
+> §3 e §12.1.
+>
+> **Esta errata não decide nada.** Não concede `PASS`, não altera classificação histórica e não
+> reabre o Caso 14. Registra um fato de código verificado e nomeia onde ele passa a pesar.
+
 ### `CASO14-V1-INEXECUTAVEL-01` — a variante `v1` não tem *writer* reproduzível
 
 A variante `v1` (data URL crua gravada direto no `AsyncStorage`) recebe a classificação
@@ -4245,6 +4288,42 @@ Decisão **do fundador**, tomada no `HUMAN GATE` físico apresentado pelo
    arcabouço de adjudicação de `D-FUND-R2-PROSPECTIVE-STATE-ARBITER-01`, hoje declarado
    *"aplicável **somente de forma prospectiva** à campanha `B`–`E`"*. Ver artefato `38` §4.
    **Enquanto `ARB-ARBITRO` não for respondido, `SF1` não começa.**
+9. **`ARB-ARBITRO` foi respondido em 2026-08-15** — ver `D-FUND-SG-A-ARBITER-EXT-BLOCO-A-01`,
+   logo abaixo. O bloqueio do item `8` está **levantado**.
+
+## `D-FUND-SG-A-ARBITER-EXT-BLOCO-A-01` — `ARB-ARBITRO` = `SAÍDA A` (2026-08-15)
+
+Decisão **do fundador**, em resposta ao bloqueio causal levantado pelo
+[artefato `38`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/38_SF1_BLOCO_1_REOBSERVACAO_BLOCO_A.md)
+§4. Adota a **saída A** ali recomendada, nos exatos termos ali propostos.
+
+**Conteúdo normativo:**
+
+1. **Extensão de escopo, prospectiva e nominal.** Os itens **`1` e `3` a `8`** de
+   `D-FUND-R2-PROSPECTIVE-STATE-ARBITER-01` passam a valer **também** para a **reobservação do
+   `BLOCO A` sobre o binário atual** — e **somente** para ela.
+2. **Preservação integral.** A extensão preserva **integralmente** as regras, as classificações,
+   o **`HARD STOP`** do item `8` e a **proibição de criar `AC_5`**. Nada é afrouxado, relativizado
+   ou simplificado por ser "só uma reobservação".
+3. **Delimitação negativa, literal do fundador:** a extensão *"não altera, substitui, herda ou
+   reinterpreta qualquer `PASS` ou relatório histórico, não modifica `compare_state.py` e não
+   amplia o árbitro para outras campanhas além desta reobservação específica"*.
+4. **`SF1` não é iniciada por esta decisão.** Instrução expressa: **"Não iniciar `SF1` ainda."**
+   O aparelho permanece **`HANDS OFF`**.
+
+**Notas de leitura — registro do agente, NÃO decisão do fundador:**
+
+5. **Por que o item `2` ficou de fora, e por que isso não abre lacuna.** O item `2` tem duas
+   metades: (a) o lacre de `compare_state.py`, que o item `3` desta decisão preserva por palavras
+   próprias do fundador; e (b) a regra de que o *token* agregado de igualdade binária deixa de ser,
+   sozinho, o árbitro de `PASS`/`FAIL`. A metade (b) é **consequência aritmética** de estender os
+   itens `1`, `3`, `4` e `5`, que nomeiam quais são os árbitros de produto e quais são meros
+   diagnósticos físicos. Além disso, o `BLOCO A` **já** não adjudicava por agregado: `TAR-1 × TAR-2`
+   é **inventário de encerramento** (`14_R2_SESSAO_2.md:3031-3139`, artefato `38` §8.1). Não há
+   lacuna.
+6. **Efeito sobre o estado de `SF1`:** o Bloco 1 passa de `BLOQUEADO` para **`EXECUTÁVEL SOB
+   AUTORIZAÇÃO`**. `SF1` permanece **não iniciável** enquanto o **Bloco 3 (`R5`)** não tiver
+   protocolo fechado (artefato `38` §11) e enquanto a autorização de início não for dada.
 
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.

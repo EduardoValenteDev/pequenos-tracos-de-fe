@@ -474,3 +474,39 @@ TABLET .............................. HANDS OFF
 aceitando o risco de `STOP` no meio da sessão física). Detalhe e recomendação na §4.3.
 
 Nada mais é executável até essa resposta. O tablet permanece **HANDS OFF**.
+
+---
+
+## `ERRATA-04` — `ARB-ARBITRO` respondido (aditiva; nada acima foi reescrito)
+
+> **Posterior a este artefato, em 2026-08-15.** O fundador respondeu **`ARB-ARBITRO = SAÍDA A`**,
+> lavrado em `D-FUND-SG-A-ARBITER-EXT-BLOCO-A-01` ([`docs/DECISIONS.md`](../../../docs/DECISIONS.md)).
+> Os itens `1` e `3`–`8` de `D-FUND-R2-PROSPECTIVE-STATE-ARBITER-01` passam a valer **também** para
+> a reobservação do `BLOCO A` sobre o binário atual — e **somente** para ela —, com as regras,
+> classificações, `HARD STOP` e a **proibição de `AC_5`** preservados **integralmente**.
+>
+> **Efeito sobre este documento:**
+>
+> | Seção | Antes | Depois |
+> |---|---|---|
+> | §4 | bloqueio causal aberto; duas saídas | **resolvido pela saída A.** O texto da §4 permanece íntegro como registro do raciocínio que produziu a decisão; a saída **B** está **descartada** |
+> | §8.3 | *"pressupõe `ARB-ARBITRO` respondido"* | **pressuposto satisfeito.** A §8.2 vale integralmente, com o arcabouço aplicável |
+> | §12.1 | `SF1 · Bloco 1 = BLOQUEADO POR ARB-ARBITRO` | **`SF1 · Bloco 1 = EXECUTÁVEL SOB AUTORIZAÇÃO`** |
+> | §12.2 | próxima ação = responder `ARB-ARBITRO` | **cumprida.** A próxima ação passa a ser o fechamento do Bloco 3 (`R5`) — artefato `39` |
+>
+> **O que NÃO mudou:** `SF1` continua **não iniciável**. A instrução do fundador é expressa —
+> *"Não iniciar `SF1` ainda."* — e o Bloco 3 (`R5`) segue **sem protocolo fechado** (§11). O
+> aparelho permanece **`HANDS OFF`**.
+>
+> **Fechamento do Bloco 3, na mesma data.** O artefato
+> [`39_SF1_BLOCO_3_R5_E_PROTOCOLO_UNICO.md`](39_SF1_BLOCO_3_R5_E_PROTOCOLO_UNICO.md) fecha o
+> protocolo do Bloco 3 e consolida os Blocos 0–3 num protocolo único de `SF1`. Isso **não** torna
+> `SF1` iniciável: `39` §12.1 levanta **cinco arbitragens bloqueadoras** que só o fundador pode
+> responder. Dois pontos de `39` alcançam **este** artefato e ficam registrados aqui:
+>
+> | Ponto deste artefato | Registro |
+> |---|---|
+> | §8.1 — TAR do Bloco 1 em `…\SF1_BLOCO1\` | diverge de `37:540` (`…\SF1_R2_BLOCO_A_01\`). **Não existe convenção canônica** para `R3`/`R4`/`R5`/`R7` (`37:533-535`) — entra em `ARB-EVID-DIR` (`39` §12.4) |
+> | §7 — casos `1`, `10`, `14 v2`, `15`, `16` | o Bloco 3 **consome** insumo que estes casos leem: `GH2b` extingue a única obra legada e `GH3` cria obra fora da `PREP-LEGADO-03` (`STOP` `#15` de `14` §11). **O Bloco 1 tem de encerrar antes** — ordem já fixada em `37:288-304` e reforçada em `39` §11.2 |
+>
+> ### `SF1` = `NÃO INICIÁVEL` — 5 arbitragens bloqueadoras *(ver `39` §12.1)*

@@ -1051,3 +1051,27 @@ execução (`36:328`), porque é *"um item que **execução nenhuma resolve**"*.
 > Bloco 3 (`R5`) ainda **sem roteiro gesto a gesto** (`38` §11).
 >
 > ### `SF1` = `NÃO INICIÁVEL` — `ARB-ARBITRO` pendente *(ver `38` §12)*
+
+---
+
+## `ERRATA-06` — Bloco 3 fechado; a causa do bloqueio mudou de novo (aditiva)
+
+> **Posterior à `ERRATA-03`, em 2026-08-15.** Duas das três causas nomeadas ali foram resolvidas, e
+> uma seção deste artefato ganhou conteúdo que não existia quando ele foi escrito. O texto acima —
+> inclusive a `ERRATA-03` — **permanece íntegro, não reescrito e não reordenado**, conforme `§25`.
+
+| # | Ponto deste artefato | Estado agora | Onde |
+|---|---|---|---|
+| `E6-1` | `ARB-ARBITRO` pendente (`ERRATA-03`, linha final) | **RESPONDIDO** — `ARB-ARBITRO = SAÍDA A`, lavrado em `D-FUND-SG-A-ARBITER-EXT-BLOCO-A-01` ([`docs/DECISIONS.md`](../../../docs/DECISIONS.md)) | `38` `ERRATA-04` |
+| `E6-2` | `:297` — Bloco 3 descrito só como lista de itens (*"`R5` (`E1`, `E4`, `E5`, `E6`, §28 `#7`, painéis de recusa, `TA-5R`)"*) | **PROTOCOLO FECHADO**, gesto a gesto, com método de injeção, pré-condições, *checkpoints*, contaminações e `STOP` | [`39`](39_SF1_BLOCO_3_R5_E_PROTOCOLO_UNICO.md) §7 |
+| `E6-3` | `:288-304` — ordem `Bloco 1 → 2 → 3` | **CONFIRMADA, e reforçada** por um motivo novo: `GH3` cria obra que não veio da `PREP-LEGADO-03`, violando o `STOP` `#15` de `14` §11 — logo o Bloco 3 **tem** de vir depois do Bloco 1. O que `39` acrescenta é a ordem **dentro** do Bloco 3 | `39` §5, §11.2 |
+| `E6-4` | `:542` — evidência do Bloco 3 em `…\SF1_R5_01\` | **ADOTADO** por `39` §10, com a divergência de convenção contra `38:202` registrada em `ARB-EVID-DIR` | `39` §10, §12.4 |
+| `E6-5` | `:311` — *"acervo misto"* como pré-condição de `SF2` | **CONDICIONAL.** `07:610` situa o "misto" ao fim de `G5`, que é **iPad** e inclui `E3`, congelado no Android. No SM-X510 o misto depende do salvamento de §28 `#7`, que está **em arbitragem** (`ARB-28-7-TIRO-UNICO`). **Se não for autorizado, `SF2` fica sem pré-condição** | `39` §5.2, §12.1 |
+| `E6-6` | `:443-445` — câmera externa com **tablet inteiro** no quadro | **CONFLITA** com `07:608`, que exige *"captura **ampliada** da borda"* para `TA-5R`. Fisicamente incompatíveis num único registro | `39` §12.3 `ARB-TA5R-ENQ` |
+
+> **Consequência de estado.** As duas causas da `ERRATA-03` caíram: `S0.1` está respondida e
+> `ARB-ARBITRO` também; o Bloco 3 agora tem protocolo. **`SF1` continua `NÃO INICIÁVEL`** — a causa
+> próxima passou a ser o conjunto de **arbitragens bloqueadoras** de `39` §12.1, nenhuma das quais
+> pode ser respondida por agente. O aparelho permanece **`HANDS OFF`**.
+>
+> ### `SF1` = `NÃO INICIÁVEL` — 5 arbitragens bloqueadoras *(ver `39` §12.1)*

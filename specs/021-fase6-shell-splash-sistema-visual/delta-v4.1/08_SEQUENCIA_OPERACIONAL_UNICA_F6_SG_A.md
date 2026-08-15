@@ -571,3 +571,70 @@ Mantida a de `07` §9, com um acréscimo:
 
 `F6-SG-A` **não está concedido** e não pode ser concedido por nenhum agente. A concessão depende
 exclusivamente da execução física e do retorno de Eduardo com os resultados desta sequência.
+
+---
+
+## `ERRATA-05` — dois fatos deste artefato caducaram (aditiva; nada acima foi reescrito)
+
+> **Posterior a este artefato, em 2026-08-15.** Durante o fechamento do protocolo do Bloco 3 de `SF1`
+> ([`39_SF1_BLOCO_3_R5_E_PROTOCOLO_UNICO.md`](39_SF1_BLOCO_3_R5_E_PROTOCOLO_UNICO.md)), duas
+> afirmações deste documento foram confrontadas com o código do `HEAD` e com a perícia de campo do
+> [`13_PREP_LEGADO_03.md`](13_PREP_LEGADO_03.md), e **não sobreviveram**. O texto acima **permanece
+> íntegro, não reescrito e não reordenado**, conforme `§25`.
+
+### `E5-1` — §5.4, "Achado estrutural adicional": os eixos **deixaram de ser inalcançáveis**
+
+O parágrafo afirma que `paintSchemaVersion` e `layoutVersion` são *"**inalcançáveis através de um
+ponteiro `v:3`**"* porque *"`resolvePointer60` reconstrói o *payload* com lista **fixa** de campos e
+os dois eixos não estão nela"*.
+
+**No `HEAD` isso é falso.** O commit **`2ffcd82`** (2026-08-14 16:53:20 -0300, um arquivo, +46 / −2)
+introduziu `LOGICAL_SCHEMA_FIELDS` (`coloring60DrawingStorage.js:392`) e `carryLogicalSchema`
+(`:395`), chamados em **`writeSlot`** (`:442`) e em **`resolvePointer60`** (`:489`). Os quatro eixos
+lógicos **atravessam o ponteiro** e **chegam ao disco**.
+
+| | Continua válido | Caducou |
+|---|---|---|
+| `INJ-03` usar *payload* **inline** | ✅ o caminho inline segue correto e é o de menor ambiguidade | — |
+| *"**só** o inline alcança os eixos"* | — | ❌ no `HEAD`, o ponteiro também alcança |
+| A premissa para o **binário `521d59c`** | ✅ `521d59c` é **anterior** a `2ffcd82` | — |
+| O comentário de `harnessInject.js:217-218` | — | ❌ repete a premissa caduca; **é comentário, não lógica** — `INJ-03` não quebra |
+
+> **O instrumento de observação NÃO caducou.** `harnessStore.js:157` já lista
+> `'paintSchemaVersion', 'layoutVersion'` entre os metadados extraídos por `inspecionarChave`. O
+> inventário do harness **reporta os eixos novos se eles aparecerem**. O que está desatualizado é a
+> declaração de cobertura, não a capacidade de medir.
+
+Consequência: a decisão sobre qual JS servir ao Metro em `SF1` deixa de ser indiferente. Ver
+`ARB-JS-BINARIO` (`39` §12.1), o *checkpoint* `CK-JS` (`39` §3.4) e `ERRATA-C60-EIXOS-01` em
+[`docs/DECISIONS.md`](../../../docs/DECISIONS.md).
+
+### `E5-2` — §5.3, `INJ-12`: **não há insumo no aparelho** — a injeção sai do roteiro
+
+A tabela de injeções (`:254`) lista `INJ-12` — *"cena legada do Livrinho corrompida"*. **No SM-X510
+essa injeção não tem sobre o que agir**, por três fatos independentes:
+
+1. **O escritor está aposentado.** [`11_PREP_LEGADO_02.md:174`](11_PREP_LEGADO_02.md): o Colorir
+   legado tem *"`saveDrawingState` (`:130`) com **zero chamadores**"*.
+2. **O diretório não existe fisicamente.** [`13_PREP_LEGADO_03.md:167`](13_PREP_LEGADO_03.md),
+   verbatim: *"**Não existe `files/ptf_blobs/drawings/`, não existe *slot* `.b.png`, não existe
+   `RKStorage-wal`.**"* A perícia enumerou os **14** arquivos do `TAR-POST03` um a um.
+3. **Fabricar o insumo é proibido.** [`10_RODADA_FISICA_2.md:376`](10_RODADA_FISICA_2.md) —
+   *"Não fabricar obra 'legada' — isso destruiria o valor do caso"* — e
+   [`14_R2_SESSAO_2.md`](14_R2_SESSAO_2.md) §11, condição de `STOP` **`#17`**: *"Qualquer tentação de
+   fabricar, converter ou sintetizar insumo `v1`"*.
+
+**Classificação:** `INJ-12` = **`SEM INSUMO`**. Não é `PASS`, não é `FAIL` e não é lacuna de método —
+é ausência de sujeito. As instruções de `:361` (*"Percorrer `INJ-01` … `INJ-12` na ordem"*) e a
+folha de registro de `:546` devem ser lidas como **`INJ-01` … `INJ-11`**, com `INJ-12` anotado
+`SEM INSUMO` e sem tentativa de execução.
+
+### `E5-3` — nota de completude: `README_HARNESS.md` está fora do lacre
+
+A §4.7 lacra **seis** arquivos do harness com `SHA256`. O diretório `src/devharness/` contém um
+**sétimo** arquivo — `README_HARNESS.md` (3 549 B), que declara a fronteira
+*"o harness injeta · o produto reage · o harness observa"*. Registro de higiene, sem efeito sobre
+execução. Ver `ARB-HARNESS-README` (`39` §12.4).
+
+> **Esta errata não decide nada** e não altera o estado de §12: `F6-SG-A` continua **`NÃO
+> CONCEDIDO`**. Registra fatos verificados e nomeia onde eles pesam.
