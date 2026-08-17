@@ -653,3 +653,67 @@ O fundador precisa decidir **um único ponto** para desbloquear a sequência:
   deixa de ser dilema: torna-se apenas *"#7 e #9 gravam por último"*.
 - `AMB-E6-GALERIA` (§7.1) **não bloqueia**: as duas leituras são atendidas pela execução normal da
   matriz, sem arbitragem.
+
+---
+
+## 15 · Adendo — `GATE-ORDEM-CONSUNTIVA` **RATIFICADO** (2026-08-17)
+
+> **Nota aditiva.** Esta seção foi acrescentada **depois** do fechamento da perícia, para registrar a
+> resposta do fundador ao `HUMAN GATE` de §14. **Nada acima foi alterado, reescrito ou reinterpretado.**
+> Nenhuma medição nova foi feita; nenhum comando novo foi emitido ao aparelho.
+
+### 15.1 · O ato
+
+O fundador **ratificou** `GATE-ORDEM-CONSUNTIVA`. Texto verbatim:
+
+> *"RATIFICO `GATE-ORDEM-CONSUNTIVA`: `R4`, incluindo `CASO 13`, deve ser concluída e lacrada antes
+> de qualquer salvamento consuntivo de §28 #7 ou #9 sobre `art_1786479103982_6079`. A obra legada
+> deve permanecer intacta até o último consumidor obrigatório do formato antigo."*
+
+Lavrado em `docs/DECISIONS.md` como **`D-FUND-SG-A-ORDEM-CONSUNTIVA-01`**.
+
+### 15.2 · Duas cláusulas, não uma
+
+| # | Cláusula | Alcance |
+|---|---|---|
+| `1` | `R4`, **incluindo `CASO 13`**, **concluída *e lacrada*** antes de qualquer salvamento consuntivo de §28 #7/#9 sobre `art_1786479103982_6079` | Trava **posicional** sobre `R4`. *"Lacrada"* é requisito próprio: **concluir sem lacrar não satisfaz** |
+| `2` | A obra legada **permanece intacta até o último consumidor obrigatório do formato antigo** | **Mais ampla** que a cláusula `1` — **não se esgota** em `CASO 13` |
+
+A cláusula `2` é a que governa: ela transforma `art_1786479103982_6079` em **objeto sob trava
+explícita de preservação**, e não apenas em insumo de `CASO 13`.
+
+### 15.3 · Ordem operacional derivada (leitura do agente, não decisão do fundador)
+
+Cruzando a cláusula `2` com a tabela de consumidores de §8.1:
+
+| Consumidor | Natureza medida | Posição |
+|---|---|---|
+| `CASO 1`/`2`/`3`/`10` | leitura — já executados em `R2`/`R3` | atrás |
+| `CASO 14`, metade legada do `CASO 15` | leitura | atrás |
+| **`CASO 13` (`R4`)** | **leitura** — abre a obra pelo caminho revertido | **antes de qualquer gravação** |
+| `E6`/`GH1` | **leitura pura** (`39:584`) | antes de qualquer gravação |
+| **§28 #7 ∪ #9** | **CONSUNTIVOS** — gravam sobre a obra (`05:1011`, `05:1013`, `04:1057`) | **último ato consuntivo da campanha** |
+
+⇒ **`R4`/`CASO 13` → `E6`/`GH1` → §28 #7 ∪ #9 por último.**
+
+### 15.4 · Efeito sobre §7 (arbitragens) e §12 (`ERRATA-08`)
+
+| Item | Estado após a ratificação |
+|---|---|
+| `ARB-ORDEM-R4R5` | **ENCERRADA** — a ratificação é a decisão |
+| `ARB-28-7-TIRO-UNICO` | **DEIXA DE SER DILEMA** — vira **regra de posição**: `#7` e `#9` gravam por último |
+| `ARB-OBRA-NOVA` | **CAI** — desnecessária (§7 linha 7); o acervo já é misto **sem nenhuma escrita nova** |
+| `AMB-E6-GALERIA` (§7.1) | **PERMANECE `INDETERMINADO`.** Continua **não bloqueante**: sob as duas leituras `E6` é leitura pura e não consome |
+| `E8-3` / `E8-4` (§12) | Retificações **mantidas**. A ratificação confirma o que resta delas: **não é preciso produzir o misto — é preciso não destruí-lo antes de `R4`** |
+
+### 15.5 · O que esta ratificação **não** autoriza
+
+Não autoriza `SF1 Bloco 1` · `Bloco 3` · `R4` · `CASO 13` · `R5` · `E6` · nenhum cenário §28 ·
+nenhuma criação, salvamento, promoção ou restauração de obra · nenhuma abertura do app · nenhum
+Metro · nenhum *build*. É decisão **de ordem**, não de início. **A execução continua parada.**
+
+### 15.6 · Estado ao lavrar o adendo
+
+Nenhum comando `ADB` foi emitido. Nenhuma escrita no aparelho. Alteração **documental apenas** —
+este arquivo e `docs/DECISIONS.md`. O gate de bundleabilidade **não é disparado**.
+`art_1786479103982_6079` permanece exatamente como medido em §6.1.

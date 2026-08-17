@@ -4325,6 +4325,55 @@ Decisão **do fundador**, em resposta ao bloqueio causal levantado pelo
    AUTORIZAÇÃO`**. `SF1` permanece **não iniciável** enquanto o **Bloco 3 (`R5`)** não tiver
    protocolo fechado (artefato `38` §11) e enquanto a autorização de início não for dada.
 
+## `D-FUND-SG-A-ORDEM-CONSUNTIVA-01` — `GATE-ORDEM-CONSUNTIVA` **ratificado**: a obra legada é preservada até o último consumidor obrigatório (2026-08-17)
+
+Decisão **do fundador**, em resposta ao `HUMAN GATE` mínimo levantado pelo
+[artefato `41`](../specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/41_SF1_BLOCO_0A_PERICIA_ACERVO_CORRENTE.md)
+§14, sobre o acervo **medido** do `SM-X510` (perícia `SF1 · BLOCO 0A`, somente leitura, 2026-08-17).
+
+**Texto do fundador, verbatim:**
+
+> *"RATIFICO `GATE-ORDEM-CONSUNTIVA`: `R4`, incluindo `CASO 13`, deve ser concluída e lacrada antes
+> de qualquer salvamento consuntivo de §28 #7 ou #9 sobre `art_1786479103982_6079`. A obra legada
+> deve permanecer intacta até o último consumidor obrigatório do formato antigo."*
+
+**Conteúdo normativo:**
+
+1. **Precedência dura de `R4`.** `R4` — **incluindo `CASO 13`** — deve estar **concluída e lacrada**
+   antes de qualquer salvamento consuntivo de §28 **#7** ou **#9** sobre `art_1786479103982_6079`.
+   *"Lacrada"* é requisito próprio: concluir sem lacrar **não** satisfaz esta decisão.
+2. **Preservação até o último consumidor.** A obra legada `art_1786479103982_6079` **permanece
+   intacta** até o **último consumidor obrigatório do formato antigo**. Esta cláusula é **mais
+   ampla** que a cláusula `1` — ela **não se esgota** em `CASO 13`.
+3. **Alvo nominal.** A decisão nomeia **uma obra específica**, `art_1786479103982_6079`, que a
+   perícia do artefato `41` §6.1 mediu como **a única obra em formato antigo existente no aparelho**
+   (`paintSchemaVersion` e `layoutVersion` ausentes; `stateJson.v = 2`; `updatedAt == createdAt`).
+4. **Ratificação, não ordem nova.** Confirma `PF6SGA-ORDEM` (`R4` antes de `R5`). Nada daquela
+   decisão é alterado, afrouxado ou substituído.
+5. **Esta decisão não inicia nada.** Não autoriza `SF1 Bloco 1`, `Bloco 3`, `R4`, `R5`, *build*,
+   Metro nem qualquer execução física. É decisão **de ordem**, não de início. Nenhuma execução
+   ocorreu ao lavrá-la.
+
+**Notas de leitura — registro do agente, NÃO decisão do fundador:**
+
+6. **Consumidores do formato antigo, medidos, e sua natureza.** Pela perícia do artefato `41` §8.1:
+   - **Não consuntivos** (abrem e leem, sem gravar): `CASO 1`/`2`/`3`/`10` (executados em `R2`/`R3`),
+     `CASO 13` (`R4`), `CASO 14`, a metade legada do `CASO 15`, e `E6`/`GH1` — este último declarado
+     *"`LEITURA PURA`, `PRIMEIRO DE TODOS`"* em `39:584`.
+   - **Consuntivos** (gravam sobre a obra): §28 **#7** (`05:1011`, `05:1013`) e §28 **#9**
+     (`04:1057`) — e a perícia mediu que **os dois recaem sobre o mesmo objeto único**.
+
+   ⇒ Ordem operacional que satisfaz as duas cláusulas: **`R4`/`CASO 13` → `E6`/`GH1` (leitura pura)
+   → §28 `#7` ∪ `#9` como último ato consuntivo da campanha.**
+7. **Efeito sobre as arbitragens abertas.** `ARB-ORDEM-R4R5` fica **encerrada** por esta ratificação.
+   `ARB-28-7-TIRO-UNICO` deixa de ser dilema de escolha e vira **regra de posição** — `#7` e `#9`
+   gravam **por último**. `ARB-OBRA-NOVA` **cai como desnecessária** (artefato `41` §7, linha 7):
+   o acervo já é misto sem nenhuma escrita nova.
+8. **Ressalva honesta sobre *"o último consumidor"*.** A identidade exata do último consumidor
+   obrigatório depende de `AMB-E6-GALERIA` (artefato `41` §7.1), **ainda não resolvida**. Sob
+   **qualquer** das duas leituras, porém, `E6` é **leitura pura** e não consome — logo a cláusula `2`
+   é satisfeita pela mesma ordem do item `6`. **Nenhum caso é declarado `PASS` aqui.**
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
