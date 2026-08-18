@@ -4576,6 +4576,24 @@ Decisão do fundador em 2026-08-18, complementar a
 
 Nenhuma flag histórica de QA de packs será removida para o Attempt 03.
 
+## `D-FUND-F6-SG-A-HUMAN-GATE-FINAL-01` — SG-A concedido com residuais explícitos (2026-08-18)
+
+Decisão expressa do fundador após o PASS prospectivo do R7 Attempt 04 e o fechamento de
+`T090`/`P-139`:
+
+1. `F6_SG_A = CONCEDIDO_COM_RESIDUAIS_EXPLICITOS`.
+2. A concessão reconhece que SG-A está materialmente esgotado no alcance executável e que
+   `SD-8` foi honrado nesse alcance.
+3. A concessão **não** converte em PASS: §28 #8 (`NÃO EXECUTÁVEL NO PRODUTO CORRENTE`), GH8
+   (`TERMINAL COM LACUNAS · NÃO PASS`), os evidence gaps históricos aceitos, o FAIL histórico do
+   Caso 13, os Attempts R7 anteriores nem os STOPs históricos preservados.
+4. `R7_ATTEMPT_04 = PASS PROSPECTIVO`, `R7 = PASS`, `T090 = PASS` e `P139 = PASS` permanecem os
+   resultados materiais finais da rodada.
+5. `OR-1` fica satisfeito exclusivamente para abrir `F6-SG-B / F6-R2 · Map Geometry Foundation`.
+   Isso não concede SG-B, não autoriza pular seu ciclo SDD e não inicia SG-C/SG-D.
+6. A Fase 6 permanece aberta. O próximo bloco causal é o ciclo SDD completo de F6-SG-B; nenhuma
+   alteração de produto deve anteceder a auditoria e consolidação dos contratos desse subportão.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:

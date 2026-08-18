@@ -125,3 +125,19 @@ F6-SG-A .................. AGUARDANDO HUMAN GATE FINAL
 F6-SG-B .................. NÃO CONCEDIDO
 FASE 6 ................... ABERTA
 ```
+
+## 6 · Ratificação posterior do fundador
+
+O fundador escolheu expressamente a opção 1:
+
+```text
+F6_SG_A .................. CONCEDIDO_COM_RESIDUAIS_EXPLICITOS
+SG_A_MATERIAL_SCOPE ...... ESGOTADO NO ESCOPO EXECUTÁVEL
+F6_SG_B .................. ABERTO PARA O CICLO SDD · NÃO CONCEDIDO
+NEXT ..................... F6-SG-B / F6-R2 · Map Geometry Foundation
+FASE 6 ................... ABERTA
+```
+
+A concessão não modifica o ledger acima. §28 #8, GH8, evidence gaps, FAILs e STOPs históricos
+mantêm literalmente suas classificações. `OR-1` está satisfeito para iniciar as tasks `TK-B-*`,
+mas nenhuma implementação de SG-B começa sem seu ciclo SDD completo.
