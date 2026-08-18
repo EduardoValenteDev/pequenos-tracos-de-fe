@@ -4427,6 +4427,24 @@ Decisão **do fundador**, após `npx expo-doctor` medir **`17/18`** no harness r
 4. O PRE×POS preservou as obras, mas revelou escritas de Pares/Ovelhinha além do gesto mínimo.
    A divergência causal fica aberta e impede `READY FOR VIDEO 2` até explicação; registro no `44`.
 
+## `D-FUND-SG-A-V1-RECONCILIACAO-E-JANK-01` — adendo humano do Vídeo 1 (2026-08-18)
+
+1. O fundador confirmou duas conclusões adicionais de `Pares do Beni`: a primeira sem rotação e
+   a segunda com rotação. Isso explica `plays 1→3`, `wins 1→3` e `bonus_stars 1→3` no
+   PRE×POS.
+2. O fundador confirmou que encontrou/tocou a ovelhinha na primeira imagem de
+   `Cadê a Ovelhinha?` e rotacionou na segunda. Isso explica
+   `bestTimeByScene.toy_workshop_01`.
+3. O fundador confirmou que manteve/trouxe o Beni ao foreground após o vídeo para produzir o
+   screenshot do achado landscape. A causalidade das mutações questionadas no artefato `44`
+   fica encerrada pelo adendo `45`; o `44` permanece íntegro e não é reescrito.
+4. **`TABLET-JANK-TRANSITIONS-01`** é sinal qualitativo de performance/UX no SM-X510
+   (transições duras, navegação/animação percebidas como menos fluidas), sem crash nem erro
+   funcional observado e **sem baseline quantitativa**; portanto, não é `FAIL` nesta campanha.
+5. Dono da próxima ação: **Fase 9 / `P-127`**, para coleta e baseline objetiva; `P-139` é
+   pré-requisito instrumental relacionado. Revalidar nas Fases 14 e 21. O dono de eventual
+   correção só será definido depois que profiling localizar o custo. Não corrigir na Fase 6.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
