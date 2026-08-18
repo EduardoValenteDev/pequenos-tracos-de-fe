@@ -54547,6 +54547,22 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     `${d1Harness.stdout || ''}${d1Harness.stderr || ''}`.trim(),
   );
 
+  // F6-R7 · Attempt 03: o drawable Android standalone precisa virar `file://` antes de
+  // o expo-file-system convertê-lo em data URL. O harness executa as funções reais do
+  // ColoringCanvas e mata as regressões que voltariam a tratar o resource id como URL.
+  const r7AssetHarness = require('child_process').spawnSync(
+    process.execPath,
+    [path.join(root, 'scripts', 'testing', 'r7ReleaseAssetResolutionHarness.js')],
+    { encoding: 'utf8' },
+  );
+  check(
+    'F6-R7 Attempt 03: asset C60 standalone resolve para file:// e mutantes M1–M5 morrem',
+    r7AssetHarness.status === 0
+      && /R7 release asset focused: 7\/7 PASS/.test(r7AssetHarness.stdout)
+      && /R7 release asset mutants: 5\/5 KILLED/.test(r7AssetHarness.stdout),
+    `${r7AssetHarness.stdout || ''}${r7AssetHarness.stderr || ''}`.trim(),
+  );
+
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
   if (failures > 0) process.exit(1);

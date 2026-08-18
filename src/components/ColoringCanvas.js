@@ -1189,6 +1189,38 @@ function lineartCacheKeyOf(imageSource) {
 }
 
 /**
+ * Resolve uma fonte de lineart para uma URI que o expo-file-system consegue ler.
+ *
+ * No Android standalone, o resolvedor do React Native devolve assets de imagem como um
+ * identificador de drawable sem esquema (por exemplo,
+ * `assets_stories_creation_coloring_scene_02`) e o expo-asset o marca como `downloaded` para
+ * compatibilidade com `<Image>`. Esse identificador é válido para o pipeline nativo de imagem,
+ * mas não é uma URL para `fetch()` nem um caminho para `readAsStringAsync()`. Reabrir a mesma
+ * referência com `Asset.fromURI()` faz `downloadAsync()` atravessar o módulo nativo do expo-asset,
+ * que copia o drawable empacotado para o cache e devolve um `file://` legível.
+ *
+ * Development/Metro (`http://`), arquivos (`file://`) e fontes `{ uri }` continuam exatamente
+ * no caminho anterior. A cópia é cache transitório de asset; não toca em RKStorage, pointer ou
+ * blobs de pintura.
+ */
+async function resolveLineartReadableUri(imageSource) {
+  const isUriSource = !!(imageSource && typeof imageSource === 'object' && typeof imageSource.uri === 'string');
+  if (isUriSource) return imageSource.uri;
+
+  const asset = Asset.fromModule(imageSource);
+  if (!asset.downloaded) await asset.downloadAsync();
+  let localUri = asset.localUri || asset.uri;
+
+  if (localUri && !localUri.includes(':')) {
+    const embeddedAsset = Asset.fromURI(localUri);
+    if (!embeddedAsset.downloaded) await embeddedAsset.downloadAsync();
+    localUri = embeddedAsset.localUri || embeddedAsset.uri;
+  }
+
+  return localUri;
+}
+
+/**
  * Converte a lineart em data URL base64 e MEMORIZA no cache do módulo. Devolve o data URL já
  * pronto quando ele existe (sem download/leitura). Lança em falha — quem chama decide o que fazer.
  */
@@ -1198,14 +1230,7 @@ async function convertLineartToDataUrl(imageSource) {
   const cached = lineartCache.get(cacheKey);
   if (cached) return cached;
 
-  let localUri;
-  if (isUriSource) {
-    localUri = imageSource.uri; // fonte remota já resolvida (file:// persistente do pack)
-  } else {
-    const asset = Asset.fromModule(imageSource);
-    if (!asset.downloaded) await asset.downloadAsync();
-    localUri = asset.localUri || asset.uri;
-  }
+  const localUri = await resolveLineartReadableUri(imageSource);
   if (!localUri) throw new Error('asset sem localUri/uri');
   let dataUrl;
   if (localUri.startsWith('file')) {
