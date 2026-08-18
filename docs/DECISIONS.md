@@ -4594,6 +4594,22 @@ Decisão expressa do fundador após o PASS prospectivo do R7 Attempt 04 e o fech
 6. A Fase 6 permanece aberta. O próximo bloco causal é o ciclo SDD completo de F6-SG-B; nenhuma
    alteração de produto deve anteceder a auditoria e consolidação dos contratos desse subportão.
 
+## `D-FUND-F6-SG-B-Q6-COMPARATOR-01` — comparador visual não canônico autorizado (2026-08-18)
+
+O fundador escolheu a opção A do `STOP_HUMAN_DECISION_Q6` registrado no artefato `81`:
+
+1. fica autorizado um comparador visual descartável e isolado entre âncora vertical `0,50` e
+   `0,58`, nas faixas compacta, média e expandida;
+2. nenhum dos dois valores foi promovido ao produto, aos tokens ou ao contrato canônico;
+3. o comparador deve manter conteúdo, geometria e viewport idênticos dentro de cada par, variando
+   exclusivamente a âncora vertical;
+4. a escolha estética continua pendente de ato humano posterior do fundador;
+5. o comparador vive fora do worktree canônico e não autoriza ADB, Metro, tablet nem alteração de
+   arquivo executável do produto.
+
+Custódia local e hashes estão registrados no artefato `81`, §8. Esta decisão autoriza a comparação;
+ela não escolhe vencedor e não concede o Portão 1 de implementação de SG-B.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:

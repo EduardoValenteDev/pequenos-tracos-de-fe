@@ -163,3 +163,48 @@ SG_B_READY_FOR_PHYSICAL . NÃO
 SG_B_READY_FOR_GATE ..... NÃO
 NEXT_SAFE_ACTION ........ decisão do fundador entre A e B
 ```
+
+## 8 · Opção A executada · comparador não canônico
+
+O fundador escolheu a opção A. O comparador foi gerado fora do repositório em:
+
+```text
+C:\tmp\ptf_sgb_q6_comparator
+```
+
+Propriedades congeladas:
+
+- conteúdo real: assets canônicos finais do mapa, em ordem visual
+  `jovens_da_fe → descobridores → pequeninos → comece_aqui`;
+- alvo idêntico nos seis quadros: `david_goliath`, coordenada normalizada `(0,69; 0,90)` da região
+  `pequeninos`, com a capa local canônica;
+- largura da região: `contentW`; altura: `round(contentW / (9/16))`, como no produto;
+- compacta: `390 × 844dp`, `contentW=390`, viewport livre vertical `696dp`;
+- média: `823 × 1317dp`, sidebar `180dp`, `contentW=643`, viewport livre vertical `1247dp`;
+- expandida: `1317 × 823dp`, sidebar `240dp`, `contentW=1077`, viewport livre vertical `753dp`;
+- escala de saída: `2×`;
+- nenhuma subtração ou compensação de `56dp`;
+- dentro de cada par, somente o fator de âncora muda: `0,50` × `0,58`.
+
+| Arquivo | Bytes | SHA256 |
+|---|---:|---|
+| `compact_050.png` | 3.043.388 | `A15B9D7E57B8C91EB3B980593AD084D07991D7068A1EE816A843CFFBFD731BA0` |
+| `compact_058.png` | 3.051.679 | `6A6179206BD5B67C231C3C121DA8615ECC81E4349858E9A629434A532925A8C2` |
+| `compact_side_by_side.png` | 6.194.021 | `36F1692C12158DCFCC7D9B5CAFDE4F9D35B75003F70672291E58DB1E6A327CD6` |
+| `medium_050.png` | 8.872.538 | `40503BE55BDA1A0A731ACC024901DD3CCBF402B77173CE116A1190A02FF11B83` |
+| `medium_058.png` | 8.882.651 | `E6D46D900D8DF4035B18F35C0755D9FFEE336557FDEB52C65BDB467A682E4816` |
+| `medium_side_by_side.png` | 18.081.633 | `AD5EF7FB24D3CD912850EA4D36EB399915496172D9D846FDA7E69C0AC522A526` |
+| `expanded_050.png` | 7.688.315 | `5B7DC05933D04EAEB443D6706FB5943ACEFC3115AA36E47B6255212C47BA9EF4` |
+| `expanded_058.png` | 7.974.432 | `08D431FDF4CD76574ABC6A7AF4264C2B230654BD4FBF36B82B069ED9229DC096` |
+| `expanded_side_by_side.png` | 16.156.048 | `2845BBBDB6BDBEA201067103FDE193440C12680FADA9EECA657525620DCE9CA5` |
+| `manifest.json` | 3.381 | `8B1F309E59ADA855F3389C003E49AEB35C361BAD31422CE80F01DD2EB8FF7ECA` |
+
+O renderizador descartável `render-comparator.cjs` e todas as imagens permanecem fora do
+worktree. Nenhum `.js` canônico, token, asset ou arquivo de produto foi alterado. Nenhum valor foi
+promovido. O Portão 1 continua aguardando a escolha visual do fundador.
+
+```text
+COMPARATOR_STATUS ........ GERADO · NÃO CANÔNICO
+CANONICAL_PROMOTION ...... NÃO
+FOUNDER_DECISION_REQUIRED  SIM
+```
