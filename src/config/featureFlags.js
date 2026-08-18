@@ -101,14 +101,16 @@ export const CREATOR_QA_MODE_RELEASE_ENABLED =
  * LOJA, sem cerca nenhuma. As duas condições precisam bater ao mesmo tempo (conjunção, não flag
  * simples), no mesmo padrão release-safe de RELEASE_PACK_QA_ENABLED / CREATOR_QA_MODE_RELEASE_ENABLED:
  *   - EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true'
- *   - EXPO_PUBLIC_BUILD_PROFILE           === 'c60-pilot'   (nome EXATO, um único perfil)
+ *   - EXPO_PUBLIC_BUILD_PROFILE           === 'c60-pilot' OU 'preview' (nomes EXATOS)
  *
  * Consequências desenhadas de propósito:
  *   - FAIL-CLOSED POR AUSÊNCIA: env vazio ⇒ `undefined === 'true'` ⇒ false. É o estado padrão.
  *   - UMA VARIÁVEL ISOLADA É INERTE: se EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT vazasse sozinha,
  *     faltaria o perfil; se o perfil vazasse sozinho, faltaria a autorização explícita.
  *   - PRODUÇÃO NUNCA LIGA: o perfil `production` do eas.json não declara NENHUMA das duas —
- *     falha por ausência dupla. `preview`, `preview-criador` e `screenshot` também não as declaram.
+ *     falha por ausência dupla. `preview-criador` e `screenshot` também não satisfazem a cerca.
+ *   - R7: o perfil interno `preview` declara a autorização e é identidade permitida para a prova
+ *     release não-DEV de T090/P139; isso não habilita `production` nem ferramentas internas.
  *   - COMPARAÇÃO LITERAL E ESTRITA: 'True', '1', 'C60-Pilot' ou 'c60-pilot ' (com espaço) NÃO abrem.
  *   - O perfil `c60-pilot` é de distribuição INTERNA e NÃO serve para distribuição pública.
  *     Ele também não declara Modo Criador, sandbox de packs nem Release Pack QA — logo
@@ -121,4 +123,4 @@ export const CREATOR_QA_MODE_RELEASE_ENABLED =
  */
 export const COLORIR_60_CREATION_PILOT_ENABLED =
   process.env.EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true' &&
-  process.env.EXPO_PUBLIC_BUILD_PROFILE === 'c60-pilot';
+  ['c60-pilot', 'preview'].includes(process.env.EXPO_PUBLIC_BUILD_PROFILE);

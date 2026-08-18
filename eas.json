@@ -21,6 +21,7 @@
         "EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA": "true",
         "EXPO_PUBLIC_QA_BUILD": "true",
         "EXPO_PUBLIC_BUILD_PROFILE": "preview",
+        "EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT": "true",
         "EXPO_PUBLIC_PTF_PERF_TRACE": "1",
         "EXPO_PUBLIC_GLOBAL_MANIFEST_URL": "https://pub-f990153eeeb9460ab963038904f3ac96.r2.dev/content-manifest.json"
       },

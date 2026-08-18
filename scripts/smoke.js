@@ -92,6 +92,8 @@ const BDO_TESTE = Object.freeze({
  * vermelhas sozinhas.
  * ─────────────────────────────────────────────────────────────────────────────────────────── */
 const C60_PILOT_PROFILE = 'c60-pilot';
+const C60_PREVIEW_PROFILE = 'preview';
+const C60_ALLOWED_PROFILES = Object.freeze([C60_PILOT_PROFILE, C60_PREVIEW_PROFILE]);
 const C60_PILOT_ENV_ON = Object.freeze({
   EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT: 'true',
   EXPO_PUBLIC_BUILD_PROFILE: C60_PILOT_PROFILE,
@@ -143,7 +145,7 @@ let C60_SEAL_WHY = '';
  * A intenção original de cada bloco — "esta fase NÃO liga o piloto" — é preservada e FORTALECIDA:
  * antes bastava o texto; agora exige-se, por execução real, que
  *   1. sem nenhuma variável o piloto resolva `false` (fail-closed por ausência — o padrão);
- *   2. TODO perfil do eas.json que não seja `c60-pilot` — `production` inclusive — resolva `false`;
+ *   2. somente `c60-pilot` e `preview` resolvam `true`; `production` permanece `false`;
  *   3. cada variável isolada seja inerte (uma condição sozinha nunca abre);
  *   4. a cerca dupla ainda EXISTA e seja a única porta — senão "fechado" seria fechado por ter
  *      apagado a flag, e o lacre viraria tautologia.
@@ -160,9 +162,9 @@ function c60PilotSealed() {
       C60_SEAL_WHY = 'o perfil `production` sumiu do eas.json — a prova perderia o seu alvo';
       return false;
     }
-    const abertos = perfis.filter((p) => p !== C60_PILOT_PROFILE && c60PilotFlagUnder(easProfileEnv(p)));
+    const abertos = perfis.filter((p) => !C60_ALLOWED_PROFILES.includes(p) && c60PilotFlagUnder(easProfileEnv(p)));
     if (abertos.length) {
-      C60_SEAL_WHY = `perfis que não são o do piloto abrem o piloto: ${abertos.join(', ')}`;
+      C60_SEAL_WHY = `perfis fora do conjunto autorizado abrem o piloto: ${abertos.join(', ')}`;
       return false;
     }
     if (c60PilotFlagUnder({ EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT: 'true' })) {
@@ -46733,7 +46735,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     const { loadModule: load018 } = require('./testing/packInstallHarness');
     const BUILD_018 = easBuildProfiles();
     const PERFIS_018 = Object.keys(BUILD_018);
-    const NAO_PILOTO_018 = PERFIS_018.filter((p) => p !== C60_PILOT_PROFILE);
+    const NAO_AUTORIZADOS_018 = PERFIS_018.filter((p) => !C60_ALLOWED_PROFILES.includes(p));
     const VAR_AUTORIZA = 'EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT';
     const VAR_PERFIL = 'EXPO_PUBLIC_BUILD_PROFILE';
     const ENV_PILOTO_REAL = easProfileEnv(C60_PILOT_PROFILE); // lido do eas.json, não digitado
@@ -46745,6 +46747,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       [{ [VAR_AUTORIZA]: 'true' }, false, 'só a autorização'],
       [{ [VAR_PERFIL]: C60_PILOT_PROFILE }, false, 'só o perfil'],
       [{ [VAR_AUTORIZA]: 'true', [VAR_PERFIL]: C60_PILOT_PROFILE }, true, 'a cerca dupla completa'],
+      [{ [VAR_AUTORIZA]: 'true', [VAR_PERFIL]: C60_PREVIEW_PROFILE }, true, 'a cerca dupla do preview R7'],
     ];
     const erros018 = linhas018
       .filter(([env, esperado]) => c60PilotFlagUnder(env) !== esperado)
@@ -46755,7 +46758,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     // Comparação LITERAL e ESTRITA: nada de coerção, prefixo, caixa diferente ou espaço sobrando.
     const quaseAutoriza = ['True', 'TRUE', '1', 'yes', 'true ', ' true', '', 'false'];
-    const quasePerfil = ['C60-Pilot', 'c60-pilot ', ' c60-pilot', 'c60pilot', 'c60-pilot-2', 'production', 'preview', ''];
+    const quasePerfil = ['C60-Pilot', 'c60-pilot ', ' c60-pilot', 'c60pilot', 'c60-pilot-2', 'Preview', 'preview ', 'production', ''];
     const frouxos018 = []
       .concat(quaseAutoriza
         .filter((v) => c60PilotFlagUnder({ [VAR_AUTORIZA]: v, [VAR_PERFIL]: C60_PILOT_PROFILE }))
@@ -46785,9 +46788,11 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     /* ── 2 · OS PERFIS: produção fechada por ausência (L1 + L3) ──────────────────────────── */
 
-    const abertos018 = NAO_PILOTO_018.filter((p) => c60PilotFlagUnder(easProfileEnv(p)));
-    check(`018·C60 [perfil 1/6] L1: TODO perfil que não é o do piloto resolve o Colorir 60 como FALSO (${NAO_PILOTO_018.join(', ')})`,
-      PERFIS_018.indexOf('production') !== -1 && abertos018.length === 0,
+    const abertos018 = NAO_AUTORIZADOS_018.filter((p) => c60PilotFlagUnder(easProfileEnv(p)));
+    check(`018·C60 [perfil 1/6] L1: somente c60-pilot e preview abrem; os demais resolvem FALSO (${NAO_AUTORIZADOS_018.join(', ')})`,
+      PERFIS_018.indexOf('production') !== -1
+      && c60PilotFlagUnder(easProfileEnv(C60_PREVIEW_PROFILE)) === true
+      && abertos018.length === 0,
       `perfis que abriram o piloto indevidamente: ${abertos018.join(', ') || '(production sumiu do eas.json)'}`);
 
     const envProd018 = easProfileEnv('production');
@@ -46795,11 +46800,14 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       !(VAR_AUTORIZA in envProd018) && !(VAR_PERFIL in envProd018),
       `o perfil de loja passou a declarar: ${[VAR_AUTORIZA, VAR_PERFIL].filter((k) => k in envProd018).join(', ')}`);
 
-    const vazamentos018 = NAO_PILOTO_018.filter((p) => {
+    const vazamentos018 = NAO_AUTORIZADOS_018.filter((p) => {
       const env = easProfileEnv(p);
-      return (VAR_AUTORIZA in env) || env[VAR_PERFIL] === C60_PILOT_PROFILE;
+      // `preview-criador` herda a autorização do pai, mas sobrescreve a identidade do
+      // perfil; a cerca dupla continua falsa. Vazamento é autorização EFICAZ, não uma
+      // chave herdada e inerte.
+      return c60PilotFlagUnder(env) || env[VAR_PERFIL] === C60_PILOT_PROFILE;
     });
-    check('018·C60 [perfil 3/6] L3: nenhum perfil não-piloto declara a variável de autorização nem se apresenta como `c60-pilot`',
+    check('018·C60 [perfil 3/6] L3: nenhum perfil fora do conjunto autorizado declara autorização eficaz nem se apresenta como `c60-pilot`',
       vazamentos018.length === 0,
       `perfis com vazamento das variáveis do piloto: ${vazamentos018.join(', ')}`);
 
@@ -46834,7 +46842,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       // coletor de desempenho era inalcançável fora de `__DEV__`. Declarada aqui de propósito —
       // este check é o inventário fechado de chaves, e toda adição passa por ele.
       // `preview-criador` a herda por `extends`, sem redeclarar.
-      preview: ['EXPO_PUBLIC_BUILD_PROFILE', 'EXPO_PUBLIC_ENABLE_PACK_SANDBOX', 'EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA', 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL', 'EXPO_PUBLIC_PTF_PERF_TRACE', 'EXPO_PUBLIC_QA_BUILD'],
+      preview: ['EXPO_PUBLIC_BUILD_PROFILE', 'EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT', 'EXPO_PUBLIC_ENABLE_PACK_SANDBOX', 'EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA', 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL', 'EXPO_PUBLIC_PTF_PERF_TRACE', 'EXPO_PUBLIC_QA_BUILD'],
       'preview-criador': ['EXPO_PUBLIC_BUILD_PROFILE', 'EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE', 'EXPO_PUBLIC_ENABLE_PACK_SANDBOX', 'EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA', 'EXPO_PUBLIC_GLOBAL_MANIFEST_URL', 'EXPO_PUBLIC_QA_BUILD'],
       production: ['EXPO_PUBLIC_GLOBAL_MANIFEST_URL'],
       screenshot: [],
@@ -46843,7 +46851,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       !BUILD_018[p]
       || JSON.stringify(Object.keys((BUILD_018[p].env) || {}).sort()) !== JSON.stringify(ENV_KEYS_ESPERADAS[p])
     ));
-    check('018·C60 [perfil 6/6]: os perfis PRÉ-EXISTENTES continuam com exatamente as mesmas chaves de env (a spec 018 não mexeu em nenhum)',
+    check('018·C60 [perfil 6/6]: inventário de env preserva os perfis e inclui somente a autorização C60 aprovada no preview',
       mexidos018.length === 0 && BUILD_018['preview-criador'].extends === 'preview',
       `perfis alterados fora do escopo da spec 018: ${mexidos018.join(', ')}`);
 
@@ -47023,7 +47031,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     // CN-018-1 — a conjunção vira literal `true`: produção passaria a abrir o piloto (L1 cai).
     const mutLiteralTrue = (s) => s.replace(
-      /process\.env\.EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true' &&[\s\S]*?=== 'c60-pilot'/, 'true');
+      /process\.env\.EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true' &&[\s\S]*?\.includes\(process\.env\.EXPO_PUBLIC_BUILD_PROFILE\)/, 'true');
     cn018('CN-018-1', 'featureFlags.js', 'a cerca dupla vira literal `true` e a LOJA passa a abrir o piloto',
       c60PilotFlagUnder(envProd018) === false,
       seguro018(() => c60PilotFlagUnder(envProd018, mutLiteralTrue) === false));
