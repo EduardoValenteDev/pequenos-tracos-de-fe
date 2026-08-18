@@ -4374,6 +4374,48 @@ Decisão **do fundador**, em resposta ao `HUMAN GATE` mínimo levantado pelo
    **qualquer** das duas leituras, porém, `E6` é **leitura pura** e não consome — logo a cláusula `2`
    é satisfeita pela mesma ordem do item `6`. **Nenhum caso é declarado `PASS` aqui.**
 
+## `D-FUND-SG-A-E6-SUPERFICIE-A-01` — `AMB-E6-SUPERFICIE = A`, através do acervo (2026-08-18)
+
+Decisão **do fundador**, anterior à primeira interação física da campanha `SF1`.
+
+**Texto do fundador, verbatim:**
+
+> *"A = ATRAVÉS DO ACERVO. Em E6, ‘uma de cada formato’ será lido como: obra legada do Ateliê +
+> obra C60 light. Não adotar a leitura B dentro da Galeria do Ateliê. Não reabra ARB-OBRA-NOVA por
+> causa de E6."*
+
+**Conteúdo normativo:**
+
+1. `AMB-E6-SUPERFICIE` fica **ENCERRADA — SAÍDA A**.
+2. `E6`/`GH1` observa, em leitura pura, `art_1786479103982_6079` no Ateliê e
+   `@ptf_drawing60_screation_alight` no Colorir 60.
+3. A leitura estrita dentro da Galeria do Ateliê **não governa esta campanha**.
+4. `ARB-OBRA-NOVA` **não reabre** por causa de `E6`; nenhuma obra nova é necessária para colher a
+   evidência do caso.
+5. A decisão não declara `PASS`, não autoriza escrita e não muda a ordem causal: `E6` continua
+   leitura pura, antes de qualquer salvamento da sessão.
+
+## `D-FUND-SG-A-PATCH-BASELINE-01` — preservar patches Expo durante a campanha física (2026-08-18)
+
+Decisão **do fundador**, após `npx expo-doctor` medir **`17/18`** no harness reconciliado.
+
+**Conteúdo normativo:**
+
+1. Preservar `expo 54.0.36` e `expo-file-system 19.0.23` durante esta campanha.
+2. Não executar atualização corretiva, não alterar `package.json`/`package-lock.json` e não gerar
+   novo *build* por causa do alinhamento de patch.
+3. O resultado é registrado literalmente como **`expo-doctor = 17/18`**; é proibido declarar
+   `18/18`.
+4. A divergência é **não bloqueante para os testes físicos correntes**, porque não houve mudança de
+   dependência/configuração/runtime desde a baseline instalada, o `bundle:check` do harness
+   reconciliado ficou verde e o smoke ficou `4954/4954`. Ela não altera o JS, o binário instalado,
+   o acervo nem a causalidade dos gestos observados.
+5. A divergência **permanece bloqueante para qualquer fechamento posterior que exija literalmente
+   `expo-doctor` verde** (`SD-10`/`B7`). Preservar a baseline para a campanha não concede exceção ao
+   portão terminal.
+6. Se surgir evidência concreta de incompatibilidade em execução, vale `STOP_PRODUCT_DEFECT` ou
+   `HARD STOP`, conforme a natureza; esta decisão não autoriza atribuir falha ao patch sem prova.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
