@@ -4610,6 +4610,24 @@ O fundador escolheu a opção A do `STOP_HUMAN_DECISION_Q6` registrado no artefa
 Custódia local e hashes estão registrados no artefato `81`, §8. Esta decisão autoriza a comparação;
 ela não escolhe vencedor e não concede o Portão 1 de implementação de SG-B.
 
+## `D-FUND-F6-SG-B-Q6-A18-FINAL-01` — âncora vertical canônica do mapa em `0,50` (2026-08-18)
+
+Após concluir a comparação visual não canônica autorizada em
+`D-FUND-F6-SG-B-Q6-COMPARATOR-01`, o fundador decidiu:
+
+1. `Q6_A18_FINAL = 0.50`;
+2. `0,50` é o único valor canônico de repouso vertical da âncora do mapa nas faixas compacta,
+   média e expandida; não haverá variação por faixa;
+3. a escolha decorre do melhor equilíbrio vertical e repouso do foco ativo nas três faixas; `0,58`
+   desloca o foco atual para baixo além do ideal;
+4. o fator incide exclusivamente sobre a viewport livre realmente medida;
+5. ficam proibidas as compensações antigas de `56dp` e quaisquer compensações de header,
+   safe area ou sidebar já representadas pelo layout real;
+6. a decisão encerra `Q6/A-18`, concede prospectivamente o Portão 1 do Mini-SDD do artefato `81`
+   e autoriza os clusters B1–B4 de `F6-SG-B`;
+7. a decisão não concede `F6-SG-B`: B5 e o portão humano continuam dependentes da validação
+   física própria do mapa.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:

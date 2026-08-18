@@ -208,3 +208,27 @@ COMPARATOR_STATUS ........ GERADO · NÃO CANÔNICO
 CANONICAL_PROMOTION ...... NÃO
 FOUNDER_DECISION_REQUIRED  SIM
 ```
+
+## 9 · Decisão final do fundador · `Q6_A18_FINAL = 0.50`
+
+O fundador concluiu a comparação visual do §8 e escolheu `0,50` como valor canônico único nas
+faixas compacta, média e expandida. A decisão foi motivada pelo melhor equilíbrio vertical e
+repouso do foco ativo; `0,58` deslocou o foco para baixo além do ideal.
+
+Consequências normativas:
+
+- `MAP_ANCHOR_FRAMING = 0.50`, sem variação por faixa;
+- o fator é aplicado à viewport livre realmente medida;
+- não há compensação de `56dp`, header, safe area ou sidebar;
+- `Q6/A-18` está fechado e o STOP histórico do §7 permanece preservado como estado anterior à
+  decisão, sem ser convertido retroativamente;
+- os clusters B1–B4 estão autorizados; B5 continua exigindo validação física e decisão humana.
+
+```text
+Q6_A18_FINAL ............. 0.50
+PORTAO_1_PROSPECTIVO ..... PASS
+PORTAO_2 ................. PASS · plano mínimo dos clusters B1–B4 ratificado
+PORTAO_3 ................. PASS · tasks, gates e mutantes do §4 ratificados
+IMPLEMENTATION_AUTHORIZED  SIM · somente B1–B4
+SG_B_READY_FOR_GATE ...... NÃO · depende de B5
+```
