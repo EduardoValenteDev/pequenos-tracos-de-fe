@@ -4541,6 +4541,25 @@ Decisão **do fundador**, após `npx expo-doctor` medir **`17/18`** no harness r
 4. O C60 `light` permaneceu byte-idêntico e nenhuma mutação inesperada foi encontrada.
 5. R5 fica encerrada no escopo executável; §28 #8 continua `NÃO EXECUTÁVEL`, nunca PASS.
 
+## `D-FUND-R7-PREVIEW-C60-01` — piloto C60 habilitado no preview interno de R7
+
+Decisão do fundador em 2026-08-18, após o `STOP_PRODUCT_DEFECT` do R7 Attempt 02:
+
+1. `development` preserva os mecanismos existentes de acesso ao C60;
+2. `c60-pilot` preserva integralmente seu comportamento dedicado;
+3. o perfil interno `preview` passa a habilitar explicitamente o piloto C60 para a
+   prova obrigatória R7/T090/P139;
+4. `production` permanece com C60 desligado e sem P139;
+5. `preview` continua release não-DEV, sem dev client e sem dependência de Metro;
+6. a decisão não habilita ferramentas internas, não altera UI, storage, desenho,
+   navegação, package, signing ou versionamento;
+7. o Attempt 02 permanece histórico: APK preview válido, porém incompatível com o
+   cenário C60 exigido por R7. Nunca é convertido em PASS.
+
+Implementação autorizada: declarar no `preview` a autorização explícita C60 e
+adaptar a cerca dupla para reconhecer exatamente `preview` e `c60-pilot`, mantendo
+falha fechada em todos os demais perfis.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
