@@ -4531,6 +4531,16 @@ Decisão **do fundador**, após `npx expo-doctor` medir **`17/18`** no harness r
    eram de custódia e agora têm estado terminal, `R1_FINAL_STATUS = PASS FORMALIZADO COM EVIDENCE
    GAPS HISTÓRICOS ACEITOS`. Isso não cria evidência inexistente nem apaga as lacunas.
 
+## `D-FUND-SG-A-E1-E3-PASS-01` — fechamento físico dos extras E1 e E3 (2026-08-18)
+
+1. `E1 = PASS`: `O mundo cheio de vida` foi criado, salvo uma vez e reaberto na mesma janela; o
+   ponteiro v3 dual e os dois blobs foram capturados e validados.
+2. `E3 = PASS POR ATESTAÇÃO EXTERNA`: dez ciclos consecutivos foram executados sem deriva percebida;
+   a evidência audiovisual permanece sob custódia do fundador e não foi recebida pelo agente.
+3. `TA-5R = PASS POR ATESTAÇÃO EXTERNA`; a captura ampliada permanece sob custódia do fundador.
+4. O C60 `light` permaneceu byte-idêntico e nenhuma mutação inesperada foi encontrada.
+5. R5 fica encerrada no escopo executável; §28 #8 continua `NÃO EXECUTÁVEL`, nunca PASS.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
