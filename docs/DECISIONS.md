@@ -4416,6 +4416,17 @@ Decisão **do fundador**, após `npx expo-doctor` medir **`17/18`** no harness r
 6. Se surgir evidência concreta de incompatibilidade em execução, vale `STOP_PRODUCT_DEFECT` ou
    `HARD STOP`, conforme a natureza; esta decisão não autoriza atribuir falha ao patch sem prova.
 
+## `D-FUND-SG-A-V1-EVIDENCIA-E-UX-01` — Vídeo 1, custódia externa e achado da Ovelhinha (2026-08-18)
+
+1. Continuidade de rota, estado, sessão, mapa, jogos e áudio: **sem erro funcional observado pelo
+   fundador**. O audiovisual permanece sob custódia do fundador; **o agente não o recebeu**.
+2. O desconforto de `Cadê a Ovelhinha?` em tablet landscape é achado separado de
+   UX/responsividade, não falha de continuidade do Vídeo 1.
+3. Identificador: **`F12A-OVELHA-LANDSCAPE-01`**. Dono: **Fase 12A**, `F12A-SG-A`, `P-166`,
+   `E067`–`E070-R3`/`E072-R1`; revalidar no Launch Readiness. Não corrigir na Fase 6.
+4. O PRE×POS preservou as obras, mas revelou escritas de Pares/Ovelhinha além do gesto mínimo.
+   A divergência causal fica aberta e impede `READY FOR VIDEO 2` até explicação; registro no `44`.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
