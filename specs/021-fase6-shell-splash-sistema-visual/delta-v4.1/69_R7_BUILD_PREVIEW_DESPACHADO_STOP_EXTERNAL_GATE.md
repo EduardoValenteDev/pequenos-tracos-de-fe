@@ -1,8 +1,8 @@
 # R7 · build preview despachado · STOP_EXTERNAL_GATE
 
-Data: 2026-08-18  
-Baseline documental: `3fe9814ec4194336e66f9e78527455356ea22168`  
-Baseline executável contida: `bff8b5c`  
+Data: 2026-08-18
+Baseline documental: `3fe9814ec4194336e66f9e78527455356ea22168`
+Baseline executável contida: `bff8b5c`
 Escopo: F6-SG-A · R7 · T090 · P139
 
 ## 1 · Pré-condições satisfeitas
