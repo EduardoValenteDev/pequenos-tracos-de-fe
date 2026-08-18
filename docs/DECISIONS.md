@@ -4462,6 +4462,21 @@ Decisão **do fundador**, após `npx expo-doctor` medir **`17/18`** no harness r
    O próximo bloco é o restante reversível de R5; qualquer salvamento consuntivo sobre a obra
    legada continua reservado ao ato final.
 
+## `D-FUND-SG-A-ARB-NAOEXEC-28-8-01` — §28 #8 não executável no produto corrente (2026-08-18)
+
+1. É proibido habilitar carimbos artificialmente ou alterar código, flag, harness ou instrumentação
+   para fabricar a ação histórica `carimbar`.
+2. Com `STAMPS_ENABLED=false` e sem interface de carimbos no HEAD atual,
+   `SECTION_28_8 = NÃO EXECUTÁVEL NO PRODUTO CORRENTE`.
+3. Essa classificação não é `PASS` nem `FAIL` funcional; preserva o contrato histórico e permanece
+   bloqueador residual se o fechamento global exigir execução de todos os casos obrigatórios.
+4. `ARB-NAOEXEC` fica fechada especificamente para §28 #8. Seu owner técnico corrente permanece
+   `F6-R3.5` / `F6-SG-A`, tasks `TK-A-034`, `TK-A-066` e `TK-A-101 (E2)`. O roadmap não atribui uma
+   fase futura separada para reabilitar a UI de carimbos.
+5. Casos causalmente independentes podem prosseguir sem renumeração: GH4–GH7/injeções autorizadas;
+   GH3/E1/TA-5R depois de seus gates próprios; metade reversível de §28 #9; e o ato consuntivo final
+   §28 `#7 ∪ #9`, que continua por último.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:

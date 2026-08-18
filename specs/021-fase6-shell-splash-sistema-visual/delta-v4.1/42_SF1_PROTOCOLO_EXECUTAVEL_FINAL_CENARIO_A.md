@@ -533,6 +533,25 @@ respondidas **antes** dos passos que dependem delas.
 
 ## 13 · Estado ao fim deste artefato
 
+### Adendo de execução · `ARB-NAOEXEC` / §28 `#8` (2026-08-18)
+
+Decisão expressa do fundador, preservada sem reescrever o contrato histórico:
+
+1. não habilitar carimbos artificialmente e não alterar código, flag, harness ou instrumentação;
+2. não conceder `PASS` nem `FAIL` funcional ao §28 `#8`;
+3. como `STAMPS_ENABLED=false` e a interface de carimbos não existe no HEAD corrente, classificar
+   `SECTION_28_8 = NÃO EXECUTÁVEL NO PRODUTO CORRENTE`;
+4. manter o item como bloqueador residual caso o fechamento global exija todos os casos obrigatórios.
+
+`ARB-NAOEXEC` fica **FECHADA para §28 #8** com essa classificação. O owner técnico já definido do
+contrato continua em Fase 6: `F6-R3.5` / `F6-SG-A`, `TK-A-034`, `TK-A-066` e `TK-A-101 (E2)`.
+Nenhuma fase futura separada para reabilitar a UI de carimbos está atribuída no roadmap corrente;
+portanto, não se inventa owner futuro.
+
+A classificação não bloqueia casos causalmente independentes: GH4–GH7/injeções autorizadas,
+GH3/E1/TA-5R quando suas próprias arbitragens forem resolvidas, a metade reversível de §28 #9 e o
+ato consuntivo final §28 `#7 ∪ #9`. Ela tampouco autoriza pular os gates próprios desses blocos.
+
 ```
 HEAD ........................... 6337c2f (árvore limpa antes deste commit)
 CK-JS .......................... 6337c2f · grafo executável idêntico a 2ffcd82 · contexto A
