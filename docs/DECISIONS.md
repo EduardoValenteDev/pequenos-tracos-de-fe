@@ -4489,6 +4489,22 @@ Decisão **do fundador**, após `npx expo-doctor` medir **`17/18`** no harness r
 5. O contrato do ato final é: abrir a obra legada, continuar com um único traço, girar, salvar uma
    única vez, sair e reabrir apenas para verificação. A reabertura não autoriza novo save.
 
+## `D-FUND-SG-A-GH8-CLOSURE-01` — fechamento terminal da campanha, sem concessão de SG-A (2026-08-18)
+
+1. A campanha física executável de `SF1/R4/R5` está **ENCERRADA** no lacre L05. Isso não equivale a
+   `GH8 = PASS`, `F6-SG-A = PASS`, `F6_CLOSED` ou `LAUNCH_READINESS_PASS`.
+2. `GH8` fecha em estado **TERMINAL COM LACUNAS — NÃO PASS**: não existem no corpus o
+   `INS-03/SNP-DIFF` final, o `TAR-R5-DEPOIS` validado e um `raw.log` único e contínuo de GH0 a GH8.
+   É proibido reconstruir essas provas retrospectivamente.
+3. O `FAIL` histórico do Caso 13, os `STOP_INFRA`, o `STOP_HARNESS_UI` e o `STOP` contaminado do
+   Caso 10 são preservados; os retries prospectivos permanecem eventos posteriores próprios.
+4. §28 #8 permanece **NÃO EXECUTÁVEL NO PRODUTO CORRENTE**, nunca PASS. §28 #17/`CN-1`, R6, R7,
+   `R1-PEND-1..4`, E1, E3 e o Human Gate explícito permanecem abertos; `F6-SG-A` não é concedido.
+5. `F6_CLOSED = NÃO` e `LAUNCH_READINESS_STATUS = NÃO PRONTO`. Nenhum requisito novo foi criado;
+   o balanço, a aritmética e os itens residuais estão no artefato `65`.
+6. O harness reconciliado fica **preservado, não servido e não removido**, para manter a
+   auditabilidade das evidências que o referenciam.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
