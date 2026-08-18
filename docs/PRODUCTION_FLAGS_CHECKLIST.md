@@ -30,13 +30,13 @@ Verificar ANTES de cada build de produção. Uma flag errada pode entregar premi
 ```js
 export const COLORIR_60_CREATION_PILOT_ENABLED =
   process.env.EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT === 'true' &&
-  process.env.EXPO_PUBLIC_BUILD_PROFILE === 'c60-pilot';
+  ['c60-pilot', 'preview'].includes(process.env.EXPO_PUBLIC_BUILD_PROFILE);
 ```
 
 | Variável | Valor exigido | Onde é declarada |
 |---|---|---|
-| `EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT` | `'true'` (literal, estrito) | **somente** no perfil `c60-pilot` |
-| `EXPO_PUBLIC_BUILD_PROFILE` | `'c60-pilot'` (literal, estrito) | **somente** no perfil `c60-pilot` |
+| `EXPO_PUBLIC_ENABLE_COLORIR_60_PILOT` | `'true'` (literal, estrito) | perfis internos `c60-pilot` e `preview` |
+| `EXPO_PUBLIC_BUILD_PROFILE` | `'c60-pilot'` ou `'preview'` (literal, estrito) | no respectivo perfil interno |
 
 **Por que a cerca dupla e não `true`.** `__DEV__` é `false` em **todo** build de release. Com o literal `false`, o piloto era inalcançável num APK/IPA — mas trocá-lo por `true` ligaria também a **loja**, sem cerca nenhuma. A conjunção resolve os dois problemas: o piloto vira alcançável num build interno e continua impossível por acidente em produção.
 
@@ -77,7 +77,7 @@ node scripts/verify-coloring60-assets.js
 
 **Regra:** Nunca usar `preview` para submeter às lojas. Sempre usar `production`. **Screenshots oficiais nunca saem de `development` nem `preview`** — usar `production` ou `screenshot` (ambos limpos).
 
-**Regra `c60-pilot` (spec 018):** perfil **interno**, sem `extends` (não herda nada) e sem herdeiros, criado só para o piloto controlado do Colorir 60. **Nunca usar para loja, screenshots ou distribuição pública.** É o único perfil que declara as duas variáveis do piloto — e elas, **isoladamente, não autorizam nada**. Ele **não** declara `EXPO_PUBLIC_ENABLE_PACK_SANDBOX`, `EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA`, `EXPO_PUBLIC_QA_BUILD`, `EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE` nem `EXPO_PUBLIC_GLOBAL_MANIFEST_URL` — logo `isInternalToolsEnabled()` é `false` nele.
+**Regra `c60-pilot` (spec 018):** perfil **interno**, sem `extends` (não herda nada) e sem herdeiros, criado só para o piloto controlado do Colorir 60. **Nunca usar para loja, screenshots ou distribuição pública.** Ele preserva as duas variáveis do piloto — e elas, **isoladamente, não autorizam nada**. Ele **não** declara `EXPO_PUBLIC_ENABLE_PACK_SANDBOX`, `EXPO_PUBLIC_ENABLE_RELEASE_PACK_QA`, `EXPO_PUBLIC_QA_BUILD`, `EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE` nem `EXPO_PUBLIC_GLOBAL_MANIFEST_URL` — logo `isInternalToolsEnabled()` é `false` nele. Por `D-FUND-R7-PREVIEW-C60-01`, o perfil interno `preview` também declara a autorização C60, sem alterar `production`.
 
 **Regra `preview-criador` (B4):** é um perfil **interno de QA**, de distribuição `internal`, criado só para validar conteúdo premium num build Release. **Nunca usar para distribuição pública**, nunca para loja, nunca para screenshots. Ele é o único perfil que declara `EXPO_PUBLIC_ENABLE_CREATOR_QA_MODE=true` — e essa flag, **sozinha, não autoriza nada**: o Modo Criador exige as 5 condições simultâneas de `CREATOR_QA_MODE_RELEASE_ENABLED` (`src/config/featureFlags.js`), incluindo `EXPO_PUBLIC_BUILD_PROFILE === 'preview-criador'` literal.
 
