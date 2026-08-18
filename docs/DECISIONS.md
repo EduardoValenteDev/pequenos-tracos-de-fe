@@ -4445,6 +4445,23 @@ Decisão **do fundador**, após `npx expo-doctor` medir **`17/18`** no harness r
    pré-requisito instrumental relacionado. Revalidar nas Fases 14 e 21. O dono de eventual
    correção só será definido depois que profiling localizar o custo. Não corrigir na Fase 6.
 
+## `D-FUND-SG-A-C13-PASS-PROSPECTIVO-01` — Caso 13 corrigido e validado prospectivamente (2026-08-18)
+
+1. O `FAIL` histórico do Caso 13 e os `STOP_INFRA` anteriores permanecem íntegros; nenhum deles é
+   convertido retroativamente em `PASS`.
+2. A correção `bff8b5c` produziu ponteiro v3 dual: `uri` físico compatível com o leitor rollback
+   `a190b3e` e `logicalUri` lógico preferido pelo leitor atual, ambos derivados da mesma pintura.
+3. No retry físico prospectivo, o leitor atual persistiu e releu as duas representações; o rollback
+   abriu a mesma `Haja luz` com a pintura preservada. Não houve `PAINT_INVALID`, `healing` nem
+   fallback para lineart limpo.
+4. O RKStorage e ambos os blobs permaneceram byte-idênticos durante a leitura rollback. O resultado
+   formal é `CASO_13_PROSPECTIVE_RETRY = PASS`; detalhes e hashes estão no artefato `59`.
+5. O lacre `L03` fica fechado. Está levantado o bloqueio **específico do Caso 13** sobre os Vídeos
+   4–8, sem conceder PASS ou autorização implícita aos demais casos.
+6. A ordem causal permanece `E6/GH1 → R4/Caso 13 → restante de R5 → §28 #7 ∪ #9 por último`.
+   O próximo bloco é o restante reversível de R5; qualquer salvamento consuntivo sobre a obra
+   legada continua reservado ao ato final.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
