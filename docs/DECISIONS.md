@@ -4560,6 +4560,22 @@ Implementação autorizada: declarar no `preview` a autorização explícita C60
 adaptar a cerca dupla para reconhecer exatamente `preview` e `c60-pilot`, mantendo
 falha fechada em todos os demais perfis.
 
+## `D-FUND-R7-PREVIEW-QA-PACKS-01` — QA histórico do preview preservado
+
+Decisão do fundador em 2026-08-18, complementar a
+`D-FUND-R7-PREVIEW-C60-01`:
+
+1. `RELEASE_PACK_QA_ENABLED=true` permanece no perfil interno `preview`;
+2. `isInternalToolsEnabled()` já era verdadeiro nesse perfil pelo QA de packs;
+3. isso não transforma o preview em Development Build: `__DEV__=false`, sem dev
+   client e sem dependência de Metro;
+4. a autorização C60 não cria nem habilita ferramenta interna nova;
+5. `production` continua sem C60, P139 e QA interno;
+6. a invariável correta é preservar o conjunto preexistente de QA, não exigir
+   genericamente `PREVIEW_DEV_TOOLS=OFF`.
+
+Nenhuma flag histórica de QA de packs será removida para o Attempt 03.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
