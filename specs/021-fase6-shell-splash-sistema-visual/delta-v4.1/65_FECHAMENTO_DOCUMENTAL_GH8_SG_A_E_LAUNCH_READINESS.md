@@ -82,13 +82,20 @@ causal restante; isso não transforma GH8 em PASS.
 
 ## 4 · Estado de SG-A e da Fase 6
 
-`F6-SG-A = NÃO CONCEDIDO / BLOQUEADO`. Bloqueadores residuais:
+`F6-SG-A = NÃO CONCEDIDO / BLOQUEADO`. Estado atualizado pelas decisões posteriores S0.2/S0.3:
+
+- R6: `EVIDENCE_GAP_ACCEPTED_BY_FOUNDER`; iPad e telefone Android real não executados por hardware
+  indisponível, sem PASS;
+- R1-PEND-1/3/4: `EVIDENCE_GAP_ACCEPTED_BY_FOUNDER`;
+- R1-PEND-2: `SATISFEITO POR EVIDÊNCIA EXISTENTE` em `PS1_METRO.log`;
+- R1-PEND-5: decisão anterior preservada;
+- R1: `PASS FORMALIZADO COM EVIDENCE GAPS HISTÓRICOS ACEITOS`.
+
+Bloqueadores residuais após S0.2/S0.3:
 
 - §28 #8 obrigatório não executável e sem dispensa para PASS;
-- §28 #17 / CN-1 pendente em telefone Android real;
-- R6 exige iPad físico e telefone real, ou decisão formal de aceitar o gap;
+- §28 #17 / CN-1 permanece não executado, coberto pela aceitação explícita do gap de R6;
 - R7 exige binário preview não-DEV e validação `T090/P-139`;
-- R1-PEND-1..4 ainda requerem ato formal do fundador;
 - E1 e E3 permanecem pendentes; GH8 não obteve PASS literal;
 - o Human Gate explícito de SG-A não foi concedido.
 

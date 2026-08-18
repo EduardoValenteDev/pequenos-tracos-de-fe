@@ -4505,6 +4505,32 @@ Decisão **do fundador**, após `npx expo-doctor` medir **`17/18`** no harness r
 6. O harness reconciliado fica **preservado, não servido e não removido**, para manter a
    auditabilidade das evidências que o referenciam.
 
+## `D-FUND-SG-A-S02-R6-EVIDENCE-GAP-01` — R6 encerrada por indisponibilidade de hardware (2026-08-18)
+
+1. `S0_2_STATUS = EVIDENCE_GAP_ACCEPTED_BY_FOUNDER`.
+2. `R6_IPAD = NÃO EXECUTADO POR HARDWARE INDISPONÍVEL` e `R6_ANDROID_PHONE = NÃO EXECUTADO POR
+   HARDWARE INDISPONÍVEL`. O SM-X510 não substitui nenhuma dessas classes.
+3. R6 **não recebe PASS**. Não serão fabricadas equivalência de hardware, emulação apresentada como
+   aparelho real nem evidência retroativa.
+4. A decisão remove a espera por aquisição de hardware do caminho crítico de SG-A, mas preserva a
+   lacuna em SG-A e no Launch Readiness.
+
+## `D-FUND-SG-A-S03-R1-PEND-1-A-4-01` — encerramento documental das pendências históricas da R1 (2026-08-18)
+
+1. `R1-PEND-1 = EVIDENCE_GAP_ACCEPTED_BY_FOUNDER`: as saídas contemporâneas da R1 não foram
+   preservadas e não podem ser recriadas retroativamente.
+2. `R1-PEND-2 = SATISFEITO POR EVIDÊNCIA EXISTENTE`: `preflight/PS1_METRO.log` contém o cabeçalho
+   exigido do Metro no worktree canônico. Não se executa duplicata.
+3. `R1-PEND-3 = EVIDENCE_GAP_ACCEPTED_BY_FOUNDER`: a requisição de bundle daquele instante é
+   historicamente irrecuperável.
+4. `R1-PEND-4 = EVIDENCE_GAP_ACCEPTED_BY_FOUNDER`: o `adb reverse --list` contemporâneo da R1 não
+   foi arquivado; aferições posteriores continuam sendo apenas posteriores.
+5. `R1-PEND-5 = EVIDENCE_GAP_ACCEPTED_BY_FOUNDER` permanece regido por
+   `D-FUND-R1-PEND5-EVIDENCE-GAP-01`, sem reabertura.
+6. `S0_3_STATUS = FECHADO`. Como o conteúdo da R1 foi observado sem anomalia, as cinco pendências
+   eram de custódia e agora têm estado terminal, `R1_FINAL_STATUS = PASS FORMALIZADO COM EVIDENCE
+   GAPS HISTÓRICOS ACEITOS`. Isso não cria evidência inexistente nem apaga as lacunas.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
