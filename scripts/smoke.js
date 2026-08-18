@@ -54527,6 +54527,18 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
+  // F6-R7 · D1: o gate global também executa o contrato do config plugin nativo.
+  const d1Harness = require('child_process').spawnSync(
+    process.execPath,
+    [path.join(root, 'scripts', 'testing', 'androidTabletOrientationPluginHarness.js')],
+    { encoding: 'utf8' },
+  );
+  check(
+    'F6-R7 D1: harness do config plugin nativo passa e mata M1–M8',
+    d1Harness.status === 0 && /RESULT 18\/18 PASS; MUTANTS 8\/8 KILLED/.test(d1Harness.stdout),
+    `${d1Harness.stdout || ''}${d1Harness.stderr || ''}`.trim(),
+  );
+
   const total = passes + failures;
   console.log(`\n── Result: ${passes}/${total} passed, ${failures} failed ──\n`);
   if (failures > 0) process.exit(1);
