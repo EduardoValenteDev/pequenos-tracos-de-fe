@@ -4477,6 +4477,18 @@ Decisão **do fundador**, após `npx expo-doctor` medir **`17/18`** no harness r
    GH3/E1/TA-5R depois de seus gates próprios; metade reversível de §28 #9; e o ato consuntivo final
    §28 `#7 ∪ #9`, que continua por último.
 
+## `D-FUND-SG-A-ARB-28-7-TEXTO-01` — salvamento consuntivo final fundido (2026-08-18)
+
+1. `ARB-28-7-TEXTO` fica **FECHADA** pela decisão expressa do fundador:
+   `SECTION_28_7_REQUIRES_SAVE = SIM`.
+2. O salvamento de §28 #7 não será executado separadamente. §28 `#7 ∪ #9` usa **um único
+   salvamento consuntivo final** sobre `art_1786479103982_6079`.
+3. Nenhum salvamento adicional, restauração, novo insumo ou `RST-SNAP` é autorizado.
+4. Permanecem preservados os PASS e as observações reversíveis anteriores. O ato consuntivo ocorre
+   somente depois de todos os consumidores obrigatórios do formato legado.
+5. O contrato do ato final é: abrir a obra legada, continuar com um único traço, girar, salvar uma
+   única vez, sair e reabrir apenas para verificação. A reabertura não autoriza novo save.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
