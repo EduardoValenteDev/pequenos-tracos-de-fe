@@ -37033,12 +37033,16 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         getColoring60Activities: cat3.getColoring60Activities,
         writeBlob: async (sub, fn, dataUrl) => {
           calls.writeBlob++;
-          if (cfg.writeBlobFails) return null;
+          if (cfg.writeBlobFails || cfg.writeBlobFailsOn === calls.writeBlob) return null;
           const uri = `file://ptf_blobs/${sub}/${fn}`;
           blob.set(uri, dataUrl);
           return { uri, mime: 'image/png' };
         },
-        readBlobAsDataUrl: async (uri) => { calls.read++; return blob.has(uri) ? blob.get(uri) : null; },
+        readBlobAsDataUrl: async (uri) => {
+          calls.read++;
+          if (cfg.readBlobFailsOn === calls.read) return null;
+          return blob.has(uri) ? blob.get(uri) : null;
+        },
         deleteBlob: async (uri) => { calls.deleteBlob++; deleted.push(uri); blob.delete(uri); },
         BLOB_DELETE_OUTCOME: BDO_TESTE,
         safeName: (id) => String(id == null ? '' : id).replace(/[^A-Za-z0-9_-]/g, '_'),
@@ -37644,6 +37648,68 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       }
     }
 
+    // ── D3 · CASO 13 · ponteiro v3 com representação física + lógica coordenadas ──
+    {
+      const LOGICAL = 'data:image/png;base64,' + 'L'.repeat(3000);
+      const LEGACY = 'data:image/png;base64,' + 'P'.repeat(3000);
+      const DUAL = JSON.stringify({
+        v: 2, paintSchemaVersion: 1, layoutVersion: 1,
+        logicalW: 1122, logicalH: 1402,
+        W: 1122, H: 1402, imgX: 0, imgY: 0, imgW: 1122, imgH: 1402,
+        legacyW: 1440, legacyH: 2156,
+        legacyImgX: 0, legacyImgY: 179, legacyImgW: 1440, legacyImgH: 1798,
+        rev: 9, paintedPx: 500, paintablePx: 1000,
+        data: LOGICAL, legacyData: LEGACY,
+      });
+      const e = mkEnv();
+      const r = await e.W.saveColoring60DrawingState('creation', 'light', DUAL);
+      const ptr = JSON.parse(e.store.get(KEY_LIGHT) || '{}');
+      const atual = JSON.parse(await e.W.getColoring60SavedDrawing('creation', 'light') || '{}');
+      const antigo = {
+        W: ptr.W, H: ptr.H, data: e.blob.get(ptr.uri),
+      };
+      check('C13-DUAL.1: writer atual promove ponteiro v3 somente com as DUAS URIs',
+        r === R.SAVED && ptr.v === 3 && typeof ptr.uri === 'string'
+          && typeof ptr.logicalUri === 'string' && e.calls.writeBlob === 2 && e.calls.read >= 3,
+        `resultado=${r}, ptr=${JSON.stringify(ptr)}, calls=${JSON.stringify(e.calls)}`);
+      check('C13-DUAL.2: leitor atual prefere logicalUri e preserva dimensão lógica',
+        atual.data === LOGICAL && atual.W === 1122 && atual.H === 1402
+          && atual.logicalW === 1122 && atual.logicalH === 1402,
+        `atual=${JSON.stringify({ W: atual.W, H: atual.H, data: atual.data && atual.data[22] })}`);
+      check('C13-DUAL.3: contrato congelado de a190b3e consome uri e aceita dimensão física',
+        antigo.data === LEGACY && antigo.W === 1440 && antigo.H === 2156,
+        `antigo=${JSON.stringify({ W: antigo.W, H: antigo.H, data: antigo.data && antigo.data[22] })}`);
+      check('C13-DUAL.4: payload compatível não vira healing/lineart limpo',
+        antigo.data === LEGACY && atual.data === LOGICAL,
+        'um dos leitores perdeu a pintura embora o par seja válido');
+
+      await e.W.clearColoring60SavedDrawing('creation', 'light');
+      check('C13-DUAL.5: clear remove metadado e as DUAS URIs',
+        !e.store.has(KEY_LIGHT) && !e.blob.has(ptr.uri) && !e.blob.has(ptr.logicalUri),
+        `blobs restantes=${JSON.stringify([...e.blob.keys()])}`);
+
+      for (const [nome, cfg] of [
+        ['primeiro blob', { writeBlobFailsOn: 1 }],
+        ['segundo blob', { writeBlobFailsOn: 2 }],
+        ['releitura legado', { readBlobFailsOn: 1 }],
+        ['releitura lógica', { readBlobFailsOn: 2 }],
+      ]) {
+        const f = mkEnv(cfg);
+        const rf = await f.W.saveColoring60DrawingState('creation', 'light', DUAL);
+        check(`C13-DUAL.N: falha no ${nome} não promove par incompleto`,
+          rf === R.WRITE_FAILED && !f.store.has(KEY_LIGHT) && f.blob.size === 0,
+          `resultado=${rf}, store=${f.store.size}, blobs=${f.blob.size}`);
+      }
+
+      const simples = mkEnv();
+      const uriSimples = seedPrev(simples, KEY_LIGHT, PAINT);
+      check('C13-DUAL.6: ponteiro v3 simples continua resolvendo por uri sem escrita',
+        await simples.W.getColoring60SavedDrawing('creation', 'light') === PAINT
+          && simples.store.get(KEY_LIGHT) === JSON.stringify({ v: 3, fmt: 1, uri: uriSimples, mime: 'image/png' })
+          && simples.calls.setItem === 0,
+        'fallback do ponteiro anterior mudou ou escreveu durante leitura');
+    }
+
     // ── E · FALHAS PARCIAIS: write_failed, sem resíduo, com o desenho anterior PRESERVADO ──
     {
       // Falha ao escrever o arquivo (numa arte NOVA): write_failed, nada persistido, sem órfão.
@@ -38017,8 +38083,9 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
        * disparada aqui só pode mirar os DOIS slots canônicos desta identidade, a primeira mira o slot
        * que a chave referenciava, e o slot inativo passa a ser varrido. Um GC que mirasse qualquer
        * outro alvo — outra atividade, outra história, Criar Livre, legado — fica vermelho aqui. */
-      const alvosCanonicos = e.deleted.every((u) => u === SLOT_A || u === SLOT_B);
-      check('C60-P3-FIX1 [C8] → [S3]: clear removeItem OK + deleteBlob falha → chave some, resta só resíduo físico (sem ponteiro quebrado) e TODA exclusão mira apenas os dois slots canônicos desta identidade',
+      const slotsLogicos = [SLOT_A.replace('.png', '.logical.png'), SLOT_B.replace('.png', '.logical.png')];
+      const alvosCanonicos = e.deleted.every((u) => u === SLOT_A || u === SLOT_B || slotsLogicos.includes(u));
+      check('C60-P3-FIX1 [C8] → [S3]: clear removeItem OK + deleteBlob falha → chave some, resta só resíduo físico e TODA exclusão mira apenas os quatro slots canônicos desta identidade',
         !e.store.has(KEY) && got === null && e.blob.has(SLOT_A)
         && alvosCanonicos && e.deleted[0] === SLOT_A && e.deleted.includes(SLOT_B),
         `com a chave removida, um arquivo remanescente é resíduo físico — nunca ponteiro órfão (chave? ${e.store.has(KEY)}, alvos=${JSON.stringify(e.deleted)})`);
@@ -46092,7 +46159,9 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       registrarCN1('CN-B9', 'coloring60DrawingStorage',
         'a guarda `readable &&` some e o rollback apaga o blob que a chave ainda referencia',
         await cenarioRB(undefined),
-        await cenarioRB((s) => s.replace('if (readable && !keyStillRefsNew) {', 'if (!keyStillRefsNew) {')));
+        await cenarioRB((s) => s.replace(
+          '  if (readable) {\n    for (const newUri of newUris) {',
+          '  if (true) {\n    for (const newUri of newUris) {')));
     }
     // CN-B10 — sem `requireSubdir` na limpeza pós-commit, o Criar Livre vira alvo do save
     {
@@ -46108,8 +46177,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         '`requireSubdir` some da limpeza pós-commit e o Criar Livre vira alvo',
         await cenarioSave(undefined),
         await cenarioSave((s) => s.replace(
-          'deleteBlob(oldUri, { requireSubdir: BLOB_SUBDIR, protect: newUri })',
-          'deleteBlob(oldUri, { protect: newUri })')));
+          'await deleteBlob(old, {\n          requireSubdir: BLOB_SUBDIR,',
+          'await deleteBlob(old, {')));
     }
     // CN-B11 — sem `requireSubdir` no clear, o Criar Livre vira alvo da remoção da arte do C60
     {
@@ -46575,7 +46644,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       && /indexAfterCommit: resolveIndexAfterCommit\(res\)/.test(FX_HOOK)
       && /const decodificada = decodificarTudo\(uri\);/.test(FX_BLOB)
       && /if \(!alvo\.startsWith\(escopo\)\) return \{ ok: false, reason: 'fora_da_raiz', uri: null \};/.test(FX_BLOB)
-      && /await deleteBlob\(oldUri, \{ requireSubdir: BLOB_SUBDIR, protect: newUri \}\);/.test(FX_C60)
+      && /for \(const old of oldUris\)/.test(FX_C60)
+      && /protect: \[newUri, newLogicalUri\]\.filter\(Boolean\)/.test(FX_C60)
       && /await deleteBlob\(uri, \{ requireSubdir: BLOB_SUBDIR \}\);/.test(FX_C60),
       'algum lacre do P3J-R.1 (download/diagnóstico/blobs) foi desfeito por este bloco');
 
@@ -49275,7 +49345,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       const uriViz = semear3(d, mapa, 'creation', 'living_world', 'a', OBRA3('W', 1));
       const uriOut = semear3(d, mapa, 'hist_02', 'light', 'b', OBRA3('H', 1));
       const rel = await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
-      return [rel.removed.length === 1 && rel.removed[0] === B_LIGHT && rel.examined === 1
+      return [rel.removed.length === 1 && rel.removed[0] === B_LIGHT && rel.examined === 3
         && d.disco.has(A_LIGHT) && d.disco.has(uriViz) && d.disco.has(uriOut)
         && d.disco.has(ARTE_LIVRE) && d.disco.has(ARTE_LEG) && !d.disco.has(B_LIGHT),
       `relatorio=${JSON.stringify(rel)}`];
@@ -49317,15 +49387,16 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     });
 
     // ── 16 · O GC não é varredura: universo fechado, sem listagem, sem prefixo ────────────────
-    await t3('S3 [16/30]: o GC examina no máximo os DOIS slots canônicos — nenhuma listagem de diretório, nenhum prefixo aberto', async () => {
+    await t3('S3 [16/30]: o GC examina no máximo os QUATRO slots canônicos — nenhuma listagem de diretório, nenhum prefixo aberto', async () => {
       const d = mkDisco3([ARTE_LIVRE, ARTE_LEG, D60_3 + 'arquivo_desconhecido.png']);
       const mapa = new Map(); const S = mkC60(d, mapa);
       semear3(d, mapa, 'creation', 'light', 'a', OBRA3('V', 1));
       d.disco.set(B_LIGHT, 'ORFAO');
       const rel = await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
-      const doisSlots = [A_LIGHT, B_LIGHT];
+      const quatroSlots = [A_LIGHT, B_LIGHT,
+        A_LIGHT.replace('.png', '.logical.png'), B_LIGHT.replace('.png', '.logical.png')];
       const fonte60 = a1StripComments(readSrc('src/services/coloring60DrawingStorage.js'));
-      return [rel.examined <= 2 && S.espia.every((c) => doisSlots.includes(c.uri))
+      return [rel.examined <= 4 && S.espia.every((c) => quatroSlots.includes(c.uri))
         && d.disco.has(D60_3 + 'arquivo_desconhecido.png')
         && typeof d.FileSystem.readDirectoryAsync === 'undefined'
         && !/readDirectoryAsync|getAllKeys|multiGet|multiRemove/.test(fonte60),
@@ -49439,7 +49510,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       });
       const r3 = await S3x.salvar('creation', 'light', OBRA3('A', 1));
       const gcCall = S3x.espia.find((c) => c.uri === A_LIGHT);
-      return [!!limpeza && limpeza.opts.protect === B_LIGHT
+      return [!!limpeza && Array.isArray(limpeza.opts.protect) && limpeza.opts.protect.includes(B_LIGHT)
         && r3 === S3x.R.SAVED && d3.disco.has(A_LIGHT)
         && !!gcCall && Array.isArray(gcCall.opts.protect) && gcCall.opts.protect.includes(A_LIGHT),
       `limpeza.protect=${limpeza && JSON.stringify(limpeza.opts.protect)} · concorrente: A vivo? ${d3.disco.has(A_LIGHT)} · gc.protect=${gcCall && JSON.stringify(gcCall.opts.protect)}`];
@@ -49535,7 +49606,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       const r = await S.salvar('creation', 'light', OBRA3('N', 2));
       const ofereceu = S.espia.length === 1 && !!S.espia[0].opts
         && S.espia[0].opts.requireSubdir === 'drawings60'
-        && S.espia[0].opts.protect === uriAnt
+        && Array.isArray(S.espia[0].opts.protect) && S.espia[0].opts.protect.includes(uriAnt)
         && S.espia[0].uri.startsWith(LIVRE3);
       return [r === S.R.WRITE_FAILED && mapa.get(K_LIGHT) === ptrAnt && d.disco.has(uriAnt)
         && (await S.ler('creation', 'light')) === OBRA3('V', 1) && ofereceu,
@@ -49605,7 +49676,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     {
       const cenario = async (S) => (await S.salvar('creation', 'light', OBRA3('N', 2))) === S.R.WRITE_FAILED;
       const [o, m] = await parS3({ storage: { getItemMente: (n) => (n === 2 ? '{"v":3,"uri":"file:///outro.png"}' : null) } },
-        mutar('    if (!confirmPromotion(check, toStore, newUri, expectedRev, safeKey)) {', '    if (false) {'),
+        mutar('function confirmPromotion(check, toStore, newUris, expectedRev, safeKey) {',
+          'function confirmPromotion(check, toStore, newUris, expectedRev, safeKey) { return true;'),
         cenario);
       cnS3('CN-S3-03', 'a releitura divergente deixa de ser verificada e uma promoção não confirmada se declara salva', o, m);
     }
@@ -49618,7 +49690,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         return (await S.ler('creation', 'light')) === OBRA3('V', 1);
       };
       const [o, m] = await parS3({ storage: { setItemSujoEm: (n) => n === 1 } },
-        mutar('await rollbackFailedPromotion(k, oldRaw, newUri);', ';'),
+        mutar('await rollbackFailedPromotion(k, oldRaw, newUri ? [newUri, newLogicalUri].filter(Boolean) : null);', ';'),
         cenario);
       cnS3('CN-S3-04', 'sem rollback, uma promoção que gravou E rejeitou deixa a chave apontando para a obra não confirmada', o, m);
     }
@@ -49631,7 +49703,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       };
       const [o, m] = await parS3(
         { storage: { getItemMente: (n) => (n === 3 ? JSON.stringify({ v: 3, fmt: 1, uri: B_LIGHT, mime: 'image/png' }) : null) } },
-        mutar('        protect: newUri || undefined,', '        protect: undefined,'),
+        mutar('        protect: [newUri, newLogicalUri].filter(Boolean),', '        protect: undefined,'),
         cenario);
       cnS3('CN-S3-05', 'sem `protect`, uma promoção concorrente faz o GC apagar o blob que a tentativa atual acabou de gravar', o, m);
     }
@@ -49658,8 +49730,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         return d.disco.has(uriViz);
       };
       const [o, m] = await parS3({},
-        mutar('  const nomes = doisSlots.filter((n) => n !== nomeAtivo);',
-          '  const nomes = getColoring60Activities(storyId).map((it) => safeName(keyDrawing60(storyId, it.activityId))).reduce((acc, sk) => acc.concat([sk + ".a.png", sk + ".b.png"]), []).filter((n) => n !== nomeAtivo);'),
+        mutar('  const nomes = slots.filter((n) => !nomesAtivos.includes(n));',
+          '  const nomes = getColoring60Activities(storyId).map((it) => safeName(keyDrawing60(storyId, it.activityId))).reduce((acc, sk) => acc.concat([sk + ".a.png", sk + ".b.png"]), []).filter((n) => !nomesAtivos.includes(n));'),
         cenario);
       cnS3('CN-S3-07', 'o universo de candidatos vira a história inteira e o GC destrói a obra de uma atividade vizinha', o, m);
     }
@@ -49685,10 +49757,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         semear3(d, mapaDe(S), 'creation', 'light', 'a', OBRA3('V', 1));
         d.disco.set(B_LIGHT, 'ORFAO');
         const rel = await S.gc('creation', 'light', { reason: S.GCR.RECONCILE });
-        return S.espia.every((c) => c.uri !== A_LIGHT) && rel.examined === 1;
+        return S.espia.every((c) => c.uri !== A_LIGHT) && rel.examined === 3;
       };
       const [o, m] = await parS3({},
-        mutar('  const nomes = doisSlots.filter((n) => n !== nomeAtivo);', '  const nomes = doisSlots;'),
+        mutar('  const nomes = slots.filter((n) => !nomesAtivos.includes(n));', '  const nomes = slots;'),
         cenario);
       cnS3('CN-S3-09', 'a obra ativa volta a ser candidata do GC (só a contenção a salva — a intenção já é apagá-la)', o, m);
     }
@@ -49703,7 +49775,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       const [o, m] = await parS3({},
         (s) => mutar('      await collectColoring60Orphans(storyId, activityId, {',
           '      if (false) await collectColoring60Orphans(storyId, activityId, {')(
-          mutar('    if (oldUri && oldUri !== newUri) {', '    if (false) {')(s)),
+          mutar('    for (const old of oldUris) {', '    if (false) for (const old of oldUris) {')(s)),
         cenario);
       cnS3('CN-S3-10', 'a limpeza e o GC somem e cada sobrescrita deixa uma geração antiga acessível no disco', o, m);
     }
@@ -49729,8 +49801,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         return d.disco.has(uriAnt) && (await S.ler('creation', 'light')) === OBRA3('V', 1);
       };
       const [o, m] = await parS3({ disco: { escritaFalha: (u) => u === B_LIGHT } },
-        mutar('  if (!written) {',
-          '  if (!written) {\n    { const raizM = currentBlobsRoot(); const irmao = slotName.endsWith(".a.png") ? slotName.replace(".a.png", ".b.png") : slotName.replace(".b.png", ".a.png"); if (raizM) await deleteBlob(raizM + BLOB_SUBDIR + "/" + irmao, { requireSubdir: BLOB_SUBDIR }); }'),
+        mutar('    if (!writtenSingle) {',
+          '    if (!writtenSingle) {\n      { const raizM = currentBlobsRoot(); const irmao = slotName.endsWith(".a.png") ? slotName.replace(".a.png", ".b.png") : slotName.replace(".b.png", ".a.png"); if (raizM) await deleteBlob(raizM + BLOB_SUBDIR + "/" + irmao, { requireSubdir: BLOB_SUBDIR }); }'),
         cenario);
       cnS3('CN-S3-12', 'a compensação de uma escrita falhada passa a apagar o slot ativo e a falha custa a obra anterior', o, m);
     }

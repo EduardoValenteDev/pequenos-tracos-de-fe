@@ -320,16 +320,21 @@ function confirmSlotUri(uri, slotName) {
  * Promoção INLINE (canvas sem tinta) tem contrato próprio: o que ficou gravado NÃO pode ser um
  * ponteiro — senão a chave estaria referenciando um arquivo que esta tentativa não escreveu.
  */
-function confirmPromotion(check, toStore, newUri, expectedRev, safeKey) {
+function confirmPromotion(check, toStore, newUris, expectedRev, safeKey) {
   if (typeof toStore !== 'string' || check !== toStore) return false;
-  if (!newUri) return !isPointer60(check);
+  if (!newUris) return !isPointer60(check);
   if (!isPointer60(check)) return false;
   let p;
   try { p = JSON.parse(check); } catch { return false; }
   if (p.v !== POINTER_VERSION) return false;
-  if (p.uri !== newUri) return false;
+  if (p.uri !== newUris.legacy) return false;
+  if (newUris.logical && p.logicalUri !== newUris.logical) return false;
   const nome = blobFileName(p.uri);
   if (nome !== `${safeKey}.a.png` && nome !== `${safeKey}.b.png`) return false;
+  if (newUris.logical) {
+    const nomeLogico = blobFileName(p.logicalUri);
+    if (nomeLogico !== nome.replace(/\.png$/, '.logical.png')) return false;
+  }
   return (p.rev ?? null) === (expectedRev ?? null);
 }
 
@@ -361,6 +366,16 @@ function isPointer60(value) {
 function pointerUri(value) {
   if (!isPointer60(value)) return null;
   try { return JSON.parse(value).uri || null; } catch { return null; }
+}
+
+/** URIs vivas; ponteiro v3 anterior, sem `logicalUri`, continua retornando só `uri`. */
+function pointerUris(value) {
+  if (!isPointer60(value)) return [];
+  try {
+    const p = JSON.parse(value);
+    return [p.uri, p.logicalUri].filter((uri, i, all) =>
+      typeof uri === 'string' && uri && all.indexOf(uri) === i);
+  } catch { return []; }
 }
 
 /**
@@ -415,6 +430,8 @@ async function writeSlot(slotName, payload, protectUri) {
   let fmt;
   let dataUrl;
   let layout = null;
+  let legacyDataUrl = null;
+  let legacyLayout = null;
 
   if (isDataUrl(payload)) {
     fmt = 1;
@@ -440,10 +457,51 @@ async function writeSlot(slotName, payload, protectUri) {
     };
     // Os campos LÓGICOS do payload sobem junto, cada um pelo seu nome e só quando existem.
     carryLogicalSchema(p, layout);
+    if (typeof p.legacyData === 'string' && p.legacyData.startsWith('data:image/')) {
+      legacyDataUrl = p.legacyData;
+      legacyLayout = {
+        W: p.legacyW ?? null, H: p.legacyH ?? null,
+        imgX: p.legacyImgX ?? null, imgY: p.legacyImgY ?? null,
+        imgW: p.legacyImgW ?? null, imgH: p.legacyImgH ?? null,
+      };
+    }
   }
 
   const mime = dataUrlMime(dataUrl, 'image/png');
-  const written = await writeBlob(BLOB_SUBDIR, slotName, dataUrl, mime);
+  // Chamadores/payloads anteriores continuam no contrato de uma URI. Só o export
+  // atual, que declara `legacyData`, ativa a transação dual do Caso 13.
+  if (!legacyDataUrl) {
+    const writtenSingle = await writeBlob(BLOB_SUBDIR, slotName, dataUrl, mime);
+    if (!writtenSingle) {
+      const root = currentBlobsRoot();
+      if (root) {
+        await deleteBlob(`${root}${BLOB_SUBDIR}/${slotName}`, {
+          requireSubdir: BLOB_SUBDIR,
+          protect: protectUri || undefined,
+        });
+      }
+      return null;
+    }
+    const ptrSingle = { v: POINTER_VERSION, fmt, uri: writtenSingle.uri, mime };
+    if (layout) Object.assign(ptrSingle, layout);
+    return {
+      ptr: JSON.stringify(ptrSingle), uri: writtenSingle.uri,
+      logicalUri: null, rev: layout ? (layout.rev ?? null) : null,
+    };
+  }
+  const legacyMime = dataUrlMime(legacyDataUrl, 'image/png');
+  const logicalSlot = slotName.replace(/\.png$/, '.logical.png');
+  const writtenLegacy = await writeBlob(BLOB_SUBDIR, slotName, legacyDataUrl, legacyMime);
+  if (!writtenLegacy) {
+    const root = currentBlobsRoot();
+    if (root) {
+      await deleteBlob(`${root}${BLOB_SUBDIR}/${slotName}`, {
+        requireSubdir: BLOB_SUBDIR, protect: protectUri || undefined,
+      });
+    }
+    return null;
+  }
+  const written = await writeBlob(BLOB_SUBDIR, logicalSlot, dataUrl, mime);
   if (!written) {
     // Compensatório: remove qualquer arquivo parcial no slot inativo (seguro: nunca é o ativo).
     // O subdiretório é FIXADO no alvo: mesmo montado a partir da raiz atual, nada fora de
@@ -454,31 +512,67 @@ async function writeSlot(slotName, payload, protectUri) {
         requireSubdir: BLOB_SUBDIR,
         protect: protectUri || undefined,
       });
+      await deleteBlob(`${root}${BLOB_SUBDIR}/${logicalSlot}`, {
+        requireSubdir: BLOB_SUBDIR,
+        protect: protectUri || undefined,
+      });
     }
     return null;
   }
 
-  const ptr = { v: POINTER_VERSION, fmt, uri: written.uri, mime };
-  if (layout) Object.assign(ptr, layout);
+  // Releitura dos DOIS bytes antes de tornar qualquer ponteiro visível.
+  const [legacyCheck, logicalCheck] = await Promise.all([
+    readBlobAsDataUrl(writtenLegacy.uri, legacyMime),
+    readBlobAsDataUrl(written.uri, mime),
+  ]);
+  if (legacyCheck !== legacyDataUrl || logicalCheck !== dataUrl) {
+    await deleteBlob(writtenLegacy.uri, { requireSubdir: BLOB_SUBDIR, protect: protectUri || undefined });
+    await deleteBlob(written.uri, { requireSubdir: BLOB_SUBDIR, protect: protectUri || undefined });
+    return null;
+  }
+
+  const ptr = {
+    v: POINTER_VERSION, fmt,
+    uri: writtenLegacy.uri, mime: legacyMime,
+    logicalUri: written.uri, logicalMime: mime,
+  };
+  if (legacyLayout) Object.assign(ptr, legacyLayout);
+  if (layout) {
+    Object.assign(ptr, {
+      rev: layout.rev, paintedPx: layout.paintedPx, paintablePx: layout.paintablePx,
+    });
+    carryLogicalSchema(layout, ptr);
+  }
   // `rev` sobe junto para que a CONFIRMAÇÃO da promoção (passo 8) possa conferir a revisão sem
   // reparsear o payload original — a mesma revisão que casa pintura ↔ instantâneo.
-  return { ptr: JSON.stringify(ptr), uri: written.uri, rev: layout ? (layout.rev ?? null) : null };
+  return {
+    ptr: JSON.stringify(ptr), uri: writtenLegacy.uri, logicalUri: written.uri,
+    rev: layout ? (layout.rev ?? null) : null,
+  };
 }
 
 /** Reconstrói o payload original (v1 data URL ou v2 JSON) a partir do ponteiro v3. */
 async function resolvePointer60(value) {
   let p;
   try { p = JSON.parse(value); } catch { return null; }
-  const dataUrl = await readBlobAsDataUrl(p.uri, p.mime || 'image/png');
+  const useLogical = typeof p.logicalUri === 'string' && p.logicalUri;
+  const dataUrl = await readBlobAsDataUrl(
+    useLogical ? p.logicalUri : p.uri,
+    useLogical ? (p.logicalMime || p.mime || 'image/png') : (p.mime || 'image/png'),
+  );
   if (!dataUrl) return null; // ponteiro órfão (arquivo sumiu): ausência honesta
   if (p.fmt === 2) {
     // A medida da tinta volta EXATAMENTE como foi gravada (C60 · Parte 4). Ponteiros antigos, sem
     // esses campos, devolvem `null` — e `coloring60PaintMetrics` trata ausência de medida como
     // "não comprovado", nunca como "tem cor". Nenhum leitor antigo quebra: `v` continua 2.
     const restored = {
-      v: 2, W: p.W ?? null, H: p.H ?? null,
-      imgX: p.imgX ?? null, imgY: p.imgY ?? null,
-      imgW: p.imgW ?? null, imgH: p.imgH ?? null,
+      v: 2,
+      W: useLogical ? (p.logicalW ?? p.W ?? null) : (p.W ?? null),
+      H: useLogical ? (p.logicalH ?? p.H ?? null) : (p.H ?? null),
+      imgX: useLogical ? 0 : (p.imgX ?? null),
+      imgY: useLogical ? 0 : (p.imgY ?? null),
+      imgW: useLogical ? (p.logicalW ?? p.imgW ?? null) : (p.imgW ?? null),
+      imgH: useLogical ? (p.logicalH ?? p.imgH ?? null) : (p.imgH ?? null),
       rev: p.rev ?? null,
       paintedPx: p.paintedPx ?? null,
       paintablePx: p.paintablePx ?? null,
@@ -505,7 +599,7 @@ async function resolvePointer60(value) {
  * Não presume que uma rejeição de `setItem` signifique que nada foi gravado (o metadado é tratado
  * como potencialmente desconhecido após uma falha de escrita).
  */
-async function rollbackFailedPromotion(k, oldRaw, newUri) {
+async function rollbackFailedPromotion(k, oldRaw, newUris) {
   // 1) Restaurar o metadado anterior — melhor-esforço, jamais antes de decidir sobre o blob novo.
   try {
     if (oldRaw != null) await AsyncStorage.setItem(k, oldRaw);
@@ -513,7 +607,7 @@ async function rollbackFailedPromotion(k, oldRaw, newUri) {
   } catch (e) {
     log('coloring60DrawingStorage.rollback.meta:', e);
   }
-  if (!newUri) return; // promoção inline (sem blob novo): nada a descartar.
+  if (!newUris) return; // promoção inline (sem blob novo): nada a descartar.
 
   // 2) Reler a chave e decidir com segurança. `readable === false` ⇒ estado desconhecido.
   let current;
@@ -523,13 +617,16 @@ async function rollbackFailedPromotion(k, oldRaw, newUri) {
   } catch {
     readable = false;
   }
-  const keyStillRefsNew = readable && pointerUri(current) === newUri;
+  const refsAtuais = readable ? pointerUris(current) : [];
 
   // 3) Só descarta o blob novo com CONFIRMAÇÃO de que nenhuma chave o referencia; senão, preserva.
-  if (readable && !keyStillRefsNew) {
-    try {
-      await deleteBlob(newUri, { requireSubdir: BLOB_SUBDIR });
-    } catch (e) { log('coloring60DrawingStorage.rollback.delnew:', e); }
+  if (readable) {
+    for (const newUri of newUris) {
+      if (refsAtuais.includes(newUri)) continue;
+      try {
+        await deleteBlob(newUri, { requireSubdir: BLOB_SUBDIR });
+      } catch (e) { log('coloring60DrawingStorage.rollback.delnew:', e); }
+    }
   }
 }
 
@@ -587,19 +684,24 @@ export async function saveColoring60DrawingState(storyId, activityId, payload, o
     }
     // Daqui para baixo `oldRaw == null` significa, comprovadamente, AUSÊNCIA de estado anterior —
     // nunca desconhecimento. É essa garantia que autoriza o rollback a remover a chave.
-    const oldUri = pointerUri(oldRaw);
+    const oldUris = pointerUris(oldRaw);
+    const oldUri = oldUris[0] || null;
 
     let toStore = payload;
     let newUri = null;
+    let newLogicalUri = null;
     let expectedRev = null;
 
     if (payloadHasPaint(payload)) {
       const slot = otherSlotName(safeKey, oldUri); // slot INATIVO
-      const built = await writeSlot(slot, payload, oldUri);
+      const built = await writeSlot(slot, payload, oldUris);
       // [S3 · passo 4] Falha ao escrever OU blob fora do slot/subdiretório pedidos: em ambos os
       // casos a tentativa morre AQUI, antes de qualquer promoção — o anterior fica intocado
       // (preservado) e nenhum ponteiro passa a referenciar um arquivo que não é desta identidade.
-      if (!built || !confirmSlotUri(built.uri, slot)) {
+      if (!built
+        || !confirmSlotUri(built.uri, slot)
+        || (built.logicalUri
+          && !confirmSlotUri(built.logicalUri, slot.replace(/\.png$/, '.logical.png')))) {
         if (built && built.uri) {
           // Compensatório: o arquivo estranho é oferecido à contenção — que o recusa se estiver
           // fora de `drawings60/`. O blob ANTERIOR entra como protegido: uma escrita malsucedida
@@ -607,14 +709,23 @@ export async function saveColoring60DrawingState(storyId, activityId, payload, o
           try {
             await deleteBlob(built.uri, {
               requireSubdir: BLOB_SUBDIR,
-              protect: oldUri || undefined,
+              protect: oldUris.length ? oldUris : undefined,
             });
           } catch (e) { log('coloring60DrawingStorage.save.slotForaDaIdentidade:', e); }
+          if (built.logicalUri) {
+            try {
+              await deleteBlob(built.logicalUri, {
+                requireSubdir: BLOB_SUBDIR,
+                protect: oldUris.length ? oldUris : undefined,
+              });
+            } catch (e) { log('coloring60DrawingStorage.save.slotLogicoForaDaIdentidade:', e); }
+          }
         }
         return COLORING60_SAVE_RESULT.WRITE_FAILED;
       }
       toStore = built.ptr;
       newUri = built.uri;
+      newLogicalUri = built.logicalUri;
       expectedRev = built.rev;
     }
 
@@ -625,7 +736,7 @@ export async function saveColoring60DrawingState(storyId, activityId, payload, o
       await AsyncStorage.setItem(k, toStore);
     } catch (e) {
       log('coloring60DrawingStorage.save.setItem:', e);
-      await rollbackFailedPromotion(k, oldRaw, newUri);
+      await rollbackFailedPromotion(k, oldRaw, newUri ? [newUri, newLogicalUri].filter(Boolean) : null);
       return COLORING60_SAVE_RESULT.WRITE_FAILED;
     }
 
@@ -637,10 +748,14 @@ export async function saveColoring60DrawingState(storyId, activityId, payload, o
       check = undefined;
     }
     // [S3 · passo 8] A releitura não basta: ela precisa CONFIRMAR identidade, URI e revisão.
-    if (!confirmPromotion(check, toStore, newUri, expectedRev, safeKey)) {
+    if (!confirmPromotion(
+      check, toStore,
+      newUri ? { legacy: newUri, logical: newLogicalUri } : null,
+      expectedRev, safeKey,
+    )) {
       // Verificação divergiu: desfazer preservando a invariante (restaura o anterior e só descarta
       // o blob novo se a chave comprovadamente não o referencia mais).
-      await rollbackFailedPromotion(k, oldRaw, newUri);
+      await rollbackFailedPromotion(k, oldRaw, newUri ? [newUri, newLogicalUri].filter(Boolean) : null);
       return COLORING60_SAVE_RESULT.WRITE_FAILED;
     }
 
@@ -654,9 +769,13 @@ export async function saveColoring60DrawingState(storyId, activityId, payload, o
     // depois de recompostas. O double-buffer A/B já torna essa colisão improvável (o slot novo é
     // sempre o inativo), mas a preservação da pintura recém-salva não pode depender disso — aqui ela
     // é garantida por contenção, comparada já recomposta.
-    if (oldUri && oldUri !== newUri) {
+    for (const old of oldUris) {
+      if (old === newUri || old === newLogicalUri) continue;
       try {
-        await deleteBlob(oldUri, { requireSubdir: BLOB_SUBDIR, protect: newUri });
+        await deleteBlob(old, {
+          requireSubdir: BLOB_SUBDIR,
+          protect: [newUri, newLogicalUri].filter(Boolean),
+        });
       } catch (e) { log('coloring60DrawingStorage.save.cleanupOld:', e); }
     }
 
@@ -668,7 +787,7 @@ export async function saveColoring60DrawingState(storyId, activityId, payload, o
     try {
       await collectColoring60Orphans(storyId, activityId, {
         reason: COLORING60_GC_REASON.AFTER_SAVE,
-        protect: newUri || undefined,
+        protect: [newUri, newLogicalUri].filter(Boolean),
       });
     } catch (e) { log('coloring60DrawingStorage.save.gc:', e); }
 
@@ -753,9 +872,9 @@ export async function clearColoring60SavedDrawing(storyId, activityId) {
   const k = keyDrawing60(storyId, activityId);
 
   // 1) Localizar o blob a partir do estado atual. Falha de leitura ⇒ no-op seguro (idempotente).
-  let uri = null;
+  let uris = [];
   try {
-    uri = pointerUri(await AsyncStorage.getItem(k));
+    uris = pointerUris(await AsyncStorage.getItem(k));
   } catch (e) {
     log('coloring60DrawingStorage.clear.read:', e);
     return;
@@ -773,10 +892,12 @@ export async function clearColoring60SavedDrawing(storyId, activityId) {
 
   // 3) Só apagar o blob depois que a chave PROVADAMENTE não o referencia mais. Se o metadado não
   //    pôde ser removido/confirmado, PRESERVA o blob (sem ponteiro órfão).
-  if (uri && removedConfirmed) {
-    try {
-      await deleteBlob(uri, { requireSubdir: BLOB_SUBDIR });
-    } catch (e) { log('coloring60DrawingStorage.clear.delblob:', e); }
+  if (removedConfirmed) {
+    for (const uri of uris) {
+      try {
+        await deleteBlob(uri, { requireSubdir: BLOB_SUBDIR });
+      } catch (e) { log('coloring60DrawingStorage.clear.delblob:', e); }
+    }
   }
 
   // [S3] Exclusão explícita é o segundo momento autorizado do GC dirigido. A chave já não existe,
@@ -847,15 +968,18 @@ export async function collectColoring60Orphans(storyId, activityId, options = {}
     relatorio.skipped = 'unknown_active';
     return relatorio;
   }
-  const ativoUri = pointerUri(ativoRaw);
+  const ativas = pointerUris(ativoRaw);
 
   // Universo FECHADO de candidatos: os DOIS slots canônicos desta identidade, e nada mais. Quando
   // o ponteiro ativo é um deles, esse é EXCLUÍDO da lista antes de qualquer I/O — a obra viva
   // sequer chega a ser nomeada. Quando o estado ativo não é nenhum dos dois (payload inline, ou
   // ponteiro para fora do subdiretório), nenhum dos dois está referenciado e ambos são candidatos.
-  const doisSlots = [`${safeAlvo}.a.png`, `${safeAlvo}.b.png`];
-  const nomeAtivo = blobFileName(ativoUri);
-  const nomes = doisSlots.filter((n) => n !== nomeAtivo);
+  const slots = [
+    `${safeAlvo}.a.png`, `${safeAlvo}.a.logical.png`,
+    `${safeAlvo}.b.png`, `${safeAlvo}.b.logical.png`,
+  ];
+  const nomesAtivos = ativas.map(blobFileName);
+  const nomes = slots.filter((n) => !nomesAtivos.includes(n));
 
   // Blindagem estrutural adicional (comparada já recomposta e normalizada por `deleteBlob`):
   // a obra ativa e o blob da tentativa atual não podem ser atingidos nem por engano de nome.
@@ -863,7 +987,10 @@ export async function collectColoring60Orphans(storyId, activityId, options = {}
   // é silenciosamente ignorada seria uma armadilha: o chamador acreditaria ter blindado um blob
   // que na verdade entrou no universo de candidatos.
   const protegidas = [];
-  if (ativoUri) { protegidas.push(ativoUri); relatorio.kept.push(ativoUri); }
+  for (const ativoUri of ativas) {
+    protegidas.push(ativoUri);
+    relatorio.kept.push(ativoUri);
+  }
   const pedidas = Array.isArray(opcoes.protect) ? opcoes.protect : [opcoes.protect];
   for (const p of pedidas) if (typeof p === 'string' && p) protegidas.push(p);
 

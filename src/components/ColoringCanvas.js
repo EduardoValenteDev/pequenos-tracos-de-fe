@@ -682,6 +682,18 @@ window.exportPaint=function(){
     out.width=Math.max(1,LW); out.height=Math.max(1,LH);
     var outCtx=out.getContext('2d');
     if(paintD) outCtx.putImageData(paintD,0,0);
+    /* [Fase 6 · Caso 13] A MESMA revisão também é projetada uma única vez no
+       bitmap físico histórico. O rollback a190b3e só entende este contrato:
+       data com W/H da viewport e o retângulo img* correspondente. */
+    var legacyOut=document.createElement('canvas');
+    legacyOut.width=Math.max(1,W); legacyOut.height=Math.max(1,H);
+    var legacyCtx=legacyOut.getContext('2d');
+    legacyCtx.clearRect(0,0,W,H);
+    if(paintD){
+      tmpCtx.clearRect(0,0,LW,LH);
+      tmpCtx.putImageData(paintD,0,0);
+      legacyCtx.drawImage(tmp,0,0,LW,LH,imgX,imgY,imgW,imgH);
+    }
     /* v2 payload: includes canvas dimensions so loadPaint can validate
        compatibility before applying the bitmap to a potentially different-sized canvas. */
     /* Campos ADITIVOS da medida real (C60 · Parte 3/4): o instantâneo carrega quanta cor
@@ -707,7 +719,10 @@ window.exportPaint=function(){
       logicalW:LW,logicalH:LH,
       W:LW,H:LH,imgX:0,imgY:0,imgW:LW,imgH:LH,
       rev:paintRev,paintedPx:countPaintedPx(),paintablePx:paintablePx,
-      data:out.toDataURL('image/png')});
+      data:out.toDataURL('image/png'),
+      legacyW:W,legacyH:H,legacyImgX:imgX,legacyImgY:imgY,
+      legacyImgW:imgW,legacyImgH:imgH,
+      legacyData:legacyOut.toDataURL('image/png')});
     window.ReactNativeWebView.postMessage('PAINT_EXPORT:'+payload);
   }catch(err){
     window.ReactNativeWebView.postMessage('ERR:export_failed:'+err.message);

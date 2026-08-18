@@ -548,6 +548,16 @@ function executarTA11() {
     /* SD-8: a tinta que entrou tem de sair idêntica, píxel a píxel. */
     const volta = decodificarPixels(p.data);
     ok('1.7 SD-8 · ida-e-volta da tinta SEM perda de píxel', volta && volta.w === W && volta.h === H && mesmosPixels(volta.px, pintura), 'os píxeis exportados divergem da pintura carregada');
+    const legado = decodificarPixels(p.legacyData || '');
+    ok('1.7a Caso 13 · writer emite representação física da MESMA revisão',
+      p.legacyW === W && p.legacyH === H && legado && legado.w === W && legado.h === H,
+      `legacy=${p.legacyW}x${p.legacyH}, png=${legado && `${legado.w}x${legado.h}`}`);
+    ok('1.7b Caso 13 · contrato congelado de a190b3e aceita W/H físicos',
+      p.legacyW === W && p.legacyH === H && typeof p.legacyData === 'string',
+      'o canal legado não satisfaz sw===W && sh===H');
+    ok('1.7c Caso 13 · canal atual preserva dimensão lógica',
+      p.W === W && p.H === H && p.logicalW === W && p.logicalH === H,
+      `atual=${p.W}x${p.H}, lógico=${p.logicalW}x${p.logicalH}`);
     ok('1.8 guarda REAL do C60 ACEITA o payload novo', guardaC60(bruto) === true, 'isAcceptableC60Payload rejeitou o payload do canvas');
     ok('1.9 guarda REAL do C60 REJEITA ponteiro v3 (eixos não se confundem)',
       guardaC60(JSON.stringify({ v: 3, fmt: 2, uri: 'file:///x.png', mime: 'image/png' })) === false,
@@ -1253,8 +1263,8 @@ async function executarTA13() {
   const iBlob = at('await writeSlot(');
   const iPromo = at('await AsyncStorage.setItem(k, toStore)');
   const iRelê = at('check = await AsyncStorage.getItem(k)');
-  const iConf = at('confirmPromotion(check, toStore');
-  const iDel = at('await deleteBlob(oldUri');
+  const iConf = at('confirmPromotion(');
+  const iDel = at('for (const old of oldUris)');
 
   ok('13.0 G-CMP-4 · o ponto de promoção congelado por `TK-A-096` continua no lugar declarado',
     corpo.length > 0 && iBlob > 0 && iPromo > 0, `não localizei o corpo de saveColoring60DrawingState em ${C60}`);
