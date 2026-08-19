@@ -4628,6 +4628,43 @@ Após concluir a comparação visual não canônica autorizada em
 7. a decisão não concede `F6-SG-B`: B5 e o portão humano continuam dependentes da validação
    física própria do mapa.
 
+## `D-FUND-F6-SG-B-HUMAN-GATE-FINAL-01` — SG-B concedido com ressalvas (2026-08-19)
+
+Decisão expressa do fundador no HUMAN GATE de `F6-SG-B`, após o bloco B5 completo (vídeo V1, bloco
+autônomo forense, vídeo V2 e fechamento autônomo) registrado no artefato
+`specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/83_F6_SG_B_B5_AUDITORIA_DE_RETOMADA_E_PRE_FISICO.md`:
+
+1. `F6_SG_B = CONCEDIDO_COM_RESSALVAS`. A concessão é ato humano explícito; o agente entregou o
+   relatório do portão (§10 do artefato `83`), não o veredito.
+2. `GAP-B5-1` (faixa compacta sem captura física própria — só comparador de classe `B`),
+   `GAP-B5-2` (faixa expandida derivada da configuração do aparelho e da rotação executada, sem
+   linha de `logcat` própria, porque `[AppNavigator]` só registra em *mount*) e `GAP-B5-3`
+   (ausência de segundo aparelho para a faixa compacta em hardware distinto) ficam **ACEITOS como
+   lacunas de evidência conscientes desta campanha**. Não são convertidos em PASS, não são
+   convertidos em FAIL, e nenhuma cobertura física inexistente é fabricada. Permanecem **abertos**.
+3. §28 **#13** permanece `NÃO CONCLUSIVO POR DEFEITO PREEXISTENTE`. `TOUR_V2_VS_V1 = IGUAL`:
+   o defeito de posicionamento de ícones e holofotes do tour é **idêntico** antes e depois de
+   `F6-R2`, logo **não** há regressão atribuível a `R2`. O defeito continua registrado na **fase
+   proprietária de onboarding/tour**, não é corrigido agora e não amplia escopo de SG-B.
+4. A leitura `brilho` × `holofote` fica **RATIFICADA**: `brilho` é o halo do pino do mapa
+   (consumidor da geometria e de `getStoryAnchor`); `holofote` é a sobreposição/*spotlight* do tour
+   de onboarding. São objetos distintos para efeito de matriz e adjudicação. O achado do tour fica
+   contido em §28 #13 e **não** contamina artificialmente §28 #12, #14 nem #17-SG-B.
+5. Permanecem os resultados materiais do B5 como emitidos, sem reinterpretação: `C-B5-1`..`C-B5-4`
+   e `C-B5-6` em **PASS**; matriz 5×3 com 3 células de classe `A` (prova de função pura), 8 de
+   classe `C` (observação física em V2) e 4 de classe `B` (comparador Q6 re-hasheado, **não**
+   elevadas a `C` por ausência da condição de elevação da regra 3 de §5.4); acervo do aparelho
+   **inalterado** por `F6-R2` — 6/6 blobs e 3/3 índices byte a byte idênticos entre PRE e POS.
+   Rótulo corrigido pelo fundador: **1 obra visual em "Minhas artes"**, 3 entradas lógicas de
+   persistência, 6 blobs físicos — três camadas, sem divergência.
+6. `OR-2` fica satisfeito: as tasks `TK-C-*` deixam de estar bloqueadas pela ausência de `F6-SG-B`.
+   A concessão **não** concede `F6-SG-C`, **não** autoriza pular o ciclo próprio de SG-C, **não**
+   inicia SG-D e **não** encerra a Fase 6. Nenhum código executável foi alterado por esta decisão.
+
+Ressalvas obrigatórias em custódia (as cinco): os três *evidence gaps* aceitos e abertos, o §28 #13
+não conclusivo, e o defeito do tour aberto na sua fase proprietária. Registro integral, com a matriz,
+os hashes e a adjudicação individual, em `83`, §9–§12.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
