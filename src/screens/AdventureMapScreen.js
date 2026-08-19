@@ -15,7 +15,8 @@ import { View, Text, Image, Modal, Pressable, ActivityIndicator, InteractionMana
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Asset } from 'expo-asset';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, getJourneyRegionRevealFraction, computeRegionHeight, computeImageRect, getStoryMapCoord, REGION_PARCHMENT_BG, MAP_ASPECT } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, getJourneyRegionRevealFraction, computeImageRect, REGION_PARCHMENT_BG, MAP_ASPECT } from '../data/adventureMap';
+import { computeRegionLayout, getStoryAnchor, computeCameraTarget, resolveActiveRegion } from '../services/mapAnchor';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
 import SoundButton from '../components/SoundButton';
@@ -26,8 +27,6 @@ import { hasSeenBeniAppTour, markBeniAppTourSeen, markGuideSeen, consumeInitialT
 import { useGuideTargets } from '../hooks/useGuideTargets';
 import { measureGuideTarget } from '../services/guideTargetRegistry';
 import { INITIAL_TOUR } from '../data/beniGuides';
-
-const REGION_OVERLAP = 0; // regiões se tocam exatamente (sem overlap que cortava a base da arte)
 
 // Espaço inferior do scroll. A TAB BAR (não-absoluta) já reserva 64 + insets.bottom
 // abaixo da tela, então NÃO se soma insets.bottom aqui (era espaço morto). Mapa
@@ -172,18 +171,15 @@ export default function AdventureMapScreen({ navigation, route }) {
     [regions, isStoryJourneyComplete],
   );
 
-  // Layout das regiões (offsets) para a pílula de região acompanhar a rolagem.
-  const regionLayout = useMemo(() => {
-    const arr = [];
-    let prevBottom = 0;
-    regionsVisual.forEach((r, i) => {
-      const h = computeRegionHeight(mapWidth);
-      const top = i === 0 ? 0 : prevBottom - REGION_OVERLAP;
-      arr.push({ id: r.id, title: r.title, top, height: h, count: (r.stories || []).length });
-      prevBottom = top + h;
-    });
-    return arr;
-  }, [regionsVisual, mapWidth]);
+  // Layout canônico: recebe a mesma ordem VISUAL usada pelos marcadores.
+  const regionLayout = useMemo(
+    () => computeRegionLayout(regionsVisual, mapWidth),
+    [regionsVisual, mapWidth],
+  );
+  const anchorContext = useMemo(
+    () => ({ regions: regionsVisual, regionLayout, width: mapWidth }),
+    [regionsVisual, regionLayout, mapWidth],
+  );
 
   // Âncora EXPLÍCITA da região inicial da jornada ("Comece Aqui"), por id (não por
   // ordem frágil). É a região onde o usuário começa — referência do 1º acesso.
@@ -289,29 +285,28 @@ export default function AdventureMapScreen({ navigation, route }) {
     return ordered[0]?.id;
   }, [currentId, nextLockedId, ordered, isStoryJourneyComplete]);
 
+  const cameraAnchor = useMemo(
+    () => getStoryAnchor(cameraStoryId, anchorContext),
+    [cameraStoryId, anchorContext],
+  );
+  const mapContentH = useMemo(() => {
+    const last = regionLayout[regionLayout.length - 1];
+    return last ? last.top + last.height + SCROLL_BOTTOM_PAD : 0;
+  }, [regionLayout]);
+
+  // A viewport livre é a altura REAL do container entre header e tab/sidebar.
+  const [mapViewportH, setMapViewportH] = useState(0);
+
   // Região efetivamente exibida pelo overview: a pedida (rolagem/active) ou a ativa.
   const overviewRegion = regionsVisual[ovRegionIdx != null ? ovRegionIdx : activeIdx] || activeRegion;
 
-  // Offset inicial da câmera calculado de forma SÍNCRONA (antes do 1º paint), via
-  // prop contentOffset → abre já na base correta, sem pulo. (onContentSize depois
-  // só refina com a altura real do viewport, então a correção é imperceptível.)
+  // O ScrollView só monta depois da medição do container livre; `contentOffset` nasce
+  // da viewport real, sem os antigos 56dp estimados e sem correção visível posterior.
   const initialOffsetY = useMemo(() => {
-    if (!regionLayout.length) return 0;
-    const last = regionLayout[regionLayout.length - 1];
-    const contentH = last.top + last.height + SCROLL_BOTTOM_PAD;
-    const vpEst = Math.max(220, height - (insets.top + 56) - (insets.bottom + 56)); // header + tab bar aprox.
-    const maxY = Math.max(0, contentH - vpEst);
-    const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
-    // Fase 1.1.5: "Comece Aqui" alinha no topo (início claro); demais regiões = marco ~58%.
-    if (idx === comeceRegionIdx && regionLayout[idx]) {
-      return Math.max(0, Math.min(regionLayout[idx].top, maxY));
-    }
-    let anchorY = contentH - vpEst;
-    if (idx >= 0 && regionLayout[idx]) {
-      anchorY = regionLayout[idx].top + getStoryMapCoord(cameraStoryId).y * regionLayout[idx].height;
-    }
-    return Math.max(0, Math.min(anchorY - vpEst * 0.58, maxY));
-  }, [regionLayout, regionsVisual, cameraStoryId, comeceRegionIdx, height, insets.top, insets.bottom]);
+    if (!cameraAnchor || mapViewportH <= 0) return 0;
+    const mode = cameraAnchor.regionIndex === comeceRegionIdx ? 'regionTop' : 'anchor';
+    return computeCameraTarget(cameraAnchor, mapViewportH, mapContentH, { mode });
+  }, [cameraAnchor, mapViewportH, mapContentH, comeceRegionIdx]);
 
   // A0.10 — estado do marco pela FONTE ÚNICA (contrato). Hierarquia: comingSoon >
   // journeyLocked (jornada não chegou → cadeado, "Complete a anterior") > premiumLocked
@@ -364,6 +359,7 @@ export default function AdventureMapScreen({ navigation, route }) {
   // vazio/preto no rodapé (sem rolar ao fim bruto).
   const scrollRef = useRef(null);
   const scrollViewH = useRef(0);
+  const contentSizeRef = useRef({ width: 0, height: 0 });
   const didInitScroll = useRef(false);
 
   /* ── [F6-R3.1 · TK-A-017/018/019] POSIÇÃO DA CRIANÇA SOBREVIVE À MUDANÇA DE LARGURA ──
@@ -383,23 +379,23 @@ export default function AdventureMapScreen({ navigation, route }) {
      (`TK-A-020`/`CN-2`). O `userScrolledRef` NÃO é reposto pela troca de largura. */
   const posLogicaRef = useRef({ regionIndex: -1, frac: 0, valida: false });
   const reprojetarRef = useRef(false);
-  useEffect(() => { reprojetarRef.current = true; }, [mapWidth]);
 
-  // Região que contém uma coordenada do conteúdo. É a MESMA varredura que o `onScroll`
-  // já fazia; extraída para que a reconciliação de `activeIdx` use exatamente o mesmo
-  // critério da sonda — dois critérios divergentes seriam nova dessincronização.
-  const regiaoDe = useCallback((coordY) => {
-    let idx = regionLayout.length - 1;
-    for (let i = 0; i < regionLayout.length; i++) {
-      const r = regionLayout[i];
-      if (coordY >= r.top && coordY < r.top + r.height) { idx = i; break; }
-    }
-    return idx;
-  }, [regionLayout]);
+  const regiaoDe = useCallback(
+    (coordY) => resolveActiveRegion(coordY, regionLayout),
+    [regionLayout],
+  );
 
-  const onScrollLayout = useCallback((e) => { scrollViewH.current = e.nativeEvent.layout.height; }, []);
-  const onContentSize = useCallback((w, h) => {
-    if (scrollViewH.current <= 0) return;
+  const onMapViewportLayout = useCallback((e) => {
+    const measured = Math.round(e.nativeEvent.layout.height);
+    scrollViewH.current = measured;
+    setMapViewportH((prev) => (prev === measured ? prev : measured));
+  }, []);
+
+  // Reconcilia somente quando AMBAS as medidas reais pertencem à geometria corrente.
+  // Assim, contentSize→layout e layout→contentSize levam ao mesmo resultado.
+  const reconcileMeasuredMap = useCallback((measuredW, h) => {
+    const vp = scrollViewH.current;
+    if (vp <= 0 || h <= 0 || Math.round(measuredW) !== Math.round(mapWidth)) return;
     // [TK-A-018] Reprojeção pendente com par gravado: restaura a posição lógica e sai.
     // Sem par gravado a reprojeção CAI no caminho da câmera abaixo — que é o comportamento
     // de hoje para a medição de abertura, preservado intacto por `TK-A-020`.
@@ -419,22 +415,13 @@ export default function AdventureMapScreen({ navigation, route }) {
     }
     if (didInitScroll.current && !reprojetando) return;
     didInitScroll.current = true;
-    const vp = scrollViewH.current;
-    const maxY = Math.max(0, h - vp);
-    const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
-    let target;
+    const idx = cameraAnchor?.regionIndex ?? -1;
+    const mode = idx === comeceRegionIdx ? 'regionTop' : 'anchor';
+    let target = computeCameraTarget(cameraAnchor, vp, h, { mode });
     if (idx === comeceRegionIdx && regionLayout[idx]) {
       // Fase 1.1.5 — 1º acesso / início da jornada: alinha "Comece Aqui" no TOPO da
-      // viewport → região inicial CLARA, sem abrir entre duas regiões. Clamp p/ maxY.
-      target = Math.max(0, Math.min(regionLayout[idx].top, maxY));
-    } else if (idx >= 0 && regionLayout[idx]) {
-      // Demais casos (usuário com progresso em outra região): marco focado ~58% do
-      // viewport, deixando caminho acima. Clamp → nunca mostra vazio/preto.
-      const coord = getStoryMapCoord(cameraStoryId);
-      const anchorY = regionLayout[idx].top + coord.y * regionLayout[idx].height;
-      target = Math.max(0, Math.min(anchorY - vp * 0.58, maxY));
-    } else {
-      target = maxY;
+      // viewport → região inicial CLARA, sem abrir entre duas regiões.
+      target = computeCameraTarget(cameraAnchor, vp, h, { mode: 'regionTop' });
     }
     scrollRef.current?.scrollTo({ y: target, animated: false });
     // Região ativa = a da CÂMERA (não a sonda do onScroll) antes do 1º arrasto, para o
@@ -442,7 +429,20 @@ export default function AdventureMapScreen({ navigation, route }) {
     const camIdx = idx >= 0 ? idx : comeceRegionIdx;
     activeIdxRef.current = camIdx;
     setActiveIdx((prev) => (prev === camIdx ? prev : camIdx));
-  }, [regionLayout, regiaoDe, regionsVisual, cameraStoryId, comeceRegionIdx]);
+  }, [mapWidth, regionLayout, regiaoDe, cameraAnchor, comeceRegionIdx]);
+
+  const onContentSize = useCallback((w, h) => {
+    contentSizeRef.current = { width: w, height: h };
+    reconcileMeasuredMap(w, h);
+  }, [reconcileMeasuredMap]);
+
+  useEffect(() => {
+    reprojetarRef.current = true;
+    const measured = contentSizeRef.current;
+    if (Math.round(measured.width) === Math.round(mapWidth) && measured.height > 0) {
+      reconcileMeasuredMap(measured.width, measured.height);
+    }
+  }, [mapWidth, mapViewportH]);
 
   // Atualiza o índice da região ativa conforme a rolagem (só quando muda — leve).
   const onScroll = useCallback((e) => {
@@ -483,16 +483,10 @@ export default function AdventureMapScreen({ navigation, route }) {
   // o overlay cai no fallback honesto (sem halo). Não mexe em coords/pins.
   const scrollPinIntoView = useCallback(() => {
     const vp = scrollViewH.current;
-    if (vp <= 0 || !regionLayout.length || !cameraStoryId) return;
-    const idx = regionsVisual.findIndex((r) => (r.stories || []).some((s) => s.id === cameraStoryId));
-    if (idx < 0 || !regionLayout[idx]) return;
-    const anchorY = regionLayout[idx].top + getStoryMapCoord(cameraStoryId).y * regionLayout[idx].height;
-    const last = regionLayout[regionLayout.length - 1];
-    const contentH = last.top + last.height + SCROLL_BOTTOM_PAD;
-    const maxY = Math.max(0, contentH - vp);
-    const target = Math.max(0, Math.min(anchorY - vp * 0.5, maxY));
+    if (vp <= 0 || !cameraAnchor) return;
+    const target = computeCameraTarget(cameraAnchor, vp, mapContentH);
     scrollRef.current?.scrollTo({ y: target, animated: true });
-  }, [regionLayout, regionsVisual, cameraStoryId]);
+  }, [cameraAnchor, mapContentH]);
   // UX 2.4.2: o tour avisa qual alvo entrou; ao chegar no pin do brilho, rolamos o
   // pin para a viewport (depois o overlay mede com settle).
   const onTourStep = useCallback((target) => {
@@ -526,12 +520,12 @@ export default function AdventureMapScreen({ navigation, route }) {
       <Animated.View
         ref={guideTargets.register('adventures.map')}
         collapsable={false}
+        onLayout={onMapViewportLayout}
         style={{ flex: 1, backgroundColor: REGION_PARCHMENT_BG, opacity: 1, transform: [{ translateY: entranceTranslate }] }}
       >
-        <ScrollView
+        {mapViewportH > 0 && contentW > 0 && <ScrollView
           ref={scrollRef}
           style={styles.scroll}
-          onLayout={onScrollLayout}
           onContentSizeChange={onContentSize}
           onScroll={onScroll}
           // Fase 1.1.5: 1º arrasto manual → "Ver mapa" passa a seguir a região visível.
@@ -546,6 +540,7 @@ export default function AdventureMapScreen({ navigation, route }) {
               key={region.id}
               region={region}
               width={mapWidth}
+              anchorContext={anchorContext}
               // B5.3.1 — reveal GLOBAL da jornada (completa→1 · fronteira→parcial ·
               // futuras→0 sépia). Sem awake binário; sem cor acima da fronteira global.
               revealFraction={journeyRevealFraction(region)}
@@ -558,7 +553,7 @@ export default function AdventureMapScreen({ navigation, route }) {
               registerPinTarget={registerNextPin}
             />
           ))}
-        </ScrollView>
+        </ScrollView>}
         {/* (Orientação de região fica no chip INTERNO de cada região — sem pílula
             flutuante duplicada competindo com os labels.) */}
       </Animated.View>

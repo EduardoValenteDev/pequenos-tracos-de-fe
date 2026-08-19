@@ -18,7 +18,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import RecoverableImage from '../ui/RecoverableImage';
 import StoryMapMarker from './StoryMapMarker';
-import { computeRegionHeight, getStoryMapCoord, REGION_PARCHMENT_BG } from '../../data/adventureMap';
+import { computeRegionHeight, REGION_PARCHMENT_BG } from '../../data/adventureMap';
+import { getStoryAnchor } from '../../services/mapAnchor';
 
 const CHIP_SAFE_Y = 0.05; // y normalizado do chip de título (acima de todo marco)
 const OVERLAY_DELAY_MS = 400; // marcadores entram logo após a 1ª pintura
@@ -31,9 +32,8 @@ const REVEAL_EDGE_LIGHT_H = 12; // altura (px) da linha de luz dourada na fronte
 // (awake) recortada de baixo p/ cima até `revealFraction` (0..1, do B5.2). Sem
 // animação, sem storage. O `awake` binário antigo saiu do mapa principal (o
 // overview/"Ver mapa" segue com sua própria lógica no AdventureMapScreen).
-export default function MapRegion({ region, width, revealFraction = 0, currentStoryId, renderImageFinal = true, getState, onPressStory, registerPinTarget }) {
+export default function MapRegion({ region, width, anchorContext, revealFraction = 0, currentStoryId, renderImageFinal = true, getState, onPressStory, registerPinTarget }) {
   const list = region.stories || [];
-  const n = list.length;
 
   // Caminho + marcadores entram após um atraso CURTO (não 0 → não "flutuam" sobre o
   // pergaminho no 1º frame; não dependem de onLoadEnd → nunca somem por 30s).
@@ -46,17 +46,18 @@ export default function MapRegion({ region, width, revealFraction = 0, currentSt
   // Altura proporcional (modo principal). Container == imagem (sem faixa morta).
   const regionH = computeRegionHeight(width);
 
-  // FONTE ÚNICA: coordenadas normalizadas explícitas por história.
-  const items = list.map((s, i) => {
-    const coord = getStoryMapCoord(s.id, i, n);
+  // FONTE ÚNICA: a mesma âncora resolve pino, área de toque e halo medido.
+  const items = list.map((s) => {
+    const anchor = getStoryAnchor(s.id, anchorContext);
+    if (!anchor) return null;
     return {
       story: s,
-      labelPos: coord.label,
-      markerScale: coord.markerScale || 1, // escala opcional por história
-      x: Math.round(coord.x * width),
-      y: Math.round(coord.y * regionH),
+      labelPos: anchor.label,
+      markerScale: anchor.markerScale,
+      x: anchor.xPx,
+      y: anchor.yPx,
     };
-  });
+  }).filter(Boolean);
   const imgs = region.images || null;
   // Base SÉPIA (asleep) sempre visível; camada COLORIDA (awake) recortada por reveal.
   // PREVIEW leve (~60 KB) decodifica quase instantâneo; arte FINAL (~400 KB) entra

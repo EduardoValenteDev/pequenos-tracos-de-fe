@@ -5796,13 +5796,14 @@ check(
   const nav = readSrc('src/navigation/AppNavigator.js');
   const mapScreen = readSrc('src/screens/AdventureMapScreen.js');
   const mapData = readSrc('src/data/adventureMap.js');
+  const mapAnchor = readSrc('src/services/mapAnchor.js');
   const mapPath = readSrc('src/components/map/MapPath.js');
   const marker = readSrc('src/components/map/StoryMapMarker.js');
   const region = readSrc('src/components/map/MapRegion.js');
   const banner = readSrc('src/components/map/NextAdventureBanner.js');
   const focus = readSrc('src/components/map/StoryFocusModal.js');
   const storiesSrcMap = readSrc('src/data/stories.js');
-  const mapFiles = [mapScreen, mapData, mapPath, marker, region, banner, focus];
+  const mapFiles = [mapScreen, mapData, mapAnchor, mapPath, marker, region, banner, focus];
   const MAPS = ['R1A', 'R1B', 'R2A', 'R2B', 'R3A', 'R3B', 'R4A', 'R4B'];
 
   check(
@@ -5916,8 +5917,8 @@ check(
     'Mapa M3: jornada SOBE — A Criação (y 0.67) ABAIXO de Noé (y 0.37) por coordenada',
     /creation:\s*\{ x: 0\.73, y: 0\.67/.test(mapData) &&
     /noah:\s*\{ x: 0\.65, y: 0\.37/.test(mapData) &&
-    region.includes('getStoryMapCoord(s.id'),
-    'coordenadas não colocam A Criação abaixo de Noé / região não usa coords',
+    region.includes('getStoryAnchor(s.id, anchorContext)'),
+    'coordenadas não colocam A Criação abaixo de Noé / região não usa a âncora canônica',
   );
   check(
     'Mapa M2.1: história atual com brilho (halo) — mais mágica',
@@ -5981,19 +5982,20 @@ check(
     'altura da região não usa computeRegionHeight = width/MAP_ASPECT',
   );
   check(
-    'Mapa M3: câmera por MARCO (coord do cameraStoryId) com clamp ~58% (sem scrollToEnd)',
+    'Mapa M3/F6-SG-B: câmera por ÂNCORA do cameraStoryId com clamp canônico 0,50 (sem scrollToEnd)',
     mapScreen.includes('cameraStoryId') &&
-    mapScreen.includes('getStoryMapCoord(cameraStoryId)') &&
-    mapScreen.includes('Math.min(anchorY - vp * 0.58, maxY)') &&
-    mapScreen.includes('const maxY = Math.max(0, h - vp)') &&
+    mapScreen.includes('getStoryAnchor(cameraStoryId, anchorContext)') &&
+    mapScreen.includes('computeCameraTarget(cameraAnchor') &&
+    /export const MAP_ANCHOR_FRAMING\s*=\s*0\.5\s*;/.test(mapAnchor) &&
     !mapScreen.includes('scrollToEnd'),
-    'câmera não foca o marco atual por coordenada com clamp',
+    'câmera não foca a âncora atual pelo módulo canônico com clamp',
   );
   check(
     'Mapa B1: SEM overlap (marginTop negativo) — não corta a base da região',
     !region.includes('-OVERLAP') &&
     !region.includes('const OVERLAP') &&
-    /const REGION_OVERLAP = 0\b/.test(mapScreen),
+    !mapScreen.includes('REGION_OVERLAP') &&
+    /top \+= height;/.test(mapAnchor),
     'ainda há overlap negativo cobrindo a base da arte',
   );
   check(
@@ -6224,7 +6226,7 @@ check(
     /Math\.min\(1\.25, Math\.max\(0\.85, markerScale/.test(marker) &&
     /Math\.round\(\(SIZE\[state\] \|\| SIZE\.available\) \* scale\)/.test(marker) &&
     region.includes('markerScale={it.markerScale}') &&
-    region.includes('coord.markerScale') &&
+    region.includes('anchor.markerScale') &&
     /creation:\s*\{[^}]*markerScale: 1\.22/.test(mapData) &&
     /noah:\s*\{[^}]*markerScale: 1\.10/.test(mapData),
     'markerScale ausente / sem clamp / não propagado das coords ao marcador',
@@ -6335,17 +6337,17 @@ check(
     );
   }
   check(
-    'Mapa M3: fonte única — região deriva pontos das COORDS (não de fórmula de índice)',
-    region.includes('getStoryMapCoord(s.id, i, n)') &&
+    'Mapa M3/F6-SG-B: fonte única — região deriva pontos da ÂNCORA canônica (não de fórmula de índice)',
+    region.includes('getStoryAnchor(s.id, anchorContext)') &&
     !region.includes('markerFraction(') &&
     !/colX\[i % 2\]/.test(region),
     'região ainda usa fórmula de índice como fonte de posição',
   );
   check(
-    'Mapa B3.4: marcadores derivam das COORDS (items = list.map por getStoryMapCoord), sem caminho desenhado',
-    region.includes('list.map((s, i)') &&
-    region.includes('x: Math.round(coord.x * width)') &&
-    region.includes('y: Math.round(coord.y * regionH)') &&
+    'Mapa B3.4/F6-SG-B: marcadores derivam da ÂNCORA (items = list.map por getStoryAnchor), sem caminho desenhado',
+    region.includes('list.map((s)') &&
+    region.includes('x: anchor.xPx') &&
+    region.includes('y: anchor.yPx') &&
     !region.includes('MapPath'),
     'marcadores não derivam das coords / ainda há MapPath',
   );
@@ -7324,9 +7326,9 @@ check(
     'TABLET1.0: mapa usa LARGURA DA ÁREA DE CONTEÚDO (onLayout) — corrige corte na sidebar; mobile == janela (sem regressão)',
     mapSrcTab.includes('const mapWidth = contentW > 0 ? contentW : width') &&
     mapSrcTab.includes('onLayout={onContainerLayout}') &&
-    mapSrcTab.includes('computeRegionHeight(mapWidth)') &&
+    mapSrcTab.includes('computeRegionLayout(regionsVisual, mapWidth)') &&
     mapSrcTab.includes('width={mapWidth}') &&
-    /useEffect\(\(\) => \{ reprojetarRef\.current = true; \}, \[mapWidth\]\)/.test(mapSrcTab) &&
+    /useEffect\(\(\) => \{[\s\S]*?reprojetarRef\.current = true;[\s\S]*?\}, \[mapWidth, mapViewportH\]\)/.test(mapSrcTab) &&
     mapSrcTab.includes('if (reprojetando && par.valida && regionLayout[par.regionIndex])'),
     'mapa ainda usa largura da janela / não reage à mudança de largura',
   );
@@ -7550,7 +7552,9 @@ check(
   check(
     'FASE1.1.5: âncora inicial em "Comece Aqui" (comeceRegionIdx por id) — alinha o topo da região, sem abrir entre duas regiões',
     /const comeceRegionIdx = useMemo\(\(\) => \{[\s\S]*?findIndex\(\(r\) => r\.id === 'comece_aqui'\)/.test(mapSrcTab) &&
-    /idx === comeceRegionIdx && regionLayout\[idx\]\) \{[\s\S]*?target = Math\.max\(0, Math\.min\(regionLayout\[idx\]\.top, maxY\)\)/.test(mapSrcTab) &&
+    /getStoryAnchor\(cameraStoryId, anchorContext\)/.test(mapSrcTab) &&
+    /cameraAnchor\.regionIndex === comeceRegionIdx \? 'regionTop' : 'anchor'/.test(mapSrcTab) &&
+    /computeCameraTarget\(cameraAnchor, mapViewportH, mapContentH, \{ mode \}\)/.test(mapSrcTab) &&
     /useState\(comeceRegionIdx\)/.test(mapSrcTab) &&
     /useRef\(comeceRegionIdx\)/.test(mapSrcTab),
     'a viewport inicial não ancora claramente em "Comece Aqui"',
@@ -52014,7 +52018,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       'voltou a existir `didInitScroll.current = false`: a troca de largura descarta a posição da criança');
     check(
       'G-LFC-1 [2/2]: a largura agenda REPROJEÇÃO do par lógico — não basta parar de descartar',
-      /useEffect\(\s*\(\)\s*=>\s*\{\s*reprojetarRef\.current\s*=\s*true;?\s*\}\s*,\s*\[\s*mapWidth\s*\]\s*\)/.test(mapa)
+      /useEffect\(\s*\(\)\s*=>\s*\{[\s\S]*?reprojetarRef\.current\s*=\s*true;[\s\S]*?\}\s*,\s*\[[^\]]*\bmapWidth\b[^\]]*\]\s*\)/.test(mapa)
         && /posLogicaRef/.test(mapa) && /regionIndex/.test(mapa),
       'o efeito de largura deixou de agendar a reprojeção do par lógico gravado');
   }
@@ -54535,6 +54539,20 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
+  // F6-SG-B · R2: geometria canônica do mapa, TA-1..3, G-MAP-1..5 e seis
+  // controles negativos em memória. O harness lê os fontes reais e não toca no aparelho.
+  const mapAnchorHarness = require('child_process').spawnSync(
+    process.execPath,
+    [path.join(root, 'scripts', 'testing', 'mapAnchorHarness.js')],
+    { encoding: 'utf8' },
+  );
+  check(
+    'F6-SG-B R2: TA-1..3 e G-MAP-1..5 passam; MT-2/24/3/4/25/30 morrem',
+    mapAnchorHarness.status === 0
+      && /FOCUSED 34\/34 PASS; MUTANTS 6\/6 KILLED/.test(mapAnchorHarness.stdout),
+    `${mapAnchorHarness.stdout || ''}${mapAnchorHarness.stderr || ''}`.trim(),
+  );
+
   // F6-R7 · D1: o gate global também executa o contrato do config plugin nativo.
   const d1Harness = require('child_process').spawnSync(
     process.execPath,
