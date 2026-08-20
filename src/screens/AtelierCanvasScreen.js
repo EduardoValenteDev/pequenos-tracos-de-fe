@@ -13,7 +13,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Pressable, Animated, ActivityIndicator, AccessibilityInfo,
-  BackHandler, StyleSheet, useWindowDimensions, TextInput, KeyboardAvoidingView, Platform,
+  BackHandler, StyleSheet, useWindowDimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -45,10 +45,50 @@ import { backLabelFor } from '../utils/originBack';
 const haptic = (s) => { Haptics.impactAsync(s).catch(() => {}); };
 const success = () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); };
 
+/* [F6-SG-C · CAUSA D2] Teto de altura do sheet de nome (artefato 88 §6).
+ *
+ * O sheet é um cartão de altura NATURAL ancorado embaixo. Em paisagem a altura
+ * útil encolhe, o teclado toma a metade de baixo e sobra menos espaço do que o
+ * cartão pede — o campo de nome e o botão de guardar ficam fora de alcance
+ * justamente na hora de salvar o desenho.
+ *
+ * `alturaUtilMedida` é o que o `KeyboardAvoidingView` reporta DEPOIS de o teclado
+ * abrir. Enquanto ela não existe (primeiro quadro, ou medida de outra orientação),
+ * a política cai na janela inteira: um valor seguro, nunca um cartão colapsado.
+ *
+ * A função é pura e mora aqui em cima, fora do componente, porque `G-CVS-4` a
+ * carrega do fonte real e a executa em Node. O documento lógico (`AtelierCanvas.js`)
+ * não é tocado: a perícia o provou correto linha a linha.
+ */
+const NAME_SHEET_MARGIN = 8;
+
+export function computeNameSheetMaxHeight(winH, alturaUtilMedida, insetTop) {
+  const janela = Number.isFinite(winH) && winH > 0 ? winH : 0;
+  const topo = Number.isFinite(insetTop) && insetTop > 0 ? insetTop : 0;
+  const teto = Math.max(0, janela - topo - NAME_SHEET_MARGIN);
+  if (!Number.isFinite(alturaUtilMedida) || alturaUtilMedida <= 0) return teto;
+  return Math.max(0, Math.min(teto, Math.round(alturaUtilMedida) - NAME_SHEET_MARGIN));
+}
+
 export default function AtelierCanvasScreen({ route, navigation }) {
   const { mission, artId: routeArtId, from } = route.params ?? {};
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
+  // [F6-SG-C · CAUSA D2] A altura útil do sheet vem de uma MEDIDA, e medida obedece à
+  // CAUSA B: só vale para a janela em que foi tirada. Sem o carimbo, girar o tablet com o
+  // sheet aberto dimensionaria o cartão pela orientação anterior.
+  const [medidaSheet, setMedidaSheet] = useState({ altura: 0, janela: 0 });
+  const nameSheetMaxH = computeNameSheetMaxHeight(
+    winH,
+    medidaSheet.janela === winH ? medidaSheet.altura : 0,
+    insets.top,
+  );
+  const medirSheet = useCallback((e) => {
+    const h = Math.round(e?.nativeEvent?.layout?.height ?? 0);
+    setMedidaSheet((atual) => (
+      atual.janela === winH && Math.abs(atual.altura - h) <= 1 ? atual : { altura: h, janela: winH }
+    ));
+  }, [winH]);
   const canvasRef = useRef(null);
   const { profile } = useProfile();
   const profileId = (profile && (profile.id || profile.avatarId)) || 'default';
@@ -561,29 +601,38 @@ export default function AtelierCanvasScreen({ route, navigation }) {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.nameKav}
             keyboardVerticalOffset={insets.top}
+            onLayout={medirSheet}
+            pointerEvents="box-none"
           >
-            <View style={styles.nameCard}>
-              <Text style={styles.sheetTitle}>Nomeie seu desenho</Text>
-              <TextInput
-                style={styles.nameInput}
-                value={nameInput}
-                onChangeText={setNameInput}
-                placeholder="Nome do desenho"
-                placeholderTextColor={CL.disabled}
-                maxLength={40}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={confirmName}
-                accessibilityLabel="Nome do desenho"
-              />
-              <View style={styles.sheetBtns}>
-                <Pressable style={[styles.sheetBtn, styles.sheetBtnNeutral]} onPress={() => setOverlay(null)} accessibilityRole="button" accessibilityLabel="Cancelar">
-                  <Text style={styles.sheetBtnNeutralText}>Cancelar</Text>
-                </Pressable>
-                <Pressable style={[styles.sheetBtn, styles.sheetBtnSave]} onPress={confirmName} accessibilityRole="button" accessibilityLabel="Guardar desenho">
-                  <Text style={styles.sheetBtnSaveText}>Guardar desenho</Text>
-                </Pressable>
-              </View>
+            <View style={[styles.nameCard, { maxHeight: nameSheetMaxH }]}>
+              <ScrollView
+                contentContainerStyle={styles.nameCardScroll}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+              >
+                <Text style={styles.sheetTitle}>Nomeie seu desenho</Text>
+                <TextInput
+                  style={styles.nameInput}
+                  value={nameInput}
+                  onChangeText={setNameInput}
+                  placeholder="Nome do desenho"
+                  placeholderTextColor={CL.disabled}
+                  maxLength={40}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={confirmName}
+                  accessibilityLabel="Nome do desenho"
+                />
+                <View style={styles.sheetBtns}>
+                  <Pressable style={[styles.sheetBtn, styles.sheetBtnNeutral]} onPress={() => setOverlay(null)} accessibilityRole="button" accessibilityLabel="Cancelar">
+                    <Text style={styles.sheetBtnNeutralText}>Cancelar</Text>
+                  </Pressable>
+                  <Pressable style={[styles.sheetBtn, styles.sheetBtnSave]} onPress={confirmName} accessibilityRole="button" accessibilityLabel="Guardar desenho">
+                    <Text style={styles.sheetBtnSaveText}>Guardar desenho</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
             </View>
           </KeyboardAvoidingView>
         </View>
@@ -1019,7 +1068,11 @@ const styles = StyleSheet.create({
 
   /* sheet de nome (§5) */
   nameOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(40,28,12,0.28)', justifyContent: 'flex-end' },
-  nameKav: { width: '100%' },
+  // [F6-SG-C · CAUSA D2] Sem `flex: 1` o KAV tinha o tamanho do proprio cartao — e
+  // `behavior='height'` nao tem o que encolher quando so existe conteudo. Com a area
+  // inteira e `flex-end`, o cartao continua ancorado embaixo e agora sobe com o teclado.
+  nameKav: { width: '100%', flex: 1, justifyContent: 'flex-end' },
+  nameCardScroll: { flexGrow: 0 },
   nameCard: {
     backgroundColor: CL.surface, borderTopLeftRadius: CL.radiusPanel, borderTopRightRadius: CL.radiusPanel,
     paddingHorizontal: 18, paddingTop: 16, paddingBottom: 22, ...CL.shadowPanel,

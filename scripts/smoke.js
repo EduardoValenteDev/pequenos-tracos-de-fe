@@ -54949,6 +54949,113 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     );
   }
 
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Fase 6 · F6-SG-C — `G-CVS-4` (CAUSA D2 · artefato 88 §6)
+   *
+   * A perícia final ABSOLVEU o documento lógico do Ateliê inteiro
+   * (`MINIMUM_ARCHITECTURAL_FIX_D = NENHUM ... PASS_NO_CHANGE`) e deixou UM ponto
+   * aberto: o sheet de nome. Ele é um cartão ancorado embaixo (`justifyContent:
+   * 'flex-end'`) de altura NATURAL — título + campo de 50dp + linha de botões de
+   * 46dp + paddings —, dentro de um `KeyboardAvoidingView` com `behavior='height'`
+   * no Android. Em paisagem a altura útil encolhe, o teclado toma a metade de
+   * baixo, e cartão e teclado disputam o mesmo espaço: quem perde é o campo de
+   * texto, que a criança precisa justamente para GUARDAR o desenho.
+   *
+   * O defeito é de ACESSO, não do modelo de coordenadas — por isso o território
+   * autorizado é `AtelierCanvasScreen.js` e SÓ ele. `AtelierCanvas.js` está
+   * provado correto linha a linha e é território proibido (cláusula J abaixo
+   * existe para que essa proibição não dependa de memória humana).
+   *
+   * A correção tem duas metades e o portão cobra as duas:
+   *   · um TETO — o cartão nunca pode ser mais alto do que a altura útil que
+   *     sobrou; e
+   *   · uma SAÍDA — quando o teto morde, o conteúdo rola, senão o botão de
+   *     guardar simplesmente sai da tela e o teto não teria resolvido nada.
+   *
+   * A medida que alimenta o teto é um `onLayout`, então ela obedece à CAUSA B
+   * deste mesmo subgate: só vale para a janela em que foi tirada. Sem o carimbo,
+   * girar o tablet com o sheet aberto usaria a altura da orientação anterior —
+   * exatamente o quadro intermediário que `G-RSP-9` extinguiu.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · CAUSA D2: portão G-CVS-4 ──');
+
+    const D2_TELA = 'src/screens/AtelierCanvasScreen.js';
+    const d2Src = readSrc(D2_TELA);
+    const d2Code = codeOf(D2_TELA);
+    const { loadModule: loadD2 } = require('./testing/packInstallHarness');
+
+    const d2 = [];
+
+    /* ── Eixo executável: a política do teto ────────────────────────────────
+     * A função é pura e mora acima do `export default`, então o harness a carrega
+     * do FONTE REAL. Enquanto ela não existir, o `new Function` lança — e a
+     * ausência é o próprio vermelho. */
+    let tetoDoSheet = null;
+    try {
+      tetoDoSheet = loadD2(D2_TELA, {}, ['computeNameSheetMaxHeight']).computeNameSheetMaxHeight;
+    } catch (e) {
+      tetoDoSheet = null;
+    }
+
+    if (typeof tetoDoSheet !== 'function') {
+      d2.push('(A) `computeNameSheetMaxHeight` não existe em `AtelierCanvasScreen.js` — o sheet de nome continua com altura natural e, em paisagem com o teclado aberto, cartão e teclado disputam a mesma faixa da tela');
+    } else {
+      const D2_MARGEM = 8;
+      const d2Cenarios = [
+        { nome: 'tablet retrato, teclado fechado', janela: 1180, medida: 1180, topo: 24 },
+        { nome: 'tablet paisagem, teclado aberto', janela: 700, medida: 320, topo: 24 },
+        { nome: 'telefone paisagem, teclado aberto', janela: 390, medida: 150, topo: 24 },
+      ];
+      d2Cenarios.forEach((c) => {
+        const teto = tetoDoSheet(c.janela, c.medida, c.topo);
+        if (!(teto > 0)) {
+          d2.push(`(B) ${c.nome}: o teto veio \`${teto}\` — um cartão de altura zero é tão inacessível quanto um cartão que estoura`);
+        }
+        if (teto > c.medida) {
+          d2.push(`(C) ${c.nome}: o teto (\`${teto}\`) ultrapassa a altura útil medida (\`${c.medida}\`) — o cartão volta a competir com o teclado`);
+        }
+      });
+      const d2SemMedida = tetoDoSheet(1180, 0, 24);
+      if (d2SemMedida !== 1180 - 24 - D2_MARGEM) {
+        d2.push(`(D) sem medida válida o teto deixou de cair na janela inteira (veio \`${d2SemMedida}\`, esperado \`${1180 - 24 - D2_MARGEM}\`) — o primeiro quadro, antes de qualquer \`onLayout\`, precisa de um valor seguro em vez de um cartão colapsado`);
+      }
+      if (!(tetoDoSheet(700, 320, 24) >= tetoDoSheet(390, 150, 24))) {
+        d2.push('(E) mais espaço disponível produziu teto MENOR — a função inverteu a direção');
+      }
+    }
+
+    /* ── Eixo textual: teto aplicado, medida carimbada e saída rolável ──────── */
+    if (!d2Code.includes('medidaSheet.janela === winH')) {
+      d2.push('(F) a altura útil do sheet não é carimbada com a janela em que foi medida — girar com o sheet aberto voltaria a dimensionar o cartão pela orientação anterior (a mesma CAUSA B de `G-RSP-9`)');
+    }
+    if (!d2Code.includes('maxHeight: nameSheetMaxH')) {
+      d2.push('(G) o teto calculado não chega ao estilo do cartão (`maxHeight: nameSheetMaxH`) — a política existiria sem consumidor');
+    }
+
+    const d2Ini = d2Code.indexOf('styles.nameCard');
+    const d2Fim = d2Code.indexOf('</KeyboardAvoidingView>');
+    if (d2Ini < 0 || d2Fim < 0 || d2Fim < d2Ini) {
+      d2.push('(H) o bloco do sheet de nome mudou de forma e o portão não consegue mais delimitá-lo — reveja a âncora antes de seguir');
+    } else if (!d2Code.slice(d2Ini, d2Fim).includes('ScrollView')) {
+      d2.push('(I) o conteúdo do cartão não rola — com o teto aplicado e sem rolagem, o botão de guardar sai da tela e a criança fica com o desenho preso');
+    }
+
+    if (!d2Src.includes('[F6-SG-C · CAUSA D2]')) {
+      d2.push('(K) a marca `[F6-SG-C · CAUSA D2]` sumiu do fonte — quem ler o arquivo daqui a um ano não terá como saber por que o sheet tem teto');
+    }
+    if (readSrc('src/components/AtelierCanvas.js').includes('CAUSA D2')) {
+      d2.push('(J) a correção de D2 vazou para `AtelierCanvas.js` — o documento lógico foi provado correto pela perícia e é território PROIBIDO nesta causa');
+    }
+
+    check(
+      '`G-CVS-4` (`F6-SG-C`, **novo**): o sheet de nome do Ateliê respeita a altura útil que sobrou com o teclado aberto — teto vindo da medida carimbada pela janela, conteúdo rolável quando o teto morde, e nada disso tocando o documento lógico',
+      d2.length === 0,
+      d2.join(' · '),
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   // F6-SG-B · R2: geometria canônica do mapa, TA-1..3, G-MAP-1..5 e seis
   // controles negativos em memória. O harness lê os fontes reais e não toca no aparelho.
