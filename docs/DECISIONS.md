@@ -4665,6 +4665,107 @@ Ressalvas obrigatórias em custódia (as cinco): os três *evidence gaps* aceito
 não conclusivo, e o defeito do tour aberto na sua fase proprietária. Registro integral, com a matriz,
 os hashes e a adjudicação individual, em `83`, §9–§12.
 
+## `D-FUND-F6-SG-C-PLAN-33-ROTA-I-01` — caso 4 de `SD-1` resolvido por validação física (2026-08-19)
+
+Decisão expressa do fundador ao autorizar a campanha física final de `F6-SG-C`, sobre a cláusula
+condicional de `PLAN §33` (`04_PLAN_DELTA_F6.md`), que oferecia duas rotas para o **caso 4 de
+`SD-1`** — orientação em tablet Android:
+
+1. **`PLAN §33 = ROTA (i)`** — satisfazer o requisito por **validação física real**, no tablet
+   **SM-X510 (`RX2XC003LTJ`)**, que está disponível. A **rota (ii)** (dispensa registrada) fica
+   **expressamente rejeitada**: *"Não utilizar a rota (ii). Não criar dispensa para o caso que
+   pode ser fisicamente validado agora."*
+2. A escolha **não** cria dispensa para nada além do caso 4 de `SD-1`, e **não** estende §33 a
+   outros requisitos. §33 continua sendo a **única** cláusula de vão da Fase 6, e continua
+   cobrindo **apenas** aquele caso.
+3. Preservado sem alteração: **telefone Android físico ausente = `BLOCKING_UNSATISFIED_REQUIREMENT`,
+   sem FAIL fabricado**; **iPad físico ausente = `BLOCKING_UNSATISFIED_REQUIREMENT`, sem FAIL
+   fabricado**. Nenhum dos dois vira PASS, nenhum dos dois vira FAIL.
+4. **Nenhum hardware novo** entra nesta campanha. **Nenhuma task nova** é criada. Nenhuma evidência
+   já reutilizada por decisão válida é repetida.
+5. A campanha autorizada é de **um único vídeo**, com o roteiro do §8.4 do artefato
+   `84_F6_SG_C_ABERTURA_PATCH_E_FRONTEIRA_FISICA.md`, executado pelo fundador sozinho, sem consulta
+   ao computador durante a gravação.
+
+Esta decisão **não concede `F6-SG-C`** e **não antecipa o Portão Humano**: ela apenas fixa qual das
+duas rotas de §33 vale. A execução, a adjudicação e o resultado ficam registrados no artefato
+`specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/85_F6_SG_C_ADJUDICACAO_FISICA_E_HUMAN_GATE.md`.
+
+## `D-FUND-SG-C-ESTABILIZACAO-RESPONSIVA-01` — autorização de execução da estabilização responsiva (2026-08-19)
+
+Decisão expressa do fundador **autorizando a execução** das causas raiz adjudicadas pela perícia
+congelada em
+`specs/021-fase6-shell-splash-sistema-visual/delta-v4.1/88_F6_SG_C_PERICIA_FINAL_DE_CAUSAS_RAIZ.md`.
+
+A autorização cobre **integralmente e apenas** as causas classificadas pela perícia como
+`FIX_NOW_FOUNDATION`, `FIX_NOW_FUNCTIONAL` e `FIX_NOW_STABLE_SURFACE`, na **ordem causal validada
+no §14 do artefato 88**, que **não pode ser reordenada**:
+
+```
+A2 → A1 → B → C2 → C1 → C3 (condicionado) → D2 → E1
+```
+
+**1. `C3` é o único item com autorização CONDICIONAL.** A sequência obrigatória é: executar `C2`;
+depois produzir/reexecutar o RED TEST instrumentado dos *placeholders*. Daí decorrem três estados,
+e apenas três:
+
+- o sintoma **não sobrevive** a `C2` → `C3 = NO_PATCH_REQUIRED`, **nenhum patch é criado**;
+- o sintoma sobrevive **e** o teste vermelho **prova** o mecanismo → autoriza-se **somente** o patch
+  mínimo causal;
+- o sintoma persiste **e** o mecanismo **continua não demonstrado** → `STOP_C3_UNPROVEN`, e é
+  **proibido adivinhar solução**.
+
+**2. Toda correção respeita o artefato 88** — causas, arquivos permitidos, arquivos proibidos,
+patch mínimo e raio de regressão são os que lá estão. Nenhuma correção pode exigir arquivo ou
+superfície fora daquele mapa; se exigir, o ato correto é parar (`STOP_SCOPE_EXPANSION`).
+
+**3. `MAP_ANCHOR_FRAMING = 0.50` permanece CONGELADO.** `Q6`/`A-18` **não** são reabertos, o
+comparador visual `Q6` **não** é alterado, a decisão de `SG-B` **não** é revista, e é
+**expressamente proibido** reposicionar a âncora para mascarar a escala corrigida em `C2`.
+
+**4. Não há autorização para redesenhar telas.** Corrigir contrato estrutural não é polir layout:
+nenhum pixel de composição visual é redesenhado nesta autorização.
+
+**5. Não há autorização para antecipar `F7`, `F9`, `F11` ou `F12A`.** As superfícies com dono
+futuro provado permanecem intocadas no que é layout próprio delas.
+
+**6. Achados que NÃO recebem patch** nesta execução, por decisão expressa: `ProfileScreen`
+(nenhuma causa `B` provada na tela); **bordas cinzas** (design system é área protegida e nenhum
+critério canônico é violado); **documento lógico do `AtelierCanvas`** (`LW×LH`, projeção e
+exportação estão **provados corretos** — só a tela `AtelierCanvasScreen` é tocada, em `D2`);
+`E2` e `E4` da Ovelhinha (dono `F12A`); Livrinho/`StoryBookScreen` em paisagem (dono Fase 9);
+composição dos jogos em paisagem (dono `F12A`); `QuizScreen` e `Estrelinhas` (`PASS_NO_CHANGE`).
+
+**7. Disciplina de execução:** um **commit independente por causa arquitetural** — nunca um commit
+genérico de "fix responsividade" —, `RED → GREEN` obrigatório por causa, e os portões de qualidade
+(testes focados, mutantes aplicáveis, `npm run smoke`, `npx expo-doctor`, verificação de
+bundleabilidade) **verdes antes de cada commit**. Nenhuma dependência nova, nenhuma migração,
+nenhum arquétipo novo, nenhum sistema de layout novo.
+
+**8. Breakpoints canônicos permanecem** — `COMPACTO < 600dp` · `MÉDIO 600–899dp` ·
+`EXPANDIDO >= 900dp` — e **não há autorização para bloquear orientação** nem para `portrait lock`.
+
+**9. Nenhum `push` e nenhum `merge` estão autorizados** por esta decisão. Também não estão
+autorizados *build* nativo, instalação/desinstalação no aparelho, interação física por ADB nem
+nova gravação de vídeo.
+
+**10. Esta decisão NÃO concede `F6-SG-C`.** O resultado máximo que a execução automatizada pode
+declarar é `SG_C_IMPLEMENTATION = AUTOMATED_COMPLETE_AWAITING_PHYSICAL_REVALIDATION`. **`SG-C` só
+poderá ser julgada após a revalidação física posterior**, que é ato causalmente separado, com raio
+congelado no artefato de execução `89`.
+
+**11. Esta decisão AMPLIA, de forma expressa e consciente, o escopo estreito do artefato `86`.**
+O artefato `86` (§7 e §12) autorizava **um arquivo único** — `src/screens/HomeScreen.js` — e dizia
+"e nada além", além de declarar que nenhum portão novo seria criado, que `BrincarScreen` não seria
+tocada e que `StoryDetailScreen` estava "sem ocorrência". A perícia posterior (artefato `88`)
+provou `A2` na família Editorial, provou a mesma latência em `BrincarScreen` e exigiu **portão de
+chamador** como rede causal. **Onde `86` e `88` divergem em ESCOPO, prevalece o `88` somado a esta
+decisão** — que é justamente o ato humano explícito que `86:362` condicionava. Onde divergem em
+**invariante** (não subtrair a largura da barra lateral dentro de tela, não alterar `tokens.js`,
+`HUB_MIN_CARD`, `columnMaxWidth`/`ContentContainer`, tour, *onboarding* ou dependências), **os dois
+concordam e nada é afrouxado**. Os vãos físicos de `85` (`PHONE_GAP`, `IPAD_GAP`, `TK-C-043`, faixa
+COMPACTA inalcançável) **permanecem exatamente como estão**: nenhuma correção de código os converte.
+
 ## Analytics / SDKs (registro de restrição)
 - Analytics **anônimo** (sem AAID/PII, toggle na Área dos Pais) permanece aprovado. **Nenhum SDK** além de **Sentry + RevenueCat + analytics anônimo** entra sem decisão nova. Sem backend/login/anúncios/tracking infantil. Sem premium no binário.
 - ⚠️ **CONTRATO COMPLETO a partir de 2026-08-06 (Fase 4E · `D-4E-ANALYTICS-3-CAMADAS`).** O registro de restrição acima permanece válido e passa a ser lido dentro da arquitetura de **três camadas**:
