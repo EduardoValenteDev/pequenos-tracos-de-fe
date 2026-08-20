@@ -20,7 +20,11 @@ function loadAdventureGeometry() {
     .replace(/^import[\s\S]*?;$/gm, '')
     .replace(/require\([^)]*\)/g, 'null')
     .replace(/export /g, '')
-    + '\nreturn { STORY_MAP_COORDS, computeRegionHeight, getStoryMapCoord };';
+    // `computeRegionArtWidth` entra guardado: enquanto ele nao existir (RED da CAUSA
+    // C2) o carregador precisa devolver `null` em vez de estourar ReferenceError — um
+    // teste vermelho tem de reprovar dizendo o que falta, nao morrer no carregamento.
+    + '\nreturn { STORY_MAP_COORDS, computeRegionHeight, getStoryMapCoord, computeImageRect,'
+    + '\n  computeRegionArtWidth: typeof computeRegionArtWidth === "function" ? computeRegionArtWidth : null };';
   return new Function('stories', source)([]);
 }
 
@@ -229,4 +233,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { executarTA1a3, executarMutantes, avaliarGates, loadMapAnchor };
+module.exports = { executarTA1a3, executarMutantes, avaliarGates, loadMapAnchor, adventureGeometry };

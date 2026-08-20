@@ -15,7 +15,7 @@ import { View, Text, Image, Modal, Pressable, ActivityIndicator, InteractionMana
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Asset } from 'expo-asset';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAdventureRegions, getOrderedAdventureStories, getJourneyRegionRevealFraction, computeImageRect, REGION_PARCHMENT_BG, MAP_ASPECT } from '../data/adventureMap';
+import { getAdventureRegions, getOrderedAdventureStories, getJourneyRegionRevealFraction, computeImageRect, computeRegionArtWidth, REGION_PARCHMENT_BG, MAP_ASPECT } from '../data/adventureMap';
 import { computeRegionLayout, getStoryAnchor, computeCameraTarget, resolveActiveRegion } from '../services/mapAnchor';
 import { getStoryAccessStatus, getStoryLockReason } from '../services/contentAccessService';
 import { useProgressContext } from '../context/ProgressContext';
@@ -133,9 +133,18 @@ export default function AdventureMapScreen({ navigation, route }) {
   // desmontar o ScrollView a cada rotação perderia a posição de rolagem, que é
   // exatamente o estado que a câmera do mapa existe para preservar. `G-MAP-3` lacra
   // essa montagem por medida real; nada aqui a afrouxa.
+  //
+  // [F6-SG-C · CAUSA C2] A viewport livre (altura REAL entre header e tab/sidebar) é
+  // medida aqui em cima porque agora ela participa da ESCALA, não só da câmera: a
+  // região ganhou teto de altura relativo à janela que a mostra. `mapWidth` deixou de
+  // ser "a largura da área" para ser "a largura da ARTE" — é ela que a geometria
+  // inteira consome (layout, âncoras, marcadores), e é por isso que guarda o nome.
+  // `areaWidth` é o espaço disponível; o teto decide quanto dele a arte ocupa.
+  const [mapViewportH, setMapViewportH] = useState(0);
   const [contentM, setContentM] = useState({ w: 0, janela: 0 });
   const contentW = contentM.w;
-  const mapWidth = contentM.janela === width && contentW > 0 ? contentW : width;
+  const areaWidth = contentM.janela === width && contentW > 0 ? contentW : width;
+  const mapWidth = computeRegionArtWidth(areaWidth, mapViewportH);
   const onContainerLayout = useCallback((e) => {
     const w = Math.round(e.nativeEvent.layout.width);
     setContentM((prev) => (prev.w === w && prev.janela === width ? prev : { w, janela: width }));
@@ -307,8 +316,6 @@ export default function AdventureMapScreen({ navigation, route }) {
     return last ? last.top + last.height + SCROLL_BOTTOM_PAD : 0;
   }, [regionLayout]);
 
-  // A viewport livre é a altura REAL do container entre header e tab/sidebar.
-  const [mapViewportH, setMapViewportH] = useState(0);
 
   // Região efetivamente exibida pelo overview: a pedida (rolagem/active) ou a ativa.
   const overviewRegion = regionsVisual[ovRegionIdx != null ? ovRegionIdx : activeIdx] || activeRegion;

@@ -78,7 +78,12 @@ export default function MapRegion({ region, width, anchorContext, revealFraction
     // Sem sobreposição nem faixas de transição: cada região 9:16 aparece de TOPO A
     // BASE, sem cobrir o círculo inferior da arte. As regiões se tocam exatamente
     // (altura == imagem), sem gap e sem corte.
-    <View style={[styles.region, { height: regionH }]}>
+    // [F6-SG-C · CAUSA C2] A caixa assume a largura da ARTE e se centraliza. Antes ela
+    // era `width: '100%'` porque arte e container tinham sempre a mesma largura; com o
+    // teto de altura em paisagem a arte fica mais estreita que a área, e uma caixa de
+    // largura cheia deixaria o mapa encostado à esquerda. Em retrato o teto não morde,
+    // a arte volta a ocupar a área inteira e centralizar não muda nada.
+    <View style={[styles.region, { width, height: regionH, alignSelf: 'center' }]}>
       {/* CAMADA 0 — PLACEHOLDER de pergaminho (atrás da arte). Enquanto a arte
           decodifica, mostra um pergaminho com variação sutil — não bege chapado. */}
       <LinearGradient

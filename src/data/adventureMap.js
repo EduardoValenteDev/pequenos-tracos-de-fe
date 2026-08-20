@@ -126,6 +126,29 @@ export function computeImageRect(containerW, containerH) {
   };
 }
 
+/**
+ * [F6-SG-C · CAUSA C2] Largura da ARTE de uma região no modo principal, com TETO de
+ * altura relativo à viewport que a mostra.
+ *
+ * A altura da região sempre foi função exclusiva da largura (`width * 16/9`). Em
+ * paisagem a largura cresce, a altura cresce junto, e a região passa a ser quase 3×
+ * mais alta que a janela: o mapa vira um corredor vertical de rolagem. O teto é o
+ * ajuste "contain" que este módulo JÁ tinha para o modal "Ver mapa" — reusa-se a
+ * regra existente em vez de inventar uma segunda primitiva de escala.
+ *
+ * Onde não há defeito, não há efeito: se o container é mais estreito que a janela na
+ * proporção da arte (retrato, celular), `computeImageRect` devolve a própria largura
+ * do container e a geometria fica idêntica à de antes. Sem viewport medida, também.
+ *
+ * NÃO toca `MAP_ANCHOR_FRAMING`: enquadramento é fração da viewport dentro de
+ * `computeCameraTarget`; escala é outro assunto.
+ */
+export function computeRegionArtWidth(containerW, viewportH) {
+  if (!Number.isFinite(containerW) || containerW <= 0) return 0;
+  if (!Number.isFinite(viewportH) || viewportH <= 0) return containerW;
+  return computeImageRect(containerW, viewportH).width;
+}
+
 /** Fração vertical (0..1) do marco i — FALLBACK quando não há coordenada explícita. */
 export function markerFraction(index, storyCount) {
   if (storyCount <= 1) return 0.62;

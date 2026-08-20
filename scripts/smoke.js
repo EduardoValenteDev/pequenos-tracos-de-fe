@@ -6109,13 +6109,23 @@ check(
   );
 
   // ── M2.7 dois modos: Caminhada Cinematográfica (principal) + Ver mapa (overview) ──
+  // [F6-SG-C · CAUSA C2] O quarto termo era `!region.includes('alignSelf')` — proibição
+  // TOTAL de centralização, escrita quando a arte tinha sempre a largura do container e
+  // qualquer `alignSelf` só podia significar a moldura central que este portão matou.
+  // Com o teto de altura em paisagem a arte fica mais estreita que a área, e a caixa
+  // PRECISA se centralizar para o mapa não encostar à esquerda. O que o portão protege
+  // continua protegido, e de forma mais estrita: o modo principal segue `cover` (nunca
+  // `contain` no componente de imagem — o teto age na CAIXA, não no redimensionamento),
+  // segue derivando a altura de `computeRegionHeight(width)`, e agora só admite UMA
+  // centralização, exatamente na forma da correção. Qualquer outro `alignSelf` reprova.
   check(
     'Mapa M2.7: modo PRINCIPAL cinematográfico — full-width + proporção, SEM contain como principal',
     region.includes('computeRegionHeight(width)') &&
     region.includes('resizeMode="cover"') &&
     !region.includes('resizeMode="contain"') &&
-    !region.includes('alignSelf'),
-    'modo principal não é full-width cinematográfico (ou usa contain)',
+    region.includes("{ width, height: regionH, alignSelf: 'center' }") &&
+    region.split('alignSelf').length - 1 === 1,
+    'modo principal não é full-width cinematográfico (ou usa contain, ou centraliza fora da forma da CAUSA C2)',
   );
   check(
     'Mapa B2: "Ver mapa" mostra a região INTEIRA via imageRect explícito (sem absoluteFill, sem zoom)',
@@ -6382,10 +6392,16 @@ check(
     !mapScreen.includes('frameWidth'),
     'mapFrameWidth/0.86/frameWidth ainda presentes (frame estreito)',
   );
+  // [F6-SG-C · CAUSA C2] A BASE segue full-bleed: `styles.region` continua declarando
+  // `width: '100%'` e é isso que vale sempre que o teto de altura não morde (retrato,
+  // celular) — nada de moldura, nada de card. O que mudou é que a caixa aceita uma
+  // largura EXPLÍCITA quando a arte precisa caber na viewport, e aí centraliza. O termo
+  // que proibia `alignSelf: 'center'` virou "no máximo UMA centralização": a moldura
+  // central que este portão matou exigiria outras, e continua barrada.
   check(
     'Mapa M2.5B: região FULL-BLEED — largura total da tela, sem moldura central',
     /region:\s*\{[\s\S]{0,160}width:\s*'100%'/.test(region) &&
-    !region.includes("alignSelf: 'center'") &&
+    region.split("alignSelf: 'center'").length - 1 === 1 &&
     region.includes('computeRegionHeight(width)') &&
     region.includes('width, height: regionH'),
     'região não é full-bleed (ainda tem frame/alignSelf central)',
@@ -7329,9 +7345,15 @@ check(
   // cálculo cai no mesmo `width` que sempre foi o fallback de primeiro quadro. O
   // termo ficou mais restritivo, não mais frouxo: continua exigindo que a medida
   // conduza a largura, e passa a exigir que ela seja desta janela.
+  //
+  // [F6-SG-C · CAUSA C2] E o termo virou DOIS, porque a cadeia ganhou um degrau: a
+  // medida carimbada é `areaWidth` (o espaço que a tela tem) e `mapWidth` passou a ser
+  // a largura da ARTE depois do teto de altura. Continua sendo a área de conteúdo que
+  // manda — o teto só decide quanto dela a arte ocupa, e em retrato ocupa toda.
   check(
     'TABLET1.0: mapa usa LARGURA DA ÁREA DE CONTEÚDO (onLayout) — corrige corte na sidebar; mobile == janela (sem regressão)',
-    mapSrcTab.includes('const mapWidth = contentM.janela === width && contentW > 0 ? contentW : width') &&
+    mapSrcTab.includes('const areaWidth = contentM.janela === width && contentW > 0 ? contentW : width') &&
+    mapSrcTab.includes('const mapWidth = computeRegionArtWidth(areaWidth, mapViewportH)') &&
     mapSrcTab.includes('onLayout={onContainerLayout}') &&
     mapSrcTab.includes('computeRegionLayout(regionsVisual, mapWidth)') &&
     mapSrcTab.includes('width={mapWidth}') &&
@@ -54403,6 +54425,82 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       '`G-RSP-9` (`F6-SG-C`, **novo**): a medida só vale para a janela em que foi tirada — nas quatro superfícies da CAUSA B o `onLayout` corrige divergência real e nunca inaugura geometria, extinguindo o quadro intermediário da rotação',
       g9.length === 0,
       g9.join(' · '),
+    );
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Fase 6 · F6-SG-C — `G-MAP-6` (CAUSA C2 · artefato 88 §5.2)
+   * Teto de altura da região relativo à viewport
+   * ══════════════════════════════════════════════════════════════════════════
+   *
+   * `MAP_SCALE_ROOT_CAUSE`: a altura de cada região era função EXCLUSIVA da
+   * largura — `computeRegionHeight(w) = w / MAP_ASPECT`, ou seja `w * 16/9`. Não
+   * havia teto pela altura da janela. Em paisagem a largura cresce e a altura
+   * cresce JUNTO: com ~1077dp de área útil a região passa de 1900dp para uma
+   * viewport de ~700dp — a arte fica quase 3× mais alta que a janela e o mapa
+   * vira um corredor vertical estreito de rolagem.
+   *
+   * A regra "contain" necessária JÁ EXISTIA e já servia ao modal "Ver mapa":
+   * `computeImageRect(containerW, containerH)`. `computeRegionArtWidth` só a
+   * aplica ao modo principal — nenhuma segunda primitiva de escala é inventada.
+   * O efeito é cirúrgico: onde o container é mais estreito que a janela na
+   * proporção da arte (retrato, celular), a função devolve a PRÓPRIA largura do
+   * container e nada muda; só onde a janela é larga demais para a arte é que o
+   * teto morde, e aí ele devolve a largura que faz a região caber na viewport.
+   *
+   * `MAP_ANCHOR_FRAMING = 0.50` NÃO é tocada. Ela é uma fração da viewport dentro
+   * de `computeCameraTarget`; mudar a REGRA DE ESCALA não encosta na fração —
+   * `G-MAP-4` continua provando isso de forma independente. `Q6`/`A-18` e o
+   * comparador visual permanecem fechados.
+   */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · CAUSA C2: portão G-MAP-6 ──');
+    const arnesMapa = require('./testing/mapAnchorHarness');
+    const geo = arnesMapa.adventureGeometry;
+    const g10 = [];
+
+    const artW = geo.computeRegionArtWidth;
+    if (typeof artW !== 'function') {
+      g10.push('(A) `computeRegionArtWidth` não existe em `src/data/adventureMap.js`: não há teto algum, a altura da região continua sendo só largura×16/9');
+    } else {
+      // (B) Sem viewport medida (primeiro quadro) o teto não pode inventar nada.
+      if (artW(1077, 0) !== 1077) {
+        g10.push(`(B) sem viewport medida o teto deveria devolver a largura do container (1077), devolveu ${artW(1077, 0)}`);
+      }
+      // (C) Retrato de tablet: a regra não morde onde não existe defeito.
+      if (artW(643, 1180) !== 643) {
+        g10.push(`(C) em retrato (643×1180) o teto mordeu sem precisar: devolveu ${artW(643, 1180)} em vez de 643`);
+      }
+      // (D) Paisagem do tablet: a região passa a caber na viewport que a mostra.
+      const artPaisagem = artW(1077, 700);
+      const alturaNova = geo.computeRegionHeight(artPaisagem);
+      const alturaAntiga = geo.computeRegionHeight(1077);
+      if (!(alturaNova <= 700)) {
+        g10.push(`(D) em paisagem (1077×700) a região continua mais alta que a viewport: ${alturaNova}dp de altura para 700dp de janela`);
+      }
+      if (!(alturaAntiga > 700 * 2)) {
+        g10.push('(D) o modelo perdeu o defeito: a regra antiga deixou de produzir o corredor vertical que este portão existe para extinguir');
+      }
+      // (E) O teto NÃO deforma: a arte continua na proporção oficial, pela mesma
+      // regra "contain" do modal "Ver mapa".
+      if (artPaisagem !== geo.computeImageRect(1077, 700).width) {
+        g10.push('(E) a largura da arte divergiu de `computeImageRect`: o teto virou uma segunda primitiva de escala em vez de reusar a que o projeto já tem');
+      }
+    }
+
+    const g10Tela = 'src/screens/AdventureMapScreen.js';
+    const g10Regiao = 'src/components/map/MapRegion.js';
+    if (codeOf(g10Tela).indexOf('computeRegionArtWidth(areaWidth, mapViewportH)') === -1) {
+      g10.push(`${g10Tela} → a tela não aplica o teto: a geometria segue saindo da largura da área, sem a viewport que a mostra`);
+    }
+    if (codeOf(g10Regiao).indexOf("{ width, height: regionH, alignSelf: 'center' }") === -1) {
+      g10.push(`${g10Regiao} → a caixa da região não assume a largura da arte centralizada: com o teto ativo a arte ficaria encostada à esquerda dentro de uma caixa de largura cheia`);
+    }
+
+    check(
+      '`G-MAP-6` (`F6-SG-C`, **novo**): a altura da região tem teto relativo à viewport, pela regra "contain" que o modal "Ver mapa" já usava — em paisagem a região cabe na janela em vez de virar corredor vertical, e em retrato nada muda',
+      g10.length === 0,
+      g10.join(' · '),
     );
   }
 
