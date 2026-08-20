@@ -393,9 +393,12 @@ export default function AdventureMapScreen({ navigation, route }) {
      câmera. Como as alturas das regiões escalam com a largura, a fração é o que
      atravessa a mudança de geometria; o deslocamento em pixels não atravessaria.
 
-     O par só passa a valer depois do PRIMEIRO ARRASTO MANUAL (`userScrolledRef`). Sem
-     arrasto não há posição da criança a preservar, e a abertura continua sendo
-     exatamente a de hoje — inclusive a recentragem da medição inicial no tablet
+     [F6-SG-C · CAUSA C1] O par valia só depois do PRIMEIRO ARRASTO MANUAL. A premissa
+     era que sem arrasto não haveria posição da criança a preservar — e ela é falsa: a
+     câmera posiciona sozinha na abertura, e esse lugar é lugar. Hoje o par é gravado a
+     partir de QUALQUER posição visível. A abertura em si não muda: no primeiro quadro
+     ainda não houve evento de rolagem nenhum, o par segue inválido e a reconciliação
+     cai na câmera, preservando a recentragem da medição inicial no tablet
      (`TK-A-020`/`CN-2`). O `userScrolledRef` NÃO é reposto pela troca de largura. */
   const posLogicaRef = useRef({ regionIndex: -1, frac: 0, valida: false });
   const reprojetarRef = useRef(false);
@@ -469,22 +472,30 @@ export default function AdventureMapScreen({ navigation, route }) {
     // Fase 1.1.5: só segue a viewport DEPOIS do 1º arrasto manual. Antes disso a região
     // ativa é a da câmera ("Comece Aqui" no 1º acesso), definida no scroll inicial — o
     // scroll programático não pode sequestrar o activeIdx (senão "Ver mapa" abre errado).
+    const offsetY = e.nativeEvent.contentOffset.y;
     if (userScrolledRef.current) {
-      const offsetY = e.nativeEvent.contentOffset.y;
       const idx = regiaoDe(offsetY + 90); // sonda perto do topo do viewport
       activeIdxRef.current = idx; // ref sempre atual (lida pelo "Ver mapa")
       setActiveIdx((prev) => (prev === idx ? prev : idx));
-      // [F6-R3.1 · TK-A-017] Grava o PAR LÓGICO da posição corrente: a região que contém
-      // o deslocamento CRU (não a sonda — o par precisa ser invertível) e a fração dentro
-      // dela. Duas contas sobre o `regionLayout` que já existe, escritas em campos de uma
-      // ref criada uma única vez: sem alocação por evento e sem `setState` adicional.
-      const idxPos = regiaoDe(offsetY);
-      const rPos = regionLayout[idxPos];
-      if (rPos && rPos.height > 0) {
-        posLogicaRef.current.regionIndex = idxPos;
-        posLogicaRef.current.frac = (offsetY - rPos.top) / rPos.height;
-        posLogicaRef.current.valida = true;
-      }
+    }
+    // [F6-R3.1 · TK-A-017] Grava o PAR LÓGICO da posição corrente: a região que contém
+    // o deslocamento CRU (não a sonda — o par precisa ser invertível) e a fração dentro
+    // dela. Duas contas sobre o `regionLayout` que já existe, escritas em campos de uma
+    // ref criada uma única vez: sem alocação por evento e sem `setState` adicional.
+    //
+    // [F6-SG-C · CAUSA C1] A gravação saiu de dentro do guarda de gesto. O par é FUNÇÃO
+    // DO ESTADO VISÍVEL: sempre que há layout válido, o ponto lógico no topo da viewport
+    // é conhecido — venha ele de arrasto, da câmera ou da abertura. Preso ao gesto, quem
+    // entrava, deixava a câmera posicionar e girava SEM ARRASTAR chegava à rotação com
+    // `valida = false`, e a reconciliação caía no caminho da câmera: o mapa voltava para
+    // a âncora e a criança perdia o lugar. O guarda continua acima, onde ele tem razão de
+    // ser — `activeIdx` não pode ser sequestrado por scroll programático (Fase 1.1.5).
+    const idxPos = regiaoDe(offsetY);
+    const rPos = regionLayout[idxPos];
+    if (rPos && rPos.height > 0) {
+      posLogicaRef.current.regionIndex = idxPos;
+      posLogicaRef.current.frac = (offsetY - rPos.top) / rPos.height;
+      posLogicaRef.current.valida = true;
     }
     // Durante o tour: esconde o halo enquanto rola; re-mede o alvo ao parar (settle).
     if (showBeniTour) {

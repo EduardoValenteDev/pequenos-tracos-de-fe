@@ -54505,6 +54505,100 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
+   * Fase 6 · F6-SG-C — `G-MAP-7` (CAUSA C1 · artefato 88 §5.1)
+   * A posição lógica é função do estado VISÍVEL, não do histórico de gestos
+   * ══════════════════════════════════════════════════════════════════════════
+   *
+   * `G-LFC-1` (TK-A-021) já provava que a troca de largura NÃO repõe
+   * `didInitScroll` e que ela AGENDA reprojeção do par lógico. O que faltava era
+   * o par EXISTIR: ele só era gravado dentro do `onScroll` sob
+   * `if (userScrolledRef.current)`, e essa bandeira só vira `true` em
+   * `onScrollBeginDrag`. Quem entra no mapa, deixa a câmera posicionar e gira SEM
+   * ARRASTAR chegava à rotação com `valida = false` — a reconciliação caía no
+   * caminho da câmera e o mapa "voltava para a âncora". O fundador lê isso,
+   * corretamente, como "perdeu o lugar".
+   *
+   * O defeito nunca foi de reprojeção: era de GRAVAÇÃO. O cálculo, o clamp e a
+   * restauração já estavam escritos e já haviam passado por portão. A correção
+   * mínima é derivar o par também quando a posição veio da câmera ou da abertura.
+   *
+   * O guarda de gesto NÃO é removido — ele continua valendo para `activeIdx`,
+   * que é outro invariante (Fase 1.1.5: o scroll programático não pode sequestrar
+   * a região ativa, senão "Ver mapa" abre a região errada). São dois assuntos que
+   * dividiam um `if` por acidente de escrita; este portão os separa.
+   *
+   * E o caminho recusado pelo artefato 88 continua recusado: preservar `scrollY`
+   * BRUTO. Ele não representa o mesmo ponto lógico entre duas larguras — ainda
+   * mais agora que o teto da CAUSA C2 muda a escala. O alvo segue saindo de
+   * `r.top + par.frac * r.height`.
+   */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · CAUSA C1: portão G-MAP-7 ──');
+    const g11 = [];
+    const g11Rel = 'src/screens/AdventureMapScreen.js';
+    const g11Bruto = readSrc(g11Rel);
+    const g11Codigo = codeOf(g11Rel);
+
+    /* (A) — o eixo executável: a sessão que o fundador descreveu. Abre o mapa, a
+     * câmera posiciona sozinha, ninguém arrasta, gira. Sob a política antiga o par
+     * nunca é gravado e a rotação cai na câmera; sob a política nova o par existe
+     * desde a primeira posição visível. O primeiro ramo PRECISA falhar aqui. */
+    const g11Sessao = [
+      { evento: 'scroll da câmera na abertura', arrastou: false, offsetY: 1200 },
+      { evento: 'rotação (sem nenhum arrasto humano)', arrastou: false, offsetY: 1200 },
+    ];
+    const g11Gravar = (soComGesto) => {
+      let par = { valida: false, offsetY: -1 };
+      g11Sessao.forEach((q) => {
+        if (soComGesto && !q.arrastou) return;
+        par = { valida: true, offsetY: q.offsetY };
+      });
+      return par;
+    };
+    if (g11Gravar(true).valida) {
+      g11.push('(A) o modelo perdeu o defeito: a política antiga passou a gravar o par sem arrasto algum, e o portão deixa de descrever o que aconteceu no aparelho');
+    }
+    if (!g11Gravar(false).valida) {
+      g11.push('(A) a política do estado visível não gravou o par na abertura conduzida pela câmera');
+    }
+
+    /* (B..E) — o eixo estrutural sobre a tela real. */
+    if (g11Bruto.indexOf('[F6-SG-C · CAUSA C1]') === -1) {
+      g11.push(`${g11Rel} → sem a marca \`[F6-SG-C · CAUSA C1]\``);
+    }
+    const iGuarda = g11Codigo.indexOf('if (userScrolledRef.current) {');
+    if (iGuarda === -1) {
+      g11.push(`${g11Rel} → o guarda de gesto sumiu: a Fase 1.1.5 exige que \`activeIdx\` só siga a viewport depois do 1º arrasto`);
+    } else {
+      let prof = 0;
+      let fim = -1;
+      for (let i = g11Codigo.indexOf('{', iGuarda); i < g11Codigo.length; i += 1) {
+        if (g11Codigo[i] === '{') prof += 1;
+        else if (g11Codigo[i] === '}') { prof -= 1; if (prof === 0) { fim = i; break; } }
+      }
+      const dentro = fim > iGuarda ? g11Codigo.slice(iGuarda, fim) : g11Codigo.slice(iGuarda);
+      if (dentro.indexOf('posLogicaRef') !== -1) {
+        g11.push(`${g11Rel} → o par lógico continua gravado DENTRO do guarda de gesto: quem não arrasta chega à rotação sem posição a preservar`);
+      }
+      if (dentro.indexOf('activeIdxRef.current = idx;') === -1) {
+        g11.push(`${g11Rel} → o guarda de gesto deixou de proteger \`activeIdx\`: separar os dois assuntos não pode significar perder a Fase 1.1.5`);
+      }
+    }
+    if (g11Codigo.indexOf('posLogicaRef.current.valida = true;') === -1) {
+      g11.push(`${g11Rel} → o par lógico não é mais gravado`);
+    }
+    if (g11Codigo.indexOf('r.top + par.frac * r.height') === -1) {
+      g11.push(`${g11Rel} → o alvo da reprojeção deixou de sair da fração dentro da região: o artefato 88 recusa expressamente voltar ao \`scrollY\` bruto`);
+    }
+
+    check(
+      '`G-MAP-7` (`F6-SG-C`, **novo**): o par lógico do mapa é função do estado VISÍVEL — a câmera e a abertura também o gravam, então girar sem nunca ter arrastado deixa de mandar a criança de volta para a âncora; o guarda de gesto continua valendo só para a região ativa',
+      g11.length === 0,
+      g11.join(' · '),
+    );
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
    * Fase 6 · F6-R1.2 · F6-SG-C · TK-C-026 — `TA-15`
    * Geometria do alvo de guia nas três faixas (a parcela automatizável)
    *
