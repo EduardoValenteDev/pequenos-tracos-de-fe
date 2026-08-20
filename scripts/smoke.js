@@ -53213,13 +53213,17 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
      * A tabela responde `SD-3` com número: em 1180dp a coluna para em 640dp nos
      * DOIS casos — o que muda é se os 540dp restantes viram vazio (defeito) ou
      * região de apoio (cura). Sem a linha do defeito, o portão não saberia
-     * reconhecer o que `G-RSP-6` vai proibir em `TK-C-014`. */
+     * reconhecer o que `G-RSP-6` vai proibir em `TK-C-014`.
+     *
+     * A sétima linha (`F6-SG-C`, CAUSA A2) é a largura real do tablet em paisagem,
+     * 1317dp: onde o excedente passa a coluna, o apoio para nela e a sobra fica
+     * declarada. Sem essa linha a travessia nunca chegaria a exercitar o teto. */
     const c05Med = arnesArq.executarEditorialMedida();
     const c05MedMaus = c05Med.linhas.filter((l) => !l.ok);
 
     check(
       'TA-14 [12/21] (`TK-C-005`): a coluna editorial para na medida de leitura nas três faixas, o excedente da expandida vira região de apoio (nunca vazio dominante — `SD-3`) e o material de apoio NÃO some nas faixas que não abrem a região',
-      !c05Med.ausente && c05Med.linhas.length === 6 && c05MedMaus.length === 0,
+      !c05Med.ausente && c05Med.linhas.length === 7 && c05MedMaus.length === 0,
       c05Med.ausente
         ? `medida editorial indisponível: ${c05Med.faltando.join('/') || '(arquivo ausente)'}`
         : `travessia errada: ${c05MedMaus.map((m) => `${m.nome} → ${JSON.stringify(m.obtido)}`).join(' · ') || '(tabela vazia)'}`,
@@ -53551,6 +53555,11 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
         quebrou: (r) => r.linhas.some((l) => !l.ok),
       },
       {
+        nome: 'M-n · o apoio perde o teto e volta a passar a coluna de leitura — em 1317dp a região auxiliar ficaria maior que o texto que ela apoia',
+        rodar: () => arnesArq.executarEditorialMedida((s) => s.replace('Math.min(excedente, coluna)', 'excedente')),
+        quebrou: (r) => r.linhas.some((l) => !l.ok),
+      },
+      {
         nome: 'M-k · o Hub volta a preencher até o teto — quatro brincadeiras virariam `3 + 1`, com um cartão sozinho e dois buracos ao lado',
         rodar: () => arnesArq.executarHubDensidade((s) => s.replace('hubBalanced(viavel, inventario)', 'viavel')),
         quebrou: (r) => r.linhas.some((l) => !l.ok),
@@ -53706,6 +53715,22 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       }
       if (semApoio.dominantVoid !== true) {
         g6Falhas.push('(D) sem apoio, o vazio de 540dp não foi acusado — o diagnóstico está cego');
+      }
+
+      /* (E) e (F) — `F6-SG-C` CAUSA A2. A largura real do SM-X510 em paisagem
+       * (1317dp) é maior que 1180: o excedente passa de 540 para 677 e a região de
+       * apoio, que cresce sem teto, fica MAIOR que a própria coluna de leitura. A
+       * família Editorial é de LEITURA — apoio maior que leitura inverte a
+       * hierarquia que dá nome ao arquétipo. (F) exige que o teto não suma com o
+       * resto do excedente em silêncio: o que não coube no apoio continua
+       * declarado, e a soma fecha com o excedente real. */
+      const g6Fisica = g6.mod.editorialLayout({ band: g6.BANDS.EXPANDED, availableWidth: 1317, hasSupport: true });
+      const g6Excedente = 1317 - g6Fisica.columnMaxWidth;
+      if (!(g6Fisica.supportWidth <= g6Fisica.columnMaxWidth)) {
+        g6Falhas.push(`(E) em 1317dp o apoio (${g6Fisica.supportWidth}) ficou maior que a coluna de leitura (${g6Fisica.columnMaxWidth}) — hierarquia editorial invertida`);
+      }
+      if (g6Fisica.supportWidth + g6Fisica.supportSlack !== g6Excedente) {
+        g6Falhas.push(`(F) em 1317dp o excedente ${g6Excedente} não fecha: apoio ${g6Fisica.supportWidth} + sobra ${g6Fisica.supportSlack}`);
       }
     } else {
       g6Falhas = ['arquétipo Editorial ausente ou incompleto'];

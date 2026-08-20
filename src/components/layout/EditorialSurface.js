@@ -69,8 +69,10 @@ export function editorialComposition({ band, hasSupport = false }) {
  * A conta de `SD-3`: onde a coluna de leitura termina, e para onde vai o que sobra.
  *
  * `columnMaxWidth` vem do dono — `'100%'` na compacta (fluido), número nas demais.
- * `supportWidth` e `voidWidth` são o MESMO excedente com destinos opostos, e é essa
- * troca que `dominantVoid` diagnostica: faixa que comporta apoio, chamador que não
+ * `supportWidth` é o excedente COM destino, limitado pela coluna de leitura, e
+ * `supportSlack` é o que sobrou depois desse teto; `voidWidth` é o mesmo excedente
+ * sem destino algum, e é essa troca que `dominantVoid` diagnostica: faixa que
+ * comporta apoio, chamador que não
  * trouxe nada, e sobra de largura sem função. É esse estado que `G-RSP-6` proíbe.
  */
 export function editorialLayout({ band, availableWidth, hasSupport = false }) {
@@ -81,6 +83,13 @@ export function editorialLayout({ band, availableWidth, hasSupport = false }) {
   // Na compacta a coluna é fluida (`'100%'`), então ela É a largura — e nada sobra.
   const coluna = typeof columnMaxWidth === 'number' ? Math.min(columnMaxWidth, largura) : largura;
   const excedente = Math.max(0, largura - coluna);
+
+  // A família é de LEITURA: a região de apoio ACOMPANHA a coluna, nunca a domina.
+  // Sem teto, o apoio absorve todo o excedente e passa a coluna em janela larga
+  // (1317dp de tablet em paisagem: apoio 677 contra leitura 640) — a hierarquia que
+  // dá nome ao arquétipo invertida pela aritmética. O teto é a PRÓPRIA coluna: número
+  // novo aqui seria a segunda primitiva de largura que o defeito `P-30` já custou.
+  const apoio = composicao.support ? Math.min(excedente, coluna) : 0;
 
   const capacidadeOciosa = composicao.supportCapacity && !composicao.support;
 
@@ -93,7 +102,11 @@ export function editorialLayout({ band, availableWidth, hasSupport = false }) {
     ...composicao,
     columnMaxWidth,
     supportPlacement,
-    supportWidth: composicao.support ? excedente : 0,
+    supportWidth: apoio,
+    // O que o teto barrou não desaparece do diagnóstico: `supportWidth + supportSlack`
+    // fecha com o excedente. Jogar a sobra em `voidWidth` seria mentir — `voidWidth` é
+    // o excedente SEM destino, e este tem destino: é margem da região de apoio.
+    supportSlack: composicao.support ? excedente - apoio : 0,
     voidWidth: composicao.support ? 0 : excedente,
     dominantVoid: capacidadeOciosa && excedente > 0,
   });
@@ -149,7 +162,7 @@ export default function EditorialSurface({
       <View style={[styles.leitura, { width: layout.columnMaxWidth }]}>
         <ContentContainer>{children}</ContentContainer>
       </View>
-      <View style={[styles.apoio, supportStyle]}>{support}</View>
+      <View style={[styles.apoio, supportStyle, { maxWidth: layout.supportWidth }]}>{support}</View>
     </View>
   );
 }
@@ -160,5 +173,8 @@ const styles = StyleSheet.create({
   // sem isto ela cederia espaço ao apoio e a medida de linha viraria sobra do layout.
   // O excedente é da região de apoio — por isso só ela cresce (`flex: 1`).
   leitura: { flexShrink: 0 },
+  // Cresce com o excedente, mas o teto de `editorialLayout` vem depois de
+  // `supportStyle` no array: a tela decide o que a região É, o arquétipo garante
+  // que ela não passe a coluna de leitura.
   apoio: { flex: 1 },
 });

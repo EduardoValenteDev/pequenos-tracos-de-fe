@@ -346,7 +346,15 @@ const TRAVESSIA_EDITORIAL = [
   {
     nome: 'expandida · 1180dp COM apoio — mesma coluna de 640dp, e os 540dp viram região de apoio',
     band: 'expanded', largura: 1180, hasSupport: true,
-    coluna: 640, apoio: 540, vazio: 0, vazioDominante: false, lugar: 'aside',
+    coluna: 640, apoio: 540, sobra: 0, vazio: 0, vazioDominante: false, lugar: 'aside',
+  },
+  {
+    /* Tablet Android em paisagem (SM-X510, 1317dp): o excedente de 677dp passa a
+     * coluna de leitura. Aqui o teto do apoio aparece — a região para em 640dp, e
+     * os 37dp restantes ficam declarados como sobra em vez de sumirem no `flex`. */
+    nome: 'expandida · 1317dp COM apoio — o apoio para na coluna de leitura (640dp) e a sobra de 37dp fica declarada',
+    band: 'expanded', largura: 1317, hasSupport: true,
+    coluna: 640, apoio: 640, sobra: 37, vazio: 0, vazioDominante: false, lugar: 'aside',
   },
 ];
 
@@ -363,6 +371,7 @@ function executarEditorialMedida(mutate) {
       ok:
         r.columnMaxWidth === c.coluna &&
         Math.abs(r.supportWidth - c.apoio) < EPSILON &&
+        (c.sobra === undefined || Math.abs((r.supportSlack || 0) - c.sobra) < EPSILON) &&
         Math.abs(r.voidWidth - c.vazio) < EPSILON &&
         r.dominantVoid === c.vazioDominante &&
         r.supportPlacement === c.lugar &&
