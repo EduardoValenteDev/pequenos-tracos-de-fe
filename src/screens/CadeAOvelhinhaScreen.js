@@ -185,7 +185,10 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const timeouts = useRef([]);
   const rafs = useRef([]);
   const montado = useRef(true);
-  const areaRef = useRef({ largura: 0, altura: 0 });
+  // [F6-SG-C · CAUSA B] O carimbo `janela` diz em qual largura de janela a área foi
+  // medida. `viewport` recalcula quando `width` muda, mas lê esta ref — sem o carimbo
+  // ele leria, no primeiro quadro depois da rotação, a área da janela ANTERIOR.
+  const areaRef = useRef({ largura: 0, altura: 0, janela: 0 });
   const trocaSeqRef = useRef(0);
   const coverAnim = useRef(new Animated.Value(1)).current;   // 1 = coberto
   // Dica — tudo por rodada (OV2: por ERROS ELEGÍVEIS, não por tempo):
@@ -237,8 +240,10 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const sceneAtiva = getScene(rodada?.sceneId);
   const viewport = useMemo(
     () => computeViewport({
-      largura: areaRef.current.largura || Math.min(width - 20, 560),
-      altura: areaRef.current.altura || 9999,
+      // Medida de outra janela é recusada: o cálculo cai no derivado da janela, que
+      // já era o caminho do primeiro quadro. `onLayout` corrige, não inaugura.
+      largura: (areaRef.current.janela === width && areaRef.current.largura) || Math.min(width - 20, 560),
+      altura: (areaRef.current.janela === width && areaRef.current.altura) || 9999,
       artW: sceneAtiva?.designWidth,
       artH: sceneAtiva?.designHeight,
     }),
@@ -872,10 +877,14 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const medirArea = useCallback((e) => {
     const { width: w, height: h } = e?.nativeEvent?.layout ?? {};
     if (!w || !h) return;
-    const mudou = Math.abs(areaRef.current.largura - w) > 1 || Math.abs(areaRef.current.altura - h) > 1;
-    areaRef.current = { largura: w, altura: h };
+    // A troca de carimbo TAMBÉM é mudança: é ela que devolve o viewport à medida real
+    // depois de a janela girar, mesmo que os números da área tenham ficado iguais.
+    const mudou = areaRef.current.janela !== width
+      || Math.abs(areaRef.current.largura - w) > 1
+      || Math.abs(areaRef.current.altura - h) > 1;
+    areaRef.current = { largura: w, altura: h, janela: width };
     if (mudou) setAreaVersion((v) => v + 1);
-  }, []);
+  }, [width]);
 
   /* ── OV3 — Transição AUTOMÁTICA entre fases (capa técnica SEM botão) ──
      Assim que as 3 imagens exibem (sceneReady, sem erro), revela sozinha; nada de tocar "Procurar".

@@ -160,6 +160,9 @@ function PuzzleRound({ scene, pieceCount, story, premium, profileId, reduceMotio
 
   // Geometria root-local (alvos com snapLeft/snapTop; poços na ordem embaralhada).
   const rootRef = useRef(null);
+  // [F6-SG-C · CAUSA B] Último deslocamento conhecido da raiz. Ele existe para que a
+  // publicação da geometria não dependa de uma medida assíncrona voltar.
+  const rootOffsetRef = useRef({ x: 0, y: 0 });
   const pushGeometry = useCallback(() => {
     const targets = geometry.pieces.map((p) => {
       const c = p.cellRect; const ob = p.overscanBounds;
@@ -172,9 +175,17 @@ function PuzzleRound({ scene, pieceCount, story, premium, profileId, reduceMotio
     });
     const wells = geometry.pieces.map((p) => ({ id: p.id, ...wellsById[p.id] }));
     engine.setTrayScale(trayScale);
-    const send = (rx, ry) => engine.setGeometry({ root: { x: rx, y: ry, rootW: screenW, rootH: screenH }, targets, wells });
+    const send = (rx, ry) => {
+      rootOffsetRef.current = { x: rx, y: ry };
+      engine.setGeometry({ root: { x: rx, y: ry, rootW: screenW, rootH: screenH }, targets, wells });
+    };
+    // [F6-SG-C · CAUSA B] O layout VISÍVEL desta tela já sai da janela; o que ficava um
+    // quadro atrás era o mapa de TOQUE, publicado só dentro do callback de
+    // `measureInWindow`. Publicamos primeiro com o deslocamento já conhecido — a medida
+    // assíncrona passa a CORRIGIR a raiz, nunca a inaugurar a geometria. `setGeometry`
+    // só escreve refs no motor, então publicar duas vezes não custa render nenhum.
+    send(rootOffsetRef.current.x, rootOffsetRef.current.y);
     if (rootRef.current?.measureInWindow) rootRef.current.measureInWindow((x, y) => send(x || 0, y || 0));
-    else send(0, 0);
   }, [geometry, boardLeft, boardTop, boardW, boardH, wellsById, trayScale, screenW, screenH, engine]);
   useEffect(() => { pushGeometry(); }, [pushGeometry]);
 

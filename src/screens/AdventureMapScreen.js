@@ -121,12 +121,25 @@ export default function AdventureMapScreen({ navigation, route }) {
   // TABLET FIX: o mapa deve usar a largura da ÁREA DE CONTEÚDO (à direita da sidebar),
   // não a largura total da tela — senão fica cortado. Medimos o container; no celular
   // isso é igual à largura da janela (sem regressão).
-  const [contentW, setContentW] = useState(0);
-  const mapWidth = contentW > 0 ? contentW : width;
+  //
+  // [F6-SG-C · CAUSA B] A medida só vale para a janela em que foi tirada. Sem o
+  // carimbo, o quadro seguinte a uma rotação desenha com a janela NOVA e a largura
+  // VELHA — o salto em duas etapas. Com ele, `onLayout` volta ao papel de CORREÇÃO:
+  // o primeiro quadro da janela nova já usa a janela (o fallback que sempre existiu
+  // aqui), e a medida real confirma no quadro seguinte.
+  //
+  // O carimbo entra no CÁLCULO, não no portão de montagem: `contentW` segue sendo a
+  // medida crua ("já mediu alguma vez") porque é ela que monta o ScrollView — e
+  // desmontar o ScrollView a cada rotação perderia a posição de rolagem, que é
+  // exatamente o estado que a câmera do mapa existe para preservar. `G-MAP-3` lacra
+  // essa montagem por medida real; nada aqui a afrouxa.
+  const [contentM, setContentM] = useState({ w: 0, janela: 0 });
+  const contentW = contentM.w;
+  const mapWidth = contentM.janela === width && contentW > 0 ? contentW : width;
   const onContainerLayout = useCallback((e) => {
     const w = Math.round(e.nativeEvent.layout.width);
-    setContentW((prev) => (prev === w ? prev : w));
-  }, []);
+    setContentM((prev) => (prev.w === w && prev.janela === width ? prev : { w, janela: width }));
+  }, [width]);
 
   // Entrada: o mapa abre JÁ VISÍVEL (opacity 1 desde o 1º frame). Mantemos só um
   // translateY levíssimo de charme — o mapa NUNCA fica invisível.

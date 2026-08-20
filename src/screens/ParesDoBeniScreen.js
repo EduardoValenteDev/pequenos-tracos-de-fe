@@ -596,11 +596,22 @@ export default function ParesDoBeniScreen({ navigation }) {
    * Antes da primeira medida, `alturaTabuleiro` é 0 e o cálculo cai na restrição
    * horizontal — exatamente o comportamento antigo, sem salto visual.
    */
-  const [alturaTabuleiro, setAlturaTabuleiro] = useState(0);
+  //
+  // [F6-SG-C · CAUSA B] O carimbo diz em QUAL janela a altura foi medida. Sem ele, a
+  // rotação troca `width` (e com ela `larguraGrade`) um quadro antes de a altura nova
+  // chegar: `computeGridLayout` recebe largura nova com altura velha e desenha uma
+  // carta que muda de tamanho duas vezes. Com o carimbo, a altura de outra janela é
+  // simplesmente recusada e o cálculo cai no MESMO 0 que já era o comportamento de
+  // primeiro quadro descrito acima — restrição horizontal, sem salto.
+  const janelaAtual = `${width}x${height}`;
+  const [medidaTabuleiro, setMedidaTabuleiro] = useState({ altura: 0, janela: '' });
+  const alturaTabuleiro = medidaTabuleiro.janela === janelaAtual ? medidaTabuleiro.altura : 0;
   const medirTabuleiro = useCallback((e) => {
     const h = e?.nativeEvent?.layout?.height ?? 0;
-    setAlturaTabuleiro((atual) => (Math.abs(atual - h) > 1 ? h : atual));
-  }, []);
+    setMedidaTabuleiro((atual) => (
+      atual.janela === janelaAtual && Math.abs(atual.altura - h) <= 1 ? atual : { altura: h, janela: janelaAtual }
+    ));
+  }, [janelaAtual]);
 
   // R2A §4 + R2B §3 — geometria numa fonte única, agora com GAP ÓPTICO: o layout separa o
   // espaço visível desejado da sombra que o invade, para as cartas não parecerem coladas.

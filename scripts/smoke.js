@@ -7322,9 +7322,16 @@ check(
   // lógica. Os quatro primeiros termos (largura da área de conteúdo) seguem intactos.
   // A prova de que a reposição NÃO voltou é `G-LFC-1` (TK-A-021, commit `C-A12`),
   // provada de forma independente por `MT-1` (TK-A-093): nenhum portão prova a si próprio.
+  //
+  // [F6-SG-C · CAUSA B] O primeiro termo ganhou o CARIMBO da janela. O que a medida
+  // vale continua igual — largura da área de conteúdo, e no celular isso É a janela;
+  // o que mudou é QUANDO ela vale: medida tirada em outra janela é recusada, e o
+  // cálculo cai no mesmo `width` que sempre foi o fallback de primeiro quadro. O
+  // termo ficou mais restritivo, não mais frouxo: continua exigindo que a medida
+  // conduza a largura, e passa a exigir que ela seja desta janela.
   check(
     'TABLET1.0: mapa usa LARGURA DA ÁREA DE CONTEÚDO (onLayout) — corrige corte na sidebar; mobile == janela (sem regressão)',
-    mapSrcTab.includes('const mapWidth = contentW > 0 ? contentW : width') &&
+    mapSrcTab.includes('const mapWidth = contentM.janela === width && contentW > 0 ? contentW : width') &&
     mapSrcTab.includes('onLayout={onContainerLayout}') &&
     mapSrcTab.includes('computeRegionLayout(regionsVisual, mapWidth)') &&
     mapSrcTab.includes('width={mapWidth}') &&
@@ -54280,6 +54287,122 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       '`G-RSP-8` (`F6-SG-C`, **novo**): toda tela de ABA que compõe grade MEDE a própria região e entrega a largura ao arquétipo — compor pela janela abriria três colunas onde cabem duas, com cartão abaixo do piso que a tela declara',
       g8.length === 0,
       g8.join(' · '),
+    );
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Fase 6 · F6-SG-C — `G-RSP-9` (CAUSA B · artefato 88 §4)
+   * A medida só vale para a janela em que foi tirada
+   * ══════════════════════════════════════════════════════════════════════════
+   *
+   * `ROOT_CAUSE_B`: entre `onLayout → setState` e `useWindowDimensions` existe a
+   * defasagem de UM quadro. Quando a janela muda (rotação), o quadro seguinte é
+   * desenhado com a JANELA NOVA e a MEDIDA VELHA — e só o quadro depois se
+   * acerta. É o "salto em duas etapas" que o fundador viu, e ele aparece em
+   * quatro superfícies porque o PADRÃO está nas quatro, não porque exista um
+   * módulo comum a consertar (`IS_GLOBAL = PARCIALMENTE`, artefato 88 §4).
+   *
+   * O defeito não é o `onLayout`: é ele ser tratado como GATILHO de geometria. A
+   * correção mínima do artefato 88 §15 é eleger UMA fonte de verdade por
+   * superfície — a janela — e deixar a medida CORRIGIR divergência real, nunca
+   * inaugurar. Na prática: carimbar cada medida com a janela em que foi tirada e
+   * recusá-la enquanto o carimbo não bater com a janela corrente, caindo no valor
+   * derivado da janela — que as próprias telas já traziam como fallback de
+   * primeiro quadro. Nada de novo é inventado: o que muda é QUANDO a medida vale.
+   *
+   * `MonteACenaTableGameScreen` tem cláusula própria porque o caso dela é o
+   * simétrico: o layout VISÍVEL já sai da janela, mas a geometria do MOTOR só era
+   * publicada DENTRO do callback de `measureInWindow` — o mapa de toque ficava um
+   * quadro atrás do que a tela desenhava. A correção é publicar imediatamente com
+   * o deslocamento já conhecido e deixar a medida assíncrona corrigir depois.
+   *
+   * `ProfileScreen` NÃO entra: o artefato 88 não provou causa B nela, e incluí-la
+   * aqui seria transformar suspeita em requisito.
+   */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · CAUSA B: portão G-RSP-9 ──');
+    const g9 = [];
+
+    /* (A)+(B) — o eixo executável: o modelo da sequência de quadros de uma
+     * rotação. `carimbo` é a janela em que a medida foi tirada; o quadro do meio
+     * é justamente aquele em que a janela já virou e a medida ainda não. A
+     * política antiga ("a medida sempre vence") PRECISA falhar aqui — se um dia
+     * ela passar, o modelo perdeu o defeito que existe para descrever, e o
+     * portão vira decoração. */
+    const g9Quadros = [
+      { nome: 'q0 · retrato estável', janela: 823, medida: 823, carimbo: 823 },
+      { nome: 'q1 · janela já girou, medida ainda não voltou', janela: 1317, medida: 823, carimbo: 823 },
+      { nome: 'q2 · paisagem estável', janela: 1317, medida: 1317, carimbo: 1317 },
+    ];
+    // Um quadro é coerente quando a grandeza usada pertence à janela DAQUELE
+    // quadro: ou é a medida tirada nela, ou é a própria janela.
+    const g9Coerente = (q, usado) => (q.carimbo === q.janela ? usado === q.medida : usado === q.janela);
+    const g9Antiga = g9Quadros.filter((q) => !g9Coerente(q, q.medida));
+    const g9Nova = g9Quadros.filter((q) => !g9Coerente(q, q.carimbo === q.janela ? q.medida : q.janela));
+    if (g9Antiga.length !== 1 || g9Antiga[0].janela !== 1317) {
+      g9.push('(A) o modelo deixou de reproduzir o quadro intermediário da política antiga — sem ele o portão não descreve defeito nenhum');
+    }
+    if (g9Nova.length !== 0) {
+      g9.push(`(B) a política carimbada produziu quadro incoerente: ${g9Nova.map((q) => q.nome).join(', ')}`);
+    }
+
+    /* (C..) — o eixo textual: cada superfície autorizada pelo artefato 88 §15
+     * carrega a marca da causa E a prova de que a medida é conferida antes de
+     * ser consumida. A prova é literal de propósito: ela lacra a FORMA da
+     * correção, não apenas a intenção. */
+    const G9_SUPERFICIES = [
+      {
+        rel: 'src/screens/AdventureMapScreen.js',
+        prova: 'contentM.janela === width',
+        oQue: 'a largura do mapa só adota a região medida quando o carimbo bate com a janela corrente',
+      },
+      {
+        rel: 'src/screens/ParesDoBeniScreen.js',
+        prova: 'medidaTabuleiro.janela === janela',
+        oQue: 'a altura do tabuleiro só entra em `computeGridLayout` quando foi medida NESTA janela',
+      },
+      {
+        rel: 'src/screens/CadeAOvelhinhaScreen.js',
+        prova: 'areaRef.current.janela === width',
+        oQue: 'o viewport da cena só usa a área medida quando o carimbo bate com a janela corrente',
+      },
+    ];
+    G9_SUPERFICIES.forEach((sup) => {
+      if (!srcExists(sup.rel)) { g9.push(`${sup.rel} → ausente`); return; }
+      const bruto = readSrc(sup.rel);
+      const codigo = codeOf(sup.rel);
+      if (bruto.indexOf('[F6-SG-C · CAUSA B]') === -1) {
+        g9.push(`${sup.rel} → sem a marca \`[F6-SG-C · CAUSA B]\`: a correção some do arquivo e vira folclore`);
+      }
+      if (codigo.indexOf(sup.prova) === -1) {
+        g9.push(`${sup.rel} → sem \`${sup.prova}\`: ${sup.oQue}`);
+      }
+    });
+
+    /* (F) — Monte a Cena: a publicação da geometria do motor precisa acontecer
+     * ANTES da medida assíncrona, não dentro dela. A ordem é o requisito. */
+    const G9_MONTE = 'src/screens/MonteACenaTableGameScreen.js';
+    if (!srcExists(G9_MONTE)) {
+      g9.push(`${G9_MONTE} → ausente`);
+    } else {
+      const brutoM = readSrc(G9_MONTE);
+      const codigoM = codeOf(G9_MONTE);
+      const iImediato = codigoM.indexOf('send(rootOffsetRef.current.x, rootOffsetRef.current.y)');
+      const iMedida = codigoM.indexOf('measureInWindow');
+      if (brutoM.indexOf('[F6-SG-C · CAUSA B]') === -1) {
+        g9.push(`${G9_MONTE} → sem a marca \`[F6-SG-C · CAUSA B]\``);
+      }
+      if (iImediato === -1) {
+        g9.push(`${G9_MONTE} → a geometria do motor não é publicada com o deslocamento já conhecido: o mapa de toque continua nascendo dentro do callback assíncrono`);
+      } else if (iMedida === -1 || iImediato > iMedida) {
+        g9.push(`${G9_MONTE} → a publicação imediata não vem ANTES de \`measureInWindow\`: a medida voltaria a ser gatilho, não correção`);
+      }
+    }
+
+    check(
+      '`G-RSP-9` (`F6-SG-C`, **novo**): a medida só vale para a janela em que foi tirada — nas quatro superfícies da CAUSA B o `onLayout` corrige divergência real e nunca inaugura geometria, extinguindo o quadro intermediário da rotação',
+      g9.length === 0,
+      g9.join(' · '),
     );
   }
 
