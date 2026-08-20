@@ -82,7 +82,7 @@ const OVELHA_DEBUG_HITBOX = false;
 const OVELHA_DEBUG_FRAME = false;
 const OVELHA_CALIBRACAO = false;
 
-const T = { acerto: 720, erro: 460, coverOut: 190, derrota: 1050 };
+const T = { acerto: 720, erro: 460, coverOut: 190, derrota: 1050, prazoCarga: 7000 };
 
 // OV3R2 — mensagem acolhedora de fase perdida por tempo (Médio). Sem "perdeu/errou/falhou".
 const MSG_DERROTA = 'O tempo acabou! A ovelhinha estava aqui.';
@@ -155,7 +155,6 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
   const [vista, setVista] = useState(() => criarJogo({ rounds: getDifficulty('facil').rounds }));
   const [lstate, ldispatch] = useReducer(loadingReducer, undefined, initialLoading);
   const [rodada, setRodada] = useState(null);        // round object corrente (cena+spot)
-  const [retryNonce, setRetryNonce] = useState(0);   // muda o recyclingKey para recarregar
   const [nivel, setNivel] = useState(0);             // nível de dica 0..3 (por rodada, por ERROS)
   const [ripple, setRipple] = useState(null);
   const [errouAgora, setErrouAgora] = useState(false);
@@ -801,10 +800,30 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
       .start(({ finished }) => { if (finished && montado.current) setCoverFading(false); });
   }, [lstate, coverAnim, resetarDica]);
 
+  /* [F6-SG-C · CAUSA E1] Prazo de carga por rodada — a saída que não depende de `onError`.
+   *
+   * A cena só descobre quando os TRÊS `onDisplay` chegam com o token corrente, e o único
+   * caminho alternativo (`temErro`) exige um `onError` explícito. Há pelo menos um caminho
+   * em que nenhum dos dois chega: retângulo de imagem ainda vazio quando o container monta,
+   * antes de `medirArea`. Sem prazo, a capa técnica fica para sempre e a criança não recebe
+   * sinal nenhum. Girar o tablet agrava — nova medida, novo retângulo, novo ciclo de carga
+   * SEM novo token.
+   *
+   * Quem decide se expirar é legítimo é o reducer (puro e testado); aqui só se agenda e se
+   * cancela. O relógio reinicia a cada progresso real, porque `lstate` muda a cada `EXIBIDA`:
+   * uma cena que está carregando devagar ganha prazo novo em vez de ser reiniciada no meio.
+   */
+  useEffect(() => {
+    if (!lstate.roundToken || !lstate.coverVisible) return undefined;
+    if (prontoParaRevelar(lstate) || temErro(lstate)) return undefined;   // nada a recuperar
+    const token = lstate.roundToken;
+    const id = setTimeout(() => { ldispatch({ type: 'EXPIRAR', token }); }, T.prazoCarga);
+    return () => clearTimeout(id);
+  }, [lstate]);
+
   /* ── Tentar novamente (após erro): recarrega a MESMA rodada. ── */
   const tentarNovamente = useCallback(() => {
-    ldispatch({ type: 'RETRY', token: lstate.roundToken });
-    setRetryNonce((n) => n + 1);   // novo recyclingKey → imagens remontam e reportam onDisplay/onError
+    ldispatch({ type: 'RETRY', token: lstate.roundToken });   // avança `recarga` → novo recyclingKey → imagens remontam
   }, [lstate.roundToken]);
 
   /* ── Toque na OVELHA (wrapper clicável dedicado): ACERTO. ── */
@@ -1322,7 +1341,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
               round={rodada}
               scene={scene}
               viewport={viewport}
-              retryNonce={retryNonce}
+              retryNonce={lstate.recarga}
               encontrada={vista.fase === FASES.ACERTO}
               dicaNivel={dicaNivel}
               ripple={ripple}
@@ -1357,7 +1376,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
             >
               <CapaTecnica
                 roundToken={lstate.roundToken}
-                retryNonce={retryNonce}
+                retryNonce={lstate.recarga}
                 erro={temErro(lstate)}
                 onPreviewDisplay={() => aoExibir('preview', lstate.roundToken)}
                 onPreviewError={() => aoErro('preview', lstate.roundToken)}

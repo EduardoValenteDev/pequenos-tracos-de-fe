@@ -55056,6 +55056,128 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     );
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Fase 6 · F6-SG-C — `G-OVL-1` (CAUSA E1 · artefato 88 §7.1)
+   *
+   * A saída da cobertura técnica de "Cadê a Ovelhinha?" depende EXCLUSIVAMENTE da
+   * chegada dos três `onDisplay` com o token da rodada corrente. O único caminho
+   * alternativo é `temErro`, e ele exige um `onError` EXPLÍCITO. Existe pelo menos
+   * um caminho em que nem um nem outro chega: o retângulo da imagem ainda está
+   * vazio quando o container monta, antes de `medirArea` — e retângulo vazio não
+   * produz exibição nem erro. A criança fica olhando a capa técnica para sempre,
+   * sem um único sinal de que algo falhou.
+   *
+   * A rotação agrava: girar produz nova medida, novo retângulo e novo ciclo de
+   * carga SEM novo token — é aqui que `E1` encosta na CAUSA B.
+   *
+   * A recuperação tem de existir SEM depender de `onError`. O menor ponto
+   * arquitetural é o reducer, que é puro e já testado: uma ação de expiração por
+   * rodada. A tela apenas agenda e cancela o disparo.
+   *
+   * Duas exigências não óbvias, ambas cobradas abaixo:
+   *   · a expiração precisa RECUSAR-SE a agir quando não há o que recuperar
+   *     (rodada antiga, cena já revelada, cena já pronta, ou erro declarado — aí
+   *     quem manda é o botão "tentar novamente" que já existe);
+   *   · limpar as bandeiras não basta. Sem trocar o `recyclingKey`, o expo-image
+   *     devolve o mesmo bitmap sem reemitir `onDisplay`, e o retry recupera nada.
+   *     Por isso a geração de recarga passa a morar no PRÓPRIO estado — uma
+   *     primitiva só, não duas fontes de verdade concorrentes.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · CAUSA E1: portão G-OVL-1 ──');
+
+    const E1_RED = 'src/services/ovelhaTransition.js';
+    const E1_TELA = 'src/screens/CadeAOvelhinhaScreen.js';
+    const e1Tela = codeOf(E1_TELA);
+    const e1TelaRaw = readSrc(E1_TELA);
+    const { loadModule: loadE1 } = require('./testing/packInstallHarness');
+
+    const e1 = [];
+    const R = loadE1(E1_RED, {}, ['initialLoading', 'loadingReducer', 'prontoParaRevelar', 'temErro', 'botaoHabilitado']);
+    const passo = (st, acao) => R.loadingReducer(st, acao);
+    const rodada = (token) => passo(R.initialLoading(), { type: 'NOVA_RODADA', token, sceneId: 's', spotId: 'p', pose: 'front' });
+
+    /* ── O estado preso: a rodada nasceu, uma imagem apareceu, as outras duas
+     * nunca reportaram nada — nem exibição, nem erro. ── */
+    const preso = passo(rodada(11), { type: 'EXIBIDA', alvo: 'preview', token: 11 });
+    if (R.botaoHabilitado(preso) || R.temErro(preso) || !preso.coverVisible) {
+      e1.push('(A) o estado preso deixou de ser reproduzível — sem ele o portão não prova nada; reveja a âncora antes de seguir');
+    }
+    if (passo(preso, { type: 'REVELAR', token: 11 }) !== preso) {
+      e1.push('(B) `REVELAR` aceitou uma cena que nunca ficou pronta — a cobertura técnica virou decorativa');
+    }
+
+    /* ── A saída autorizada ── */
+    const expirado = passo(preso, { type: 'EXPIRAR', token: 11 });
+    if (expirado === preso) {
+      e1.push('(C) `EXPIRAR` não existe (ou não age) sobre a rodada presa — a capa técnica continua sem caminho de saída que não dependa de um `onError` que nunca virá');
+    } else {
+      if (expirado.previewDisplayed || expirado.backgroundDisplayed || expirado.sceneSheepDisplayed) {
+        e1.push('(D) `EXPIRAR` não limpou as bandeiras de exibição — a rodada recomeça acreditando no que já tinha');
+      }
+      if (!expirado.coverVisible || expirado.inputEnabled) {
+        e1.push('(E) `EXPIRAR` descobriu a cena ou liberou o toque — a expiração é uma nova tentativa, não uma revelação');
+      }
+      if (expirado.roundToken !== 11) {
+        e1.push('(F) `EXPIRAR` trocou a rodada — a mesma rodada tem de ser recarregada, não sorteada de novo');
+      }
+      if (!(expirado.recarga > preso.recarga)) {
+        e1.push('(G) `EXPIRAR` não avançou a geração de recarga — sem `recyclingKey` novo o expo-image devolve o mesmo bitmap sem reemitir `onDisplay`, e a recuperação recupera nada');
+      }
+    }
+
+    /* ── As quatro recusas: expirar onde não há o que recuperar é dano, não conserto ── */
+    if (passo(preso, { type: 'EXPIRAR', token: 10 }) !== preso) {
+      e1.push('(H) a expiração de uma rodada ANTIGA mexeu no estado corrente — o temporizador de uma rodada que já passou passaria por cima da atual');
+    }
+    const pronta = ['preview', 'background', 'sceneSheep'].reduce((st, alvo) => passo(st, { type: 'EXIBIDA', alvo, token: 12 }), rodada(12));
+    if (passo(pronta, { type: 'EXPIRAR', token: 12 }) !== pronta) {
+      e1.push('(I) a expiração agiu sobre uma cena JÁ PRONTA — recarregaria uma rodada que só esperava o toque da criança no botão');
+    }
+    const revelada = passo(pronta, { type: 'REVELAR', token: 12 });
+    if (passo(revelada, { type: 'EXPIRAR', token: 12 }) !== revelada) {
+      e1.push('(J) a expiração agiu sobre uma cena JÁ REVELADA — recarregaria o jogo no meio da brincadeira');
+    }
+    const comErro = passo(preso, { type: 'ERRO', alvo: 'background', token: 11 });
+    if (passo(comErro, { type: 'EXPIRAR', token: 11 }) !== comErro) {
+      e1.push('(K) a expiração agiu sobre uma rodada com erro DECLARADO — ali quem manda é o "tentar novamente" que a tela já oferece');
+    }
+
+    /* ── A geração de recarga é uma primitiva só ── */
+    const retentado = passo(comErro, { type: 'RETRY', token: 11 });
+    if (!(retentado.recarga > comErro.recarga)) {
+      e1.push('(L) `RETRY` não avança a mesma geração de recarga que `EXPIRAR` — duas fontes de verdade para a mesma pergunta é o defeito `P-30` outra vez');
+    }
+
+    /* ── Eixo textual: a tela agenda, cancela e consome a geração do estado ── */
+    if (!e1Tela.includes("type: 'EXPIRAR'")) {
+      e1.push('(M) a tela nunca dispara `EXPIRAR` — a ação existiria sem quem a acione');
+    }
+    /* O cancelamento tem de pertencer AO EFEITO DA EXPIRAÇÃO. A tela já usava
+     * `clearTimeout` em outros temporizadores, então procurar a palavra no arquivo inteiro
+     * deixava passar um efeito sem faxina — mutante sobrevivente. A janela é curta de
+     * propósito: ou a limpeza está ali, ou não está. */
+    const e1Disparo = e1Tela.indexOf("type: 'EXPIRAR'");
+    if (e1Disparo >= 0 && !e1Tela.slice(e1Disparo, e1Disparo + 300).includes('clearTimeout')) {
+      e1.push('(N) o efeito que agenda a expiração não a cancela — um disparo órfão recarregaria a rodada seguinte');
+    }
+    if (!e1Tela.includes('retryNonce={lstate.recarga}') || e1Tela.includes('setRetryNonce')) {
+      e1.push('(O) a geração de recarga não vem do estado (`retryNonce={lstate.recarga}`) ou sobrou um contador paralelo na tela');
+    }
+    if (!e1TelaRaw.includes('[F6-SG-C · CAUSA E1]')) {
+      e1.push('(P) a marca `[F6-SG-C · CAUSA E1]` sumiu do fonte');
+    }
+    if (readSrc('src/services/ovelhaGameService.js').includes('CAUSA E1')) {
+      e1.push('(Q) a correção de E1 vazou para `ovelhaGameService.js` — `computeViewport` e `contentRect` foram provados corretos e são território PROIBIDO nesta causa');
+    }
+
+    check(
+      '`G-OVL-1` (`F6-SG-C`, **novo**): a cena da Ovelhinha tem saída da capa técnica que NÃO depende de um `onError` — expiração por rodada no reducer puro, com geração de recarga própria, e que se recusa a agir sobre rodada antiga, cena pronta, cena revelada ou erro já declarado',
+      e1.length === 0,
+      e1.join(' · '),
+    );
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   // F6-SG-B · R2: geometria canônica do mapa, TA-1..3, G-MAP-1..5 e seis
   // controles negativos em memória. O harness lê os fontes reais e não toca no aparelho.

@@ -31,6 +31,11 @@ export function initialLoading() {
     sceneSheepError: false,
     coverVisible: true,     // abre sempre coberto
     inputEnabled: false,
+    // [F6-SG-C · CAUSA E1] Geração de recarga: avança a cada nova tentativa de carga da
+    // MESMA rodada (RETRY explícito ou EXPIRAR). A tela a usa como `recyclingKey`, porque
+    // limpar as bandeiras não basta — sem chave nova o expo-image devolve o mesmo bitmap
+    // e nunca reemite `onDisplay`. Monotônica de propósito: nunca reaproveita chave.
+    recarga: 0,
   };
 }
 
@@ -103,6 +108,7 @@ export function loadingReducer(state, action) {
       if (a.token !== s.roundToken) return s;
       return {
         ...s,
+        recarga: s.recarga + 1,
         previewDisplayed: false,
         backgroundDisplayed: false,
         sceneSheepDisplayed: false,
@@ -112,6 +118,36 @@ export function loadingReducer(state, action) {
         coverVisible: true,
         inputEnabled: false,
       };
+
+    /* [F6-SG-C · CAUSA E1] Prazo esgotado sem os três `onDisplay`.
+     *
+     * A saída da cobertura dependia EXCLUSIVAMENTE da chegada dos três eventos de
+     * exibição; o único caminho alternativo era `temErro`, que exige um `onError`
+     * explícito. Há pelo menos um caminho em que nem um nem outro chega — retângulo de
+     * imagem ainda vazio quando o container monta, antes de `medirArea` — e aí a capa
+     * técnica ficava para sempre, sem sinal nenhum para a criança.
+     *
+     * A expiração é uma NOVA TENTATIVA da mesma rodada, nunca uma revelação. E ela se
+     * recusa a agir onde não há o que recuperar: rodada antiga, cena já revelada, cena
+     * já pronta (só falta o toque no botão) ou erro declarado — nesse último caso quem
+     * manda é o `RETRY` do botão que a tela já oferece.
+     */
+    case 'EXPIRAR': {
+      if (a.token !== s.roundToken) return s;
+      if (!s.coverVisible || prontoParaRevelar(s) || temErro(s)) return s;
+      return {
+        ...s,
+        recarga: s.recarga + 1,
+        previewDisplayed: false,
+        backgroundDisplayed: false,
+        sceneSheepDisplayed: false,
+        previewError: false,
+        backgroundError: false,
+        sceneSheepError: false,
+        coverVisible: true,
+        inputEnabled: false,
+      };
+    }
 
     // Revelar: só se pronto. Tira o overlay (o input é liberado depois da saída — LIBERAR).
     case 'REVELAR':
