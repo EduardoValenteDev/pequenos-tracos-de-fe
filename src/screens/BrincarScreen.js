@@ -155,6 +155,15 @@ export default function BrincarScreen({ navigation, route }) {
   const from = route?.params?.from;
   const showBack = !isFromTab(from);
 
+  // [F6-SG-C · CAUSA A1] Mesma medida da Home: a aba vive à direita da barra lateral,
+  // então a janela publicada é maior que a região que o hub realmente ocupa. Quem
+  // precisa do espaço MEDE — a tela não conhece, nem subtrai, a largura da barra.
+  const [gradeW, setGradeW] = useState(0);
+  const onGradeLayout = useCallback((e) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    setGradeW((prev) => (prev === w ? prev : w));
+  }, []);
+
   const [artCount, setArtCount] = useState(0);
   const [recentThumb, setRecentThumb] = useState(null);
   const [rounds, setRounds] = useState(null);
@@ -256,7 +265,11 @@ export default function BrincarScreen({ navigation, route }) {
           Na compacta o teto é uma coluna — exatamente a pilha de hoje. Na largura de
           tablet a coluna deixa de ser estreita-e-centralizada (PLAN §18) e os destinos
           se compõem lado a lado quando cada metade ainda comporta a grade legível. */}
-      <HubSurface minItemWidth={HUB_MIN_BLOCO}>
+      <HubSurface
+        minItemWidth={HUB_MIN_BLOCO}
+        availableWidth={gradeW > 0 ? gradeW : undefined}
+        onLayout={onGradeLayout}
+      >
         {/* ── Beni sugere hoje (§8): faixa compacta, cor do jogo sugerido, botão pequeno ── */}
         <AnimatedCard delay={60} reduce={reduceMotion} style={styles.suggestWrap}>
           <SoundButton

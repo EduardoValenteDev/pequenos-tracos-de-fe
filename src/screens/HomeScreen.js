@@ -566,6 +566,17 @@ export default function HomeScreen({ navigation }) {
     (name) => homeTargets.measure(name).then((r) => r || measureGuideTarget(name)),
     [homeTargets.measure],
   );
+  // [F6-SG-C · CAUSA A1] A grade compõe a partir do espaço que ELA tem, não da
+  // janela que a tela vê. No tablet a aba vive à direita da barra lateral: a janela
+  // publica 1317dp e esta região mede ~1077dp. Compor pela janela abriria três
+  // colunas onde cabem duas, com cartão abaixo do piso declarado logo acima.
+  // A tela MEDE — nunca subtrai a largura da barra, que ela não deve nem conhecer.
+  const [gradeW, setGradeW] = useState(0);
+  const onGradeLayout = useCallback((e) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    setGradeW((prev) => (prev === w ? prev : w));
+  }, []);
+
   // Rolagem da Home p/ trazer o alvo do card atual à área visível antes de medir.
   const scrollRef = useRef(null);
   const scrollY = useRef(0);
@@ -802,7 +813,11 @@ export default function HomeScreen({ navigation }) {
             larga deixa de ser coluna estreita cercada de vazio (PLAN §18). */}
         {jornadaBlock}
 
-        <HubSurface minItemWidth={HUB_MIN_CARD}>
+        <HubSurface
+          minItemWidth={HUB_MIN_CARD}
+          availableWidth={gradeW > 0 ? gradeW : undefined}
+          onLayout={onGradeLayout}
+        >
           {achievementBlock}
           {cultinhoEmCasaBlock}
           {bauBlock}

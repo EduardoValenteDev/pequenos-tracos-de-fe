@@ -54213,6 +54213,77 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
   }
 
   /* ══════════════════════════════════════════════════════════════════════════
+   * Fase 6 · F6-SG-C — `G-RSP-8` (CAUSA A1 · artefato 88 §3)
+   * A tela de ABA compõe a partir do espaço que TEM, não da janela que vê
+   *
+   * `G-SID-3` já proíbe o caminho errado — subtrair a largura da barra lateral
+   * dentro da tela. O que faltava era o caminho CERTO ter portão: nada obrigava
+   * um consumidor de aba a MEDIR a própria região. Sem medida, o arquétipo cai
+   * no `Number.isFinite(availableWidth) ? availableWidth : width` e compõe com a
+   * janela inteira — que na aba inclui a barra lateral.
+   *
+   * O caso é objetivo e físico, não hipotético: SM-X510 em paisagem publica
+   * `1317dp` de janela, e a região de conteúdo da aba mede `1077dp`. Pelo número
+   * errado a grade abre TRÊS colunas; a célula resultante fica em ~348dp, abaixo
+   * do piso de `420dp` que a própria tela declara. Pelo número certo abre DUAS,
+   * com célula de ~530dp.
+   *
+   * Duas telas de aba entram: Início e Brincar. `TrophiesScreen` (Estrelinhas)
+   * carrega a MESMA latência e fica de fora POR DECISÃO — `PASS_NO_CHANGE` no
+   * artefato 88 §11, com a correção pertencendo à fase dona (F11). Registrar a
+   * ausência aqui é o que impede que ela seja lida como esquecimento. */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · CAUSA A1: portão G-RSP-8 ──');
+    const arnesA1 = require('./testing/surfaceArchetypeHarness');
+
+    const G8_TELAS_DE_ABA = ['src/screens/HomeScreen.js', 'src/screens/BrincarScreen.js'];
+    const G8_MIN = 420;
+    const G8_GAP = 16;
+    const G8_JANELA = 1317;
+    const G8_CONTEUDO = 1077;
+    const g8 = [];
+
+    const g8Hub = arnesA1.carregarArquetipo('hub');
+    if (g8Hub.ausente || g8Hub.faltando.length) {
+      g8.push('arquétipo Hub ausente ou incompleto');
+    } else {
+      const compor = (largura) => g8Hub.mod.hubComposition({
+        band: g8Hub.BANDS.EXPANDED, availableWidth: largura, itemCount: 6, minItemWidth: G8_MIN, gap: G8_GAP,
+      });
+      const celula = (largura, colunas) => (largura - G8_GAP * (colunas - 1)) / colunas;
+      const porJanela = compor(G8_JANELA).columns;
+      const porConteudo = compor(G8_CONTEUDO).columns;
+
+      if (!(porJanela > porConteudo)) {
+        g8.push(`(A) janela e conteúdo dariam a mesma densidade (${porJanela}/${porConteudo}) — o caso físico deixou de existir e este portão precisa ser reescrito, não silenciado`);
+      }
+      if (!(celula(G8_CONTEUDO, porJanela) < G8_MIN)) {
+        g8.push(`(B) compor pela janela caberia no espaço real: célula ${Math.round(celula(G8_CONTEUDO, porJanela))}dp não fica abaixo do piso ${G8_MIN}dp`);
+      }
+      if (!(celula(G8_CONTEUDO, porConteudo) >= G8_MIN)) {
+        g8.push(`(C) compor pelo conteúdo não respeita o próprio piso: célula ${Math.round(celula(G8_CONTEUDO, porConteudo))}dp < ${G8_MIN}dp`);
+      }
+    }
+
+    G8_TELAS_DE_ABA.forEach((rel) => {
+      if (!srcExists(rel)) { g8.push(`${rel} → ausente`); return; }
+      const codigo = codeOf(rel);
+      if (!/\bavailableWidth\s*=\s*\{/.test(codigo)) {
+        g8.push(`${rel} → compõe sem entregar \`availableWidth\` ao arquétipo: a grade cai na janela inteira, barra lateral incluída`);
+      }
+      if (!/\bonLayout\s*=\s*\{/.test(codigo)) {
+        g8.push(`${rel} → não mede região alguma: sem \`onLayout\` a largura entregue não pode ser a real`);
+      }
+    });
+
+    check(
+      '`G-RSP-8` (`F6-SG-C`, **novo**): toda tela de ABA que compõe grade MEDE a própria região e entrega a largura ao arquétipo — compor pela janela abriria três colunas onde cabem duas, com cartão abaixo do piso que a tela declara',
+      g8.length === 0,
+      g8.join(' · '),
+    );
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
    * Fase 6 · F6-R1.2 · F6-SG-C · TK-C-026 — `TA-15`
    * Geometria do alvo de guia nas três faixas (a parcela automatizável)
    *
