@@ -127,26 +127,42 @@ export function computeImageRect(containerW, containerH) {
 }
 
 /**
- * [F6-SG-C · CAUSA C2] Largura da ARTE de uma região no modo principal, com TETO de
- * altura relativo à viewport que a mostra.
+ * [F6-SG-C · CAUSA C2] Largura da ARTE de uma região no modo principal: o
+ * COMPROMISSO entre encher a largura disponível e caber na altura que a mostra.
  *
- * A altura da região sempre foi função exclusiva da largura (`width * 16/9`). Em
- * paisagem a largura cresce, a altura cresce junto, e a região passa a ser quase 3×
- * mais alta que a janela: o mapa vira um corredor vertical de rolagem. O teto é o
- * ajuste "contain" que este módulo JÁ tinha para o modal "Ver mapa" — reusa-se a
- * regra existente em vez de inventar uma segunda primitiva de escala.
+ * Há duas escalas óbvias, e o produto reprovou as DUAS.
  *
- * Onde não há defeito, não há efeito: se o container é mais estreito que a janela na
- * proporção da arte (retrato, celular), `computeImageRect` devolve a própria largura
- * do container e a geometria fica idêntica à de antes. Sem viewport medida, também.
+ *  · Encher a largura (a regra original, `width`): a altura acompanha, e em paisagem
+ *    a região fica quase 3× mais alta que a viewport — 1915dp para 700dp de janela.
+ *    O mapa vira um corredor vertical de rolagem.
+ *  · Caber na altura ("contain", a v1 desta função): a região cabe, e sobra deserto.
+ *    Em 1077×700 a arte fica com 394dp e o creme com 683dp — o VAZIO fica maior que
+ *    o mapa. Reprovado na campanha física `SG_C_FISICA_02`, e a rejeição é de
+ *    produto, não de implementação: "contain" fazia exatamente o que prometia.
  *
- * NÃO toca `MAP_ANCHOR_FRAMING`: enquadramento é fração da viewport dentro de
- * `computeCameraTarget`; escala é outro assunto.
+ * A saída não é escolher um lado nem afinar uma constante: é ficar no meio dos dois,
+ * e no meio PROPORCIONAL — a média geométrica. Ela é a única escala equidistante das
+ * duas pontas em razão (dobrar ambas dobra o resultado), e nasce só do viewport e do
+ * aspecto da arte: nenhum número de aparelho, nenhuma faixa, nenhum `if` por modelo.
+ * Em 1077×700 devolve 651dp — 60% da área útil em vez de 36%, com a arte maior que
+ * o vazio que a cerca, e a região em 1157dp (1,65× a viewport, não 2,74×).
+ *
+ * Onde "contain" não morde — retrato de tablet, celular na vertical — ele devolve a
+ * própria largura do container, e a média geométrica de x com x é x: a geometria
+ * fica IDÊNTICA à de antes, não parecida. Sem viewport medida, também.
+ *
+ * NÃO toca `computeImageRect`: o modal "Ver mapa" mostra a região INTEIRA e ali
+ * "contain" continua sendo o requisito certo. NÃO toca `MAP_ANCHOR_FRAMING`:
+ * enquadramento é fração da viewport dentro de `computeCameraTarget`; escala é
+ * outro assunto, e `G-MAP-4` segue provando isso por conta própria.
  */
 export function computeRegionArtWidth(containerW, viewportH) {
   if (!Number.isFinite(containerW) || containerW <= 0) return 0;
   if (!Number.isFinite(viewportH) || viewportH <= 0) return containerW;
-  return computeImageRect(containerW, viewportH).width;
+  const contida = computeImageRect(containerW, viewportH).width;
+  // Onde caber na altura já significa encher a largura, não há compromisso a fazer.
+  if (contida >= containerW) return containerW;
+  return Math.round(Math.sqrt(containerW * contida));
 }
 
 /** Fração vertical (0..1) do marco i — FALLBACK quando não há coordenada explícita. */

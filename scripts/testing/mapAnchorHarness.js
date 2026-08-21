@@ -73,6 +73,9 @@ function avaliarGates(sources = {}) {
   const serviceCode = semComentarios(service);
   const screenCode = semComentarios(screen);
   const regionCode = semComentarios(region);
+  // [F6-SG-C] A REGRA de escala entra por injeção para que exista mutante dela: um
+  // gate funcional sobre função pura só tem dentes se a função puder ser trocada.
+  const regraEscala = sources.regraEscala || adventureGeometry.computeRegionArtWidth;
   const regionTopCount = (screenCode.match(/'regionTop'/g) || []).length;
 
   return {
@@ -100,6 +103,21 @@ function avaliarGates(sources = {}) {
       && screenCode.includes('opacity: medidasDaJanela ? 1 : 0')
       && screenCode.includes('mapViewportH > 0 && contentW > 0 && <ScrollView')
       && screenCode.includes('computeRegionArtWidth(areaWidth, areaHeight)'),
+    /* [F6-SG-C · CAUSA C2 · rejeição física] A escala de paisagem tem de ficar ENTRE
+     * as duas pontas reprovadas — encher a largura (corredor vertical) e caber na
+     * altura ("contain", ilha de arte cercada de creme) — com a arte maior que o vazio
+     * que a cerca, e ser a média GEOMÉTRICA, não constante afinada à mão. Onde
+     * "contain" não morde (retrato, sem viewport), a geometria fica idêntica à de antes. */
+    'G-MAP-6-ESCALA': (() => {
+      const contida = adventureGeometry.computeImageRect(1077, 700).width;
+      const art = regraEscala(1077, 700);
+      return art > contida
+        && art < 1077
+        && (1077 - art) < art
+        && Math.abs(art * art - 1077 * contida) <= art
+        && regraEscala(643, 1180) === 643
+        && regraEscala(1077, 0) === 1077;
+    })(),
     'G-MAP-5': /getStoryAnchor\(cameraStoryId, anchorContext\)/.test(screenCode)
       && regionTopCount >= 2
       && /cameraAnchor\.regionIndex\s*===\s*comeceRegionIdx\s*\?\s*'regionTop'\s*:\s*'anchor'/.test(screenCode),
@@ -228,6 +246,10 @@ function executarMutantes() {
     "const mode = cameraAnchor.regionIndex === comeceRegionIdx ? 'regionTop' : 'anchor';",
     "const mode = 'anchor';",
   ));
+  const matarRegra = (nome, regra) => {
+    const gates = avaliarGates({ ...original, regraEscala: regra });
+    mutantes.push({ nome, ok: gates[nome.gate] === false, detalhe: JSON.stringify(gates) });
+  };
 
   // [F6-SG-C · CAUSA B] Desfazer o carimbo da altura, e voltar a pintar com meia
   // geometria: as duas metades da regressão que a campanha física filmou.
@@ -238,6 +260,16 @@ function executarMutantes() {
   matar({ toString: () => 'MT-32', gate: 'G-RSP-9-MAPA' }, 'screen', (s) => s.replace(
     'opacity: medidasDaJanela ? 1 : 0,', 'opacity: 1,'),
   );
+  // [F6-SG-C · CAUSA C2] As três escalas que NÃO servem: a antiga (corredor), a
+  // "contain" reprovada pelo fundador, e uma média ARITMÉTICA — que passa em tudo
+  // menos na identidade, provando que a cláusula da média geométrica tem dentes.
+  matarRegra({ toString: () => 'MT-33', gate: 'G-MAP-6-ESCALA' }, (w) => w);
+  matarRegra({ toString: () => 'MT-34', gate: 'G-MAP-6-ESCALA' }, (w, h) => (h > 0 ? adventureGeometry.computeImageRect(w, h).width : w));
+  matarRegra({ toString: () => 'MT-35', gate: 'G-MAP-6-ESCALA' }, (w, h) => {
+    if (!(h > 0)) return w;
+    const c = adventureGeometry.computeImageRect(w, h).width;
+    return c >= w ? w : Math.round((w + c) / 2);
+  });
   return { mutantes };
 }
 

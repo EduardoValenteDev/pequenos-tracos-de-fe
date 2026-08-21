@@ -54523,24 +54523,58 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       if (artW(1077, 0) !== 1077) {
         g10.push(`(B) sem viewport medida o teto deveria devolver a largura do container (1077), devolveu ${artW(1077, 0)}`);
       }
-      // (C) Retrato de tablet: a regra não morde onde não existe defeito.
+      // (C) Retrato de tablet: onde "contain" não morde, o compromisso é IDENTIDADE.
+      // A média de x com x é x — retrato e celular alto seguem byte a byte iguais.
       if (artW(643, 1180) !== 643) {
-        g10.push(`(C) em retrato (643×1180) o teto mordeu sem precisar: devolveu ${artW(643, 1180)} em vez de 643`);
+        g10.push(`(C) em retrato (643×1180) a regra mordeu sem precisar: devolveu ${artW(643, 1180)} em vez de 643`);
       }
-      // (D) Paisagem do tablet: a região passa a caber na viewport que a mostra.
+
+      const contida = geo.computeImageRect(1077, 700).width; // 394dp — a ponta rejeitada
       const artPaisagem = artW(1077, 700);
       const alturaNova = geo.computeRegionHeight(artPaisagem);
       const alturaAntiga = geo.computeRegionHeight(1077);
-      if (!(alturaNova <= 700)) {
-        g10.push(`(D) em paisagem (1077×700) a região continua mais alta que a viewport: ${alturaNova}dp de altura para 700dp de janela`);
+
+      // (D) DUAS PONTAS. A apresentação boa não é nenhum dos dois extremos que o
+      // fundador reprovou: nem a arte colada na largura (corredor vertical), nem a
+      // arte contida (ilha de pergaminho num mar de creme).
+      if (!(artPaisagem > contida)) {
+        g10.push(`(D) a arte não ganhou presença sobre "contain": ${artPaisagem}dp para os mesmos ${contida}dp — a apresentação reprovada em SG_C_FISICA_02 continua de pé`);
+      }
+      if (!(artPaisagem < 1077)) {
+        g10.push(`(D) a arte voltou a ocupar a largura inteira (${artPaisagem}dp de 1077dp): é a regra ANTIGA, o corredor vertical de volta`);
+      }
+      // (D2) O critério honesto de "margem excessiva", derivado e sem constante de
+      // aparelho: a ARTE tem de mandar na área útil, não o vazio que a cerca.
+      // "contain" reprova aqui (683dp de vazio para 394dp de arte); a regra antiga
+      // passa neste eixo e é barrada pelo eixo de cima. Só o meio-termo passa nos dois.
+      if (!((1077 - artPaisagem) < artPaisagem)) {
+        g10.push(`(D2) o vazio lateral (${1077 - artPaisagem}dp) é maior que a arte (${artPaisagem}dp): em paisagem o mapa vira detalhe do fundo`);
+      }
+      // (D3) Rolagem é do produto; CORREDOR não é. A altura da região é limitada ao
+      // DOBRO da viewport que a mostra — bound derivado da própria viewport.
+      if (!(alturaNova <= 700 * 2)) {
+        g10.push(`(D3) a região passou do dobro da viewport (${alturaNova}dp para 700dp): voltou a ser corredor de rolagem`);
       }
       if (!(alturaAntiga > 700 * 2)) {
-        g10.push('(D) o modelo perdeu o defeito: a regra antiga deixou de produzir o corredor vertical que este portão existe para extinguir');
+        g10.push('(D3) o modelo perdeu o defeito: a regra antiga deixou de produzir o corredor vertical que este portão existe para extinguir');
       }
-      // (E) O teto NÃO deforma: a arte continua na proporção oficial, pela mesma
-      // regra "contain" do modal "Ver mapa".
-      if (artPaisagem !== geo.computeImageRect(1077, 700).width) {
-        g10.push('(E) a largura da arte divergiu de `computeImageRect`: o teto virou uma segunda primitiva de escala em vez de reusar a que o projeto já tem');
+      // (E) A regra é DERIVADA, não afinada: a largura da arte é a média geométrica
+      // entre encher a largura e caber na altura — a única escala que fica no meio
+      // exato das duas em proporção (dobrar as duas pontas dobra o resultado) e não
+      // carrega número algum de aparelho. Tolerância = o arredondamento.
+      if (!(Math.abs(artPaisagem * artPaisagem - 1077 * contida) <= artPaisagem)) {
+        g10.push(`(E) a escala deixou de ser a média geométrica entre largura e "contain": ${artPaisagem}² ≠ 1077×${contida} — virou constante afinada à mão`);
+      }
+      // (F) A arte NÃO deforma: continua em MAP_ASPECT, e o modal "Ver mapa"
+      // continua com "contain" EXATO — mudou o modo principal, não a primitiva.
+      if (geo.computeImageRect(1077, 700).width !== 394 || codeOf('src/data/adventureMap.js').indexOf('MAP_ASPECT = 9 / 16') === -1) {
+        g10.push('(F) `computeImageRect`/`MAP_ASPECT` foram alterados: a mudança vazou do modo principal para a primitiva que o modal "Ver mapa" usa');
+      }
+      // (G) Celular alto: a regra morde de leve, e sempre entre as duas pontas.
+      const contidaCel = geo.computeImageRect(390, 674).width;
+      const artCel = artW(390, 674);
+      if (!(artCel > contidaCel && artCel < 390)) {
+        g10.push(`(G) em celular (390×674) a escala saiu do meio-termo: ${artCel}dp fora da faixa ${contidaCel}..390`);
       }
     }
 
@@ -54554,7 +54588,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     }
 
     check(
-      '`G-MAP-6` (`F6-SG-C`, **novo**): a altura da região tem teto relativo à viewport, pela regra "contain" que o modal "Ver mapa" já usava — em paisagem a região cabe na janela em vez de virar corredor vertical, e em retrato nada muda',
+      '`G-MAP-6` (`F6-SG-C` · **v2, rejeição física de C2**): em paisagem a escala é o COMPROMISSO entre encher a largura e caber na altura — nem corredor vertical (regra antiga), nem ilha de arte cercada de creme ("contain"), com a arte sempre maior que o vazio que a cerca; em retrato nada muda',
       g10.length === 0,
       g10.join(' · '),
     );
@@ -55571,9 +55605,9 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     { encoding: 'utf8' },
   );
   check(
-    'F6-SG-B R2 (+F6-SG-C): TA-1..3, G-MAP-1..5 e o gate de carimbo do mapa (G-RSP-9-MAPA) passam; MT-2/24/3/4/25/30/31/32 morrem',
+    'F6-SG-B R2 (+F6-SG-C): TA-1..3, G-MAP-1..5 e os dois gates da campanha física (G-RSP-9-MAPA · G-MAP-6-ESCALA) passam; MT-2/24/3/4/25/30/31/32/33/34/35 morrem',
     mapAnchorHarness.status === 0
-      && /FOCUSED 35\/35 PASS; MUTANTS 8\/8 KILLED/.test(mapAnchorHarness.stdout),
+      && /FOCUSED 36\/36 PASS; MUTANTS 11\/11 KILLED/.test(mapAnchorHarness.stdout),
     `${mapAnchorHarness.stdout || ''}${mapAnchorHarness.stderr || ''}`.trim(),
   );
 
