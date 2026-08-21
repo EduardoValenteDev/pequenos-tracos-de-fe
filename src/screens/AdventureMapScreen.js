@@ -140,11 +140,35 @@ export default function AdventureMapScreen({ navigation, route }) {
   // ser "a largura da área" para ser "a largura da ARTE" — é ela que a geometria
   // inteira consome (layout, âncoras, marcadores), e é por isso que guarda o nome.
   // `areaWidth` é o espaço disponível; o teto decide quanto dele a arte ocupa.
-  const [mapViewportH, setMapViewportH] = useState(0);
+  //
+  // [F6-SG-C · CAUSA B · REABERTURA POR C2] E foi aqui que a CAUSA B voltou. Ao
+  // trazer a ALTURA para a escala, C2 pôs uma SEGUNDA medida na geometria e deixou
+  // essa sem carimbo: a largura recusava medida de outra janela, a altura não. Na
+  // campanha física o primeiro quadro da janela nova escalava a arte pela altura da
+  // ORIENTAÇÃO ANTERIOR — 664dp onde cabiam 394dp ao entrar em paisagem, 394dp onde
+  // cabiam 643dp ao voltar — e o quadro seguinte corrigia à vista.
+  //
+  // A separação é a MESMA que a largura já fazia, agora escrita nos dois eixos:
+  //   · `contentW`/`mapViewportH` são as medidas CRUAS ("já mediu alguma vez").
+  //     São elas que montam o ScrollView e ancoram a câmera — e continuam cruas de
+  //     propósito, porque desmontar o ScrollView a cada rotação perderia a rolagem
+  //     que a CAUSA C1 existe para preservar (`G-MAP-3` lacra essa montagem).
+  //   · `areaWidth`/`areaHeight` são as CARIMBADAS. São elas, e só elas, que
+  //     mandam na geometria: medida de outra janela não entra no cálculo.
+  const [viewportM, setViewportM] = useState({ h: 0, janela: 0 });
+  const mapViewportH = viewportM.h;
   const [contentM, setContentM] = useState({ w: 0, janela: 0 });
   const contentW = contentM.w;
   const areaWidth = contentM.janela === width && contentW > 0 ? contentW : width;
-  const mapWidth = computeRegionArtWidth(areaWidth, mapViewportH);
+  const areaHeight = viewportM.janela === width && mapViewportH > 0 ? mapViewportH : 0;
+  const mapWidth = computeRegionArtWidth(areaWidth, areaHeight);
+  // Recusada a medida, a escala fica SEM viewport — e nenhum valor derivado da janela
+  // a substitui sem estimar o cromo, estimativa que `G-MAP-3` proíbe. Então a arte
+  // não é PINTADA enquanto as duas medidas não forem desta janela. Não é atraso
+  // artificial: é a ausência de resposta enquanto o `onLayout` não respondeu — e na
+  // ABERTURA nada muda, porque as duas medidas chegam no mesmo passo de layout em que
+  // o ScrollView monta: o mapa segue nascendo visível, no primeiro quadro em que existe.
+  const medidasDaJanela = contentM.janela === width && viewportM.janela === width;
   const onContainerLayout = useCallback((e) => {
     const w = Math.round(e.nativeEvent.layout.width);
     setContentM((prev) => (prev.w === w && prev.janela === width ? prev : { w, janela: width }));
@@ -411,8 +435,9 @@ export default function AdventureMapScreen({ navigation, route }) {
   const onMapViewportLayout = useCallback((e) => {
     const measured = Math.round(e.nativeEvent.layout.height);
     scrollViewH.current = measured;
-    setMapViewportH((prev) => (prev === measured ? prev : measured));
-  }, []);
+    // [F6-SG-C · CAUSA B] Carimbada com a janela em que foi tirada, como a largura.
+    setViewportM((prev) => (prev.h === measured && prev.janela === width ? prev : { h: measured, janela: width }));
+  }, [width]);
 
   // Reconcilia somente quando AMBAS as medidas reais pertencem à geometria corrente.
   // Assim, contentSize→layout e layout→contentSize levam ao mesmo resultado.
@@ -552,7 +577,7 @@ export default function AdventureMapScreen({ navigation, route }) {
         ref={guideTargets.register('adventures.map')}
         collapsable={false}
         onLayout={onMapViewportLayout}
-        style={{ flex: 1, backgroundColor: REGION_PARCHMENT_BG, opacity: 1, transform: [{ translateY: entranceTranslate }] }}
+        style={{ flex: 1, backgroundColor: REGION_PARCHMENT_BG, opacity: medidasDaJanela ? 1 : 0, transform: [{ translateY: entranceTranslate }] }}
       >
         {mapViewportH > 0 && contentW > 0 && <ScrollView
           ref={scrollRef}

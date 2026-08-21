@@ -7353,7 +7353,7 @@ check(
   check(
     'TABLET1.0: mapa usa LARGURA DA ÁREA DE CONTEÚDO (onLayout) — corrige corte na sidebar; mobile == janela (sem regressão)',
     mapSrcTab.includes('const areaWidth = contentM.janela === width && contentW > 0 ? contentW : width') &&
-    mapSrcTab.includes('const mapWidth = computeRegionArtWidth(areaWidth, mapViewportH)') &&
+    mapSrcTab.includes('const mapWidth = computeRegionArtWidth(areaWidth, areaHeight)') &&
     mapSrcTab.includes('onLayout={onContainerLayout}') &&
     mapSrcTab.includes('computeRegionLayout(regionsVisual, mapWidth)') &&
     mapSrcTab.includes('width={mapWidth}') &&
@@ -54437,8 +54437,48 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       }
     }
 
+    /* (G) — [F6-SG-C · CAUSA B · REABERTURA POR C2] A CAUSA B voltou ao mapa, e
+     * voltou pela porta que o próprio projeto abriu: o patch C2 acrescentou uma
+     * SEGUNDA medida à mesma geometria — a ALTURA da viewport, que passou a decidir
+     * a escala — e não a carimbou. A largura recusava medida de outra janela; a
+     * altura, não. Campanha física `SG_C_FISICA_02` (vídeo 688aadd2…, logcat
+     * 963d27b6…): três reproduções bidirecionais. Ao entrar em paisagem o primeiro
+     * quadro escala a arte pela altura do RETRATO — 664dp onde cabem 394dp (1,69×);
+     * ao voltar a retrato, 394dp onde cabem 643dp (0,61×). Depois, o salto à vista.
+     * O carimbo é o MESMO da largura; o que faltava era aplicá-lo à grandeza nova.
+     *
+     * E há o resíduo que o carimbo sozinho não mata. Recusada a medida, a ESCALA
+     * fica sem viewport — e nenhum valor derivado da janela a substitui sem estimar
+     * o cromo (cabeçalho + barra/sidebar), estimativa que `G-MAP-3` proíbe desde
+     * `TK-A-093`. Sobraria um segundo enquadramento, menor mas ainda visível. Por
+     * isso a arte não é PINTADA enquanto as duas medidas não forem desta janela.
+     * Não é atraso artificial: é a ausência de resposta enquanto a pergunta não foi
+     * respondida — quem a responde é o `onLayout`, no ritmo dele. O ScrollView
+     * continua MONTADO pela medida crua, porque desmontá-lo perderia a rolagem que
+     * a CAUSA C1 existe para preservar, e `MAP_ANCHOR_FRAMING` não é tocada.
+     */
+    const G9_MAPA = 'src/screens/AdventureMapScreen.js';
+    if (srcExists(G9_MAPA)) {
+      const cMapa = codeOf(G9_MAPA);
+      if (cMapa.indexOf('viewportM.janela === width') === -1) {
+        g9.push(`${G9_MAPA} → a ALTURA da viewport, que C2 trouxe para a escala, não é carimbada: o primeiro quadro da janela nova volta a escalar a arte pela orientação anterior`);
+      }
+      if (cMapa.indexOf('const medidasDaJanela = contentM.janela === width && viewportM.janela === width') === -1) {
+        g9.push(`${G9_MAPA} → não existe uma condição única de coerência das DUAS medidas: sem ela, meia geometria desta janela e meia da anterior continua sendo um estado alcançável`);
+      }
+      if (cMapa.indexOf('opacity: medidasDaJanela ? 1 : 0') === -1) {
+        g9.push(`${G9_MAPA} → a arte é pintada mesmo quando as medidas não são desta janela: sobra o segundo enquadramento visível que a campanha física reprovou`);
+      }
+      if (cMapa.indexOf('{mapViewportH > 0 && contentW > 0 && <ScrollView') === -1) {
+        g9.push(`${G9_MAPA} → a montagem do ScrollView deixou de depender da medida CRUA: desmontar a cada rotação perderia a rolagem que a CAUSA C1 existe para preservar`);
+      }
+      if (cMapa.indexOf('computeRegionArtWidth(areaWidth, areaHeight)') === -1) {
+        g9.push(`${G9_MAPA} → a escala não consome a altura carimbada (areaHeight): a medida crua voltou a mandar na geometria`);
+      }
+    }
+
     check(
-      '`G-RSP-9` (`F6-SG-C`, **novo**): a medida só vale para a janela em que foi tirada — nas quatro superfícies da CAUSA B o `onLayout` corrige divergência real e nunca inaugura geometria, extinguindo o quadro intermediário da rotação',
+      '`G-RSP-9` (`F6-SG-C` · **v2, reaberto por C2**): a medida só vale para a janela em que foi tirada — nas quatro superfícies o `onLayout` corrige divergência real e nunca inaugura geometria, e no mapa isso vale para AS DUAS medidas que a escala consome, com a arte impedida de pintar enquanto uma delas for da orientação anterior',
       g9.length === 0,
       g9.join(' · '),
     );
@@ -54506,8 +54546,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     const g10Tela = 'src/screens/AdventureMapScreen.js';
     const g10Regiao = 'src/components/map/MapRegion.js';
-    if (codeOf(g10Tela).indexOf('computeRegionArtWidth(areaWidth, mapViewportH)') === -1) {
-      g10.push(`${g10Tela} → a tela não aplica o teto: a geometria segue saindo da largura da área, sem a viewport que a mostra`);
+    if (codeOf(g10Tela).indexOf('computeRegionArtWidth(areaWidth, areaHeight)') === -1) {
+      g10.push(`${g10Tela} → a tela não aplica a escala sobre a altura CARIMBADA: a viewport conferida chama-se areaHeight; mapViewportH é a medida crua que monta o ScrollView e ancora a câmera`);
     }
     if (codeOf(g10Regiao).indexOf("{ width, height: regionH, alignSelf: 'center' }") === -1) {
       g10.push(`${g10Regiao} → a caixa da região não assume a largura da arte centralizada: com o teto ativo a arte ficaria encostada à esquerda dentro de uma caixa de largura cheia`);
@@ -55531,9 +55571,9 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     { encoding: 'utf8' },
   );
   check(
-    'F6-SG-B R2: TA-1..3 e G-MAP-1..5 passam; MT-2/24/3/4/25/30 morrem',
+    'F6-SG-B R2 (+F6-SG-C): TA-1..3, G-MAP-1..5 e o gate de carimbo do mapa (G-RSP-9-MAPA) passam; MT-2/24/3/4/25/30/31/32 morrem',
     mapAnchorHarness.status === 0
-      && /FOCUSED 34\/34 PASS; MUTANTS 6\/6 KILLED/.test(mapAnchorHarness.stdout),
+      && /FOCUSED 35\/35 PASS; MUTANTS 8\/8 KILLED/.test(mapAnchorHarness.stdout),
     `${mapAnchorHarness.stdout || ''}${mapAnchorHarness.stderr || ''}`.trim(),
   );
 

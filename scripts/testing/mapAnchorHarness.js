@@ -89,6 +89,17 @@ function avaliarGates(sources = {}) {
     'G-MAP-4': /anchor\.contentY\s*-\s*viewportH\s*\*\s*MAP_ANCHOR_FRAMING/.test(serviceCode)
       && !/anchor\.contentY\s*-\s*viewportH\s*\*\s*MAP_ANCHOR_FRAMING\s*[+-]/.test(serviceCode)
       && !/windowBand|surfaceArchetype|navSidebarWidth|safeArea|insets/.test(serviceCode),
+    /* [F6-SG-C · CAUSA B · REABERTURA POR C2] O mapa tem DUAS medidas na geometria
+     * desde C2. A largura tinha carimbo; a altura, não — e o primeiro quadro da janela
+     * nova escalava a arte pela orientação anterior. Aqui se lacra a FORMA inteira da
+     * correção: o carimbo da altura, a condição única de coerência, a recusa a PINTAR
+     * com meia geometria, e — anti-regressão da própria correção — a montagem do
+     * ScrollView pela medida CRUA, que é o que preserva a rolagem (CAUSA C1). */
+    'G-RSP-9-MAPA': screenCode.includes('const areaHeight = viewportM.janela === width && mapViewportH > 0 ? mapViewportH : 0')
+      && screenCode.includes('const medidasDaJanela = contentM.janela === width && viewportM.janela === width')
+      && screenCode.includes('opacity: medidasDaJanela ? 1 : 0')
+      && screenCode.includes('mapViewportH > 0 && contentW > 0 && <ScrollView')
+      && screenCode.includes('computeRegionArtWidth(areaWidth, areaHeight)'),
     'G-MAP-5': /getStoryAnchor\(cameraStoryId, anchorContext\)/.test(screenCode)
       && regionTopCount >= 2
       && /cameraAnchor\.regionIndex\s*===\s*comeceRegionIdx\s*\?\s*'regionTop'\s*:\s*'anchor'/.test(screenCode),
@@ -217,6 +228,16 @@ function executarMutantes() {
     "const mode = cameraAnchor.regionIndex === comeceRegionIdx ? 'regionTop' : 'anchor';",
     "const mode = 'anchor';",
   ));
+
+  // [F6-SG-C · CAUSA B] Desfazer o carimbo da altura, e voltar a pintar com meia
+  // geometria: as duas metades da regressão que a campanha física filmou.
+  matar({ toString: () => 'MT-31', gate: 'G-RSP-9-MAPA' }, 'screen', (s) => s.replace(
+    'const areaHeight = viewportM.janela === width && mapViewportH > 0 ? mapViewportH : 0;',
+    'const areaHeight = mapViewportH;',
+  ));
+  matar({ toString: () => 'MT-32', gate: 'G-RSP-9-MAPA' }, 'screen', (s) => s.replace(
+    'opacity: medidasDaJanela ? 1 : 0,', 'opacity: 1,'),
+  );
   return { mutantes };
 }
 
