@@ -20577,9 +20577,25 @@ console.log('\n── Criar livre C1.1: correção slider/borracha/nome/paletas 
     && /Guardar desenho/.test(scr),
     'o primeiro salvamento não abre o painel de nome');
 
-  check('C1.1 §5 (teclado não cobre): sheet de nome usa KeyboardAvoidingView',
-    /<KeyboardAvoidingView[\s\S]{0,200}styles\.nameKav/.test(scr)
-    && /behavior=\{Platform\.OS === 'ios' \? 'padding' : 'height'\}/.test(scr),
+  // [F6-SG-C · CAUSA D2] Este portão nasceu cobrando o MECANISMO: `KeyboardAvoidingView`
+  // com `styles.nameKav`. A campanha física de 2026-08-21 no SM-X510 provou que esse
+  // mecanismo é INERTE sob edge-to-edge do Android 16 — o `KeyboardAvoidingView` consome
+  // `screenY`, que vem de `getWindowVisibleDisplayFrame()`, que deixou de encolher quando
+  // a janela parou de ser redimensionada pela IME. O sheet apareceu DEBAIXO do teclado com
+  // este portão verde.
+  //
+  // A INTENÇÃO ("o teclado não cobre o campo") continua valendo e ficou MAIS forte: agora
+  // é cobrada contra o contrato de oclusão (`useImeOcclusion`), cuja geometria `G-CVS-5`
+  // exercita em retângulos, inclusive num cenário em que o app não recebeu métrica alguma.
+  // O que saiu foi a exigência de um mecanismo provado inerte — jamais a exigência de
+  // proteger o campo. A leitura é sobre `scrN` (sem comentários) de propósito: o fonte da
+  // tela CITA o `KeyboardAvoidingView` ao explicar por que ele saiu.
+  check('C1.1 §5 (teclado não cobre): sheet de nome ancorado na banda útil acima da IME',
+    /useImeOcclusion\(\)/.test(scrN)
+    && /computeAvailableBand\(\{[\s\S]{0,240}imeOcclusion/.test(scrN)
+    && /justifyContent: nameSheetPlacement\.align/.test(scrN)
+    && /bottom: nameSheetBand\.bottomReserve/.test(scrN)
+    && !/KeyboardAvoidingView/.test(scrN),
     'o sheet de nome não protege o campo do teclado');
 
   check('C1.1 §5 (confirmName resolve único): usa resolveArtTitle sobre os títulos existentes',
@@ -54957,10 +54973,25 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
    * (`MINIMUM_ARCHITECTURAL_FIX_D = NENHUM ... PASS_NO_CHANGE`) e deixou UM ponto
    * aberto: o sheet de nome. Ele é um cartão ancorado embaixo (`justifyContent:
    * 'flex-end'`) de altura NATURAL — título + campo de 50dp + linha de botões de
-   * 46dp + paddings —, dentro de um `KeyboardAvoidingView` com `behavior='height'`
-   * no Android. Em paisagem a altura útil encolhe, o teclado toma a metade de
-   * baixo, e cartão e teclado disputam o mesmo espaço: quem perde é o campo de
-   * texto, que a criança precisa justamente para GUARDAR o desenho.
+   * 46dp + paddings. Sem um teto, uma banda estreita o faz estourar para fora da
+   * área visível e quem perde é o campo de texto, que a criança precisa justamente
+   * para GUARDAR o desenho.
+   *
+   * ATENÇÃO — LIMITE PROBATÓRIO DESTE PORTÃO (`F6-SG-C` · D2 · campanha 2026-08-21):
+   * `G-CVS-4` prova SOMENTE a política de teto `computeNameSheetMaxHeight` e o
+   * consumo dela pelo estilo do cartão. Ele NÃO prova — e nunca provou — resposta
+   * real à IME. A campanha física no SM-X510 mostrou o cartão debaixo do teclado
+   * com este portão VERDE: sob edge-to-edge do Android 16 a janela não encolhe, a
+   * medida do `onLayout` valia a tela inteira, e o teto, embora correto, nunca
+   * mordia. Quem prova a resposta à IME é `G-CVS-5`, logo abaixo. Ler um como se
+   * fosse o outro é repetir o erro de leitura que custou a campanha.
+   *
+   * A cláusula (H) delimita o bloco do cartão entre `styles.nameCard` e
+   * `styles.sheetBtns` — a linha de botões que contém o CTA "Guardar desenho". A
+   * âncora anterior era `</KeyboardAvoidingView>`, e o `KeyboardAvoidingView` saiu
+   * da tela com a correção de D2 (ele consome `screenY`, que a janela do Android 16
+   * envenena). A âncora nova é MAIS forte, não mais fraca: amarra a rolagem ao
+   * próprio CTA em vez de amarrá-la a um invólucro.
    *
    * O defeito é de ACESSO, não do modelo de coordenadas — por isso o território
    * autorizado é `AtelierCanvasScreen.js` e SÓ ele. `AtelierCanvas.js` está
@@ -55035,7 +55066,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     }
 
     const d2Ini = d2Code.indexOf('styles.nameCard');
-    const d2Fim = d2Code.indexOf('</KeyboardAvoidingView>');
+    const d2Fim = d2Code.indexOf('styles.sheetBtns');
     if (d2Ini < 0 || d2Fim < 0 || d2Fim < d2Ini) {
       d2.push('(H) o bloco do sheet de nome mudou de forma e o portão não consegue mais delimitá-lo — reveja a âncora antes de seguir');
     } else if (!d2Code.slice(d2Ini, d2Fim).includes('ScrollView')) {
@@ -55053,6 +55084,319 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       '`G-CVS-4` (`F6-SG-C`, **novo**): o sheet de nome do Ateliê respeita a altura útil que sobrou com o teclado aberto — teto vindo da medida carimbada pela janela, conteúdo rolável quando o teto morde, e nada disso tocando o documento lógico',
       d2.length === 0,
       d2.join(' · '),
+    );
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Fase 6 · F6-SG-C — `G-CVS-5` (CAUSA D2 · CONTRATO DE OCLUSÃO POR IME)
+   *
+   * `G-CVS-4` prova UMA coisa e só ela: a política de teto `computeNameSheetMaxHeight`,
+   * como função pura, em Node. A função está correta e continua correta. `G-CVS-4`
+   * NUNCA provou — e não tem como provar — que o cartão RESPONDE ao teclado REAL: o
+   * teto dele é alimentado por um `onLayout` que, na campanha física de 2026-08-21,
+   * mediu a janela INTEIRA (823 dp em paisagem) porque a janela não encolheu. Teto
+   * certo, medida inerte, cartão embaixo do teclado. Foi exatamente isto que o
+   * fundador viu no SM-X510.
+   *
+   * CAUSA RAIZ RATIFICADA (fonte instalado + logcat da campanha, não documentação
+   * genérica):
+   *   · `ReactRootView.java:890-932` emite `keyboardDidShow` com
+   *     `height = imeInsets.bottom - barInsets.bottom` (em dp) e com um `screenY`
+   *     derivado de `getWindowVisibleDisplayFrame()`.
+   *   · `ReactSurfaceView.kt` NÃO sobrescreve `onAttachedToWindow`, então o
+   *     `CustomGlobalLayoutListener` É registrado também sob bridgeless
+   *     (`ReactRootView.java:419-423`). O evento EXISTE na New Architecture — a tese
+   *     anterior de que ele nunca dispara estava errada.
+   *   · Sob edge-to-edge do Android 16 a janela não é redimensionada pela IME. O
+   *     logcat mostra `mDisplayFrame = Rect(0,0-2304,1440)` ANTES e DEPOIS de
+   *     `WindowInsets changed: ime:[0,0,0,669]`. Logo `getWindowVisibleDisplayFrame()`
+   *     não encolhe e `screenY` fica ENVENENADO.
+   *   · `KeyboardAvoidingView` consome EXCLUSIVAMENTE `screenY`
+   *     (`keyboardY = keyboardFrame.screenY - keyboardVerticalOffset`). Com `screenY`
+   *     envenenado ele calcula ~24 dp de deslocamento — imperceptível.
+   *
+   * Ou seja: o campo que serve (`endCoordinates.height`) existe e está certo; o campo
+   * que o `KeyboardAvoidingView` usa está errado. O defeito NÃO é geométrico — em
+   * paisagem sobram 417 dp acima da IME para um cartão de ~185 dp. Nunca faltou
+   * espaço: faltou ANCORAGEM.
+   *
+   * O QUE ESTE PORTÃO COBRA — um CONTRATO, em retângulos, não um patch pontual:
+   *   `viewport`  a janela inteira (o Ateliê é família IMERSIVA: `ImmersiveSurface` é
+   *               `{flex:1}` sem inset e `nameOverlay` é `absoluteFill` dela)
+   *   `imeRect`   `[viewportHeight - oclusão, viewportHeight]`
+   *   `banda`     `[safeTop, viewportHeight - max(oclusão, safeBottom)]`
+   *   `cardRect`  ⊆ `banda`  e  ∩ `imeRect` = ∅
+   *
+   * As três regras que o contrato tem de sustentar:
+   *   (1) PROVENIÊNCIA — a oclusão nasce da ALTURA do evento, jamais de `screenY`, e é
+   *       reconstituída até o retângulo REAL: no Android o evento já desconta a barra
+   *       de navegação (`- barInsets.bottom`), no iOS não desconta nada.
+   *   (2) SUBSTITUIÇÃO, NÃO SOMA — a IME SUBSTITUI o inset inferior do sistema. Somar
+   *       os dois desconta a mesma faixa duas vezes e encolhe a banda à toa; ignorar o
+   *       piso joga o CTA em cima da barra de gestos com o teclado fechado.
+   *   (3) DEGRADAÇÃO SEGURA — enquanto a IME nunca foi medida NESTA SESSÃO do app, o cartão
+   *       vai para o TOPO da banda, a única região que teclado nenhum ocupa. É isto
+   *       que torna a correção independente do que ainda é indemonstrável por leitura
+   *       estática (se `onGlobalLayout` dispara numa travessia que não redimensiona).
+   *       Com métrica → colado no teclado. Sem métrica → no topo. Nos dois ramos o CTA
+   *       é alcançável — e a campanha física fica auto-explicativa.
+   *
+   * O portão modela a IME REAL do aparelho SEPARADA do que o app foi informado. É
+   * assim que ele mata o mutante "ancorar sempre embaixo": num cenário em que o evento
+   * nunca chegou, o app acha que não há teclado, mas o retângulo do teclado existe do
+   * mesmo jeito, e o cartão não pode cair dentro dele.
+   *
+   * Nenhuma cláusula depende de um tamanho fixo do teclado do Samsung: as medidas do
+   * SM-X510 entram como CENÁRIO (dado físico da campanha), ao lado de cenários com
+   * teclado de terceiro bem mais alto, com banda menor que o cartão e com iOS.
+   * ══════════════════════════════════════════════════════════════════════════ */
+  {
+    console.log('\n── Fase 6 · F6-SG-C · CAUSA D2: portão G-CVS-5 (contrato de oclusão por IME) ──');
+
+    const IME_MOD = 'src/hooks/useImeOcclusion.js';
+    const D2_TELA_5 = 'src/screens/AtelierCanvasScreen.js';
+    const { loadModule: loadIme } = require('./testing/packInstallHarness');
+
+    const g5 = [];
+    const G5_MARGEM = 8;
+    // Altura intrínseca do cartão, somada do PRÓPRIO fonte: paddingTop 16 + título
+    // (16 + entrelinha) + marginBottom 6 + campo (marginTop 10 + height 50 +
+    // marginBottom 14) + linha de botões 46 + paddingBottom 22.
+    const G5_CARTAO_DP = 185;
+
+    const EXPORTS_5 = ['resolveImeOcclusion', 'computeAvailableBand', 'computeSheetPlacement'];
+    const carregarContrato = (mutate) => loadIme(IME_MOD, {}, EXPORTS_5, mutate);
+
+    let contrato = null;
+    if (!srcExists(IME_MOD)) {
+      g5.push(`(A) \`${IME_MOD}\` não existe — o app não tem NENHUMA fonte de métrica da IME. O sheet de nome segue ancorado no rodapé de uma janela que, sob edge-to-edge do Android 16, não encolhe com o teclado, e o \`KeyboardAvoidingView\` que deveria salvá-lo lê \`screenY\`, que essa mesma janela envenenou`);
+    } else {
+      try {
+        const m = carregarContrato();
+        const faltando = EXPORTS_5.filter((n) => typeof m[n] !== 'function');
+        if (faltando.length) g5.push(`(A) \`${IME_MOD}\` não exporta ${faltando.map((n) => `\`${n}\``).join(' · ')} — sem as três peças não há contrato: proveniência, banda e ancoragem`);
+        else contrato = m;
+      } catch (e) {
+        g5.push(`(A) \`${IME_MOD}\` não pôde ser avaliado como módulo puro: ${e.message}`);
+      }
+    }
+
+    /* ── Retângulos do contrato. Origem no topo da JANELA, eixo y para baixo. ───── */
+    const retIme = (H, imeReal) => ({ top: H - imeReal, bottom: H });
+    const retCartao = (H, banda, align, alturaVisivel) => (align === 'flex-start'
+      ? { top: banda.top, bottom: banda.top + alturaVisivel }
+      : { top: H - banda.bottomReserve - alturaVisivel, bottom: H - banda.bottomReserve });
+
+    /*
+     * `imeReal` é o retângulo FÍSICO do teclado (verdade do aparelho). `alturaEvento` é
+     * o que o app foi INFORMADO. Separar os dois é o que dá poder ao portão: no cenário
+     * "evento nunca chegou" há teclado na tela e zero informação no app.
+     */
+    const G5_CENARIOS = [
+      { nome: 'SM-X510 · paisagem · IME aberta (campanha 2026-08-21)',
+        plataforma: 'android', H: 823, safeTop: 24, safeBottom: 24, imeReal: 382, alturaEvento: 358, medido: true },
+      { nome: 'SM-X510 · retrato · IME aberta',
+        plataforma: 'android', H: 1317, safeTop: 24, safeBottom: 24, imeReal: 421, alturaEvento: 397, medido: true },
+      { nome: 'SM-X510 · paisagem · IME ABERTA e o evento NUNCA chegou',
+        plataforma: 'android', H: 823, safeTop: 24, safeBottom: 24, imeReal: 382, alturaEvento: 0, medido: false },
+      { nome: 'SM-X510 · retrato · IME ABERTA e o evento NUNCA chegou',
+        plataforma: 'android', H: 1317, safeTop: 24, safeBottom: 24, imeReal: 421, alturaEvento: 0, medido: false },
+      { nome: 'teclado de terceiro, bem mais alto que o do Samsung',
+        plataforma: 'android', H: 823, safeTop: 24, safeBottom: 24, imeReal: 500, alturaEvento: 476, medido: true },
+      { nome: 'telefone em paisagem · a banda é MENOR que o cartão',
+        plataforma: 'android', H: 360, safeTop: 24, safeBottom: 16, imeReal: 196, alturaEvento: 180, medido: true },
+      { nome: 'iOS · retrato · o evento NÃO desconta a barra do sistema',
+        plataforma: 'ios', H: 852, safeTop: 59, safeBottom: 34, imeReal: 336, alturaEvento: 336, medido: true },
+      { nome: 'teclado FECHADO depois de já ter sido medido',
+        plataforma: 'android', H: 1317, safeTop: 24, safeBottom: 24, imeReal: 0, alturaEvento: 0, medido: true },
+    ];
+
+    /* Avalia o contrato inteiro num cenário e devolve as violações. Fica separado do
+     * `check` de propósito: o mesmo avaliador serve ao eixo executável e ao mutation
+     * check, então um mutante não pode sobreviver por cair num caminho não exercitado. */
+    const violacoes = (api, c) => {
+      const v = [];
+      const oclusao = api.resolveImeOcclusion({
+        keyboardHeight: c.alturaEvento, safeBottom: c.safeBottom, platform: c.plataforma,
+      });
+
+      // (B) PROVENIÊNCIA — a oclusão informada tem de reproduzir o retângulo físico.
+      if (c.alturaEvento === 0 && oclusao !== 0) {
+        v.push(`(B) ${c.nome}: sem evento de teclado a oclusão veio \`${oclusao}\` em vez de \`0\` — inventar teclado é tão errado quanto ignorá-lo`);
+      }
+      if (c.alturaEvento > 0 && oclusao !== c.imeReal) {
+        v.push(`(B) ${c.nome}: a oclusão reconstituída (\`${oclusao}\`) não bate com o retângulo REAL da IME (\`${c.imeReal}\`) — no Android o evento entrega \`imeInsets.bottom - barInsets.bottom\`, então a barra do sistema precisa voltar; no iOS não há o que devolver`);
+      }
+
+      const banda = api.computeAvailableBand({
+        viewportHeight: c.H, safeTop: c.safeTop, safeBottom: c.safeBottom, imeOcclusion: oclusao,
+      });
+
+      // (C) A BANDA VIVE DENTRO DA VIEWPORT.
+      if (!(banda.height >= 0)) v.push(`(C) ${c.nome}: a banda veio com altura \`${banda.height}\``);
+      if (banda.top < c.safeTop - 0.5) v.push(`(C) ${c.nome}: a banda começa em \`${banda.top}\`, acima do inset superior seguro (\`${c.safeTop}\`)`);
+      if (banda.top + banda.height > c.H - banda.bottomReserve + 0.5) {
+        v.push(`(C) ${c.nome}: a banda (\`${banda.top}\`→\`${banda.top + banda.height}\`) invade a reserva inferior que ela mesma declarou (\`${banda.bottomReserve}\`)`);
+      }
+
+      // (D) SUBSTITUIÇÃO, NÃO SOMA — cobrada contra o retângulo FÍSICO, não contra a fórmula.
+      if (c.alturaEvento > 0 && banda.height !== c.H - c.safeTop - c.imeReal) {
+        v.push(`(D) ${c.nome}: a banda mede \`${banda.height}\`, e entre o inset superior e o topo da IME real existem \`${c.H - c.safeTop - c.imeReal}\` dp — somar a barra de navegação à IME desconta a mesma faixa duas vezes`);
+      }
+      if (banda.bottomReserve < c.safeBottom - 0.5) {
+        v.push(`(D) ${c.nome}: a reserva inferior (\`${banda.bottomReserve}\`) ficou abaixo do inset do sistema (\`${c.safeBottom}\`) — com o teclado fechado o cartão desceria sobre a barra de gestos`);
+      }
+
+      const col = api.computeSheetPlacement({
+        bandHeight: banda.height, imeEverMeasured: c.medido, margin: G5_MARGEM,
+      });
+
+      // (E) TETO — o cartão nunca é mais alto que a banda, e nunca é colapsado à toa.
+      if (!(col.maxHeight <= banda.height)) {
+        v.push(`(E) ${c.nome}: o teto (\`${col.maxHeight}\`) ultrapassa a banda (\`${banda.height}\`) — o cartão volta a competir com o teclado`);
+      }
+      if (banda.height > G5_MARGEM && !(col.maxHeight > 0)) {
+        v.push(`(E) ${c.nome}: havia \`${banda.height}\` dp de banda e o teto veio \`${col.maxHeight}\` — cartão de altura zero é tão inalcançável quanto cartão estourado`);
+      }
+
+      // (F) O RETÂNGULO DO CARTÃO NÃO TOCA O RETÂNGULO REAL DA IME.
+      const alturaVisivel = Math.min(G5_CARTAO_DP, col.maxHeight);
+      const card = retCartao(c.H, banda, col.align, alturaVisivel);
+      const ime = retIme(c.H, c.imeReal);
+      if (c.imeReal > 0 && card.bottom > ime.top + 0.5) {
+        v.push(`(F) ${c.nome}: o cartão vai até \`${card.bottom}\` e a IME REAL começa em \`${ime.top}\` — ${c.medido ? 'o campo e o CTA "Guardar desenho" ficam debaixo do teclado' : 'o app não recebeu métrica nenhuma e ancorou embaixo assim mesmo, que é literalmente o defeito D2'}`);
+      }
+      if (card.top < c.safeTop - 0.5) {
+        v.push(`(G) ${c.nome}: o cartão começa em \`${card.top}\`, acima do inset superior seguro (\`${c.safeTop}\`) — o título entraria debaixo da barra de status`);
+      }
+      if (c.imeReal === 0 && card.bottom > c.H - c.safeBottom + 0.5) {
+        v.push(`(G) ${c.nome}: sem teclado o cartão desce até \`${card.bottom}\`, passando do limite seguro (\`${c.H - c.safeBottom}\`)`);
+      }
+      return v;
+    };
+
+    if (contrato) {
+      G5_CENARIOS.forEach((c) => { g5.push(...violacoes(contrato, c)); });
+    }
+
+    /* ── Eixo textual: proveniência e ausência do mecanismo envenenado ──────────────
+     * É FUNÇÃO, e não bloco solto, porque o mutation check logo abaixo precisa das
+     * MESMAS cláusulas: um mutante que sobrevivesse por cair num caminho que só o
+     * eixo principal exercita não estaria provando nada. */
+    const violacoesTexto = (imeCode) => {
+      const v = [];
+      if (imeCode.includes('screenY')) {
+        v.push('(H) o contrato de oclusão toca em `screenY` — é EXATAMENTE o campo que a janela não-redimensionável do Android 16 envenena, e é por consumi-lo que o `KeyboardAvoidingView` ficou inerte');
+      }
+      if (!/keyboard(Did|Will)Show/.test(imeCode) || !/keyboard(Did|Will)Hide/.test(imeCode)) {
+        v.push('(H) o contrato não assina os DOIS eventos de teclado — sem o `Hide` a banda nunca volta ao tamanho cheio e o cartão fica flutuando sobre um teclado que já foi embora');
+      }
+      if (!imeCode.includes('.remove()')) {
+        v.push('(H) as assinaturas de teclado não são removidas — cada montagem do Ateliê deixaria um ouvinte vivo');
+      }
+      const aparelho = ['382', '421', '358', '397', '669', '737', '823', '1317', '1440', '2304']
+        .filter((n) => new RegExp(`\\b${n}\\b`).test(imeCode));
+      if (aparelho.length) {
+        v.push(`(I) o contrato carrega medida do aparelho da campanha no CÓDIGO (${aparelho.join(' · ')}) — a regra é geométrica e vale para qualquer teclado; programar por aparelho é o que este subgate existe para impedir`);
+      }
+      if (/SM-X510|X510|Samsung/i.test(imeCode)) {
+        v.push('(I) o contrato nomeia o aparelho da campanha no CÓDIGO — helper específico para SM-X510 é proibido');
+      }
+      if (/\b0\.5\b|\* *0\.5|\/ *2\b/.test(imeCode)) {
+        v.push('(I) o contrato usa fração fixa da tela (metade) — o teclado não ocupa metade de coisa alguma: a altura dele é medida, não estimada');
+      }
+      return v;
+    };
+
+    if (srcExists(IME_MOD)) g5.push(...violacoesTexto(codeOf(IME_MOD)));
+
+    /* ── Eixo textual: a TELA consome o contrato e larga o mecanismo inerte ─────── */
+    {
+      const d2Code5 = codeOf(D2_TELA_5);
+      if (!d2Code5.includes('useImeOcclusion')) {
+        g5.push('(J) `AtelierCanvasScreen.js` não assina o contrato de oclusão — a política existiria sem consumidor, que é como `G-CVS-4` ficou verde durante um defeito visível');
+      }
+      if (d2Code5.includes('KeyboardAvoidingView')) {
+        g5.push('(K) `KeyboardAvoidingView` continua no sheet de nome — sob edge-to-edge do Android 16 ele consome `screenY` envenenado e produz ~24 dp de deslocamento; deixá-lo ao lado do contrato é manter dois donos para a mesma pergunta');
+      }
+      if (!d2Code5.includes('bottomReserve')) {
+        g5.push('(K) o overlay do sheet não reserva a faixa inferior da banda — sem a reserva, `flex-end` continua significando "rodapé da janela", e o rodapé da janela é onde o teclado está');
+      }
+      if (!/justifyContent: *nameSheetPlacement\.align/.test(d2Code5)) {
+        g5.push('(K) a ancoragem do cartão não vem do contrato (`justifyContent: nameSheetPlacement.align`) — sem ela não existe o ramo seguro de quando a IME ainda não foi medida');
+      }
+      if (!d2Code5.includes('nameSheetBand.height')) {
+        g5.push('(K) o teto do cartão não é alimentado pela banda — voltaria a depender só de um `onLayout` que, na janela que não encolhe, mede a tela inteira');
+      }
+    }
+
+    /* ── MUTATION CHECK ────────────────────────────────────────────────────────────
+     * Um portão que só confirma o código que já existe é decoração. Cada mutante abaixo
+     * é uma versão PLAUSÍVEL do contrato — a forma que o defeito teria se alguém
+     * "simplificasse" o módulo daqui a seis meses — e cada um tem de morrer em alguma
+     * cláusula. `loadModule` recusa mutação cuja âncora não existe mais, então uma
+     * refatoração que desative silenciosamente o mutation check derruba a suíte em vez
+     * de deixá-la verde por vacuidade.
+     *
+     * Repare que M1 é o PRÓPRIO defeito D2 reinserido: ler `screenY` em vez da altura.
+     * Se algum dia ele sobreviver, o portão parou de proteger a coisa que nasceu para
+     * proteger. ─────────────────────────────────────────────────────────────────────── */
+    const G5_MUTANTES = [
+      { id: 'M1', nome: 'a oclusão volta a nascer de `screenY` (o defeito D2 em pessoa)',
+        mutate: (t) => t.replace('e?.endCoordinates?.height', 'e?.endCoordinates?.screenY') },
+      { id: 'M2', nome: 'a IME SOMA-SE ao inset inferior em vez de substituí-lo',
+        mutate: (t) => t.replace(
+          'const bottomReserve = Math.max(numero(imeOcclusion), numero(safeBottom));',
+          'const bottomReserve = numero(imeOcclusion) + numero(safeBottom);') },
+      { id: 'M3', nome: 'a reserva inferior perde o piso do inset do sistema',
+        mutate: (t) => t.replace(
+          'const bottomReserve = Math.max(numero(imeOcclusion), numero(safeBottom));',
+          'const bottomReserve = numero(imeOcclusion);') },
+      { id: 'M4', nome: 'o cartão ancora sempre embaixo, mesmo sem métrica nenhuma',
+        mutate: (t) => t.replace(
+          "align: imeEverMeasured ? 'flex-end' : 'flex-start',", "align: 'flex-end',") },
+      { id: 'M5', nome: 'o teclado é ESTIMADO como metade da tela em vez de medido',
+        mutate: (t) => t.replace(
+          'const bottomReserve = Math.max(numero(imeOcclusion), numero(safeBottom));',
+          'const bottomReserve = numero(imeOcclusion) > 0 ? janela / 2 : numero(safeBottom);') },
+      { id: 'M6', nome: 'entra uma medida do aparelho da campanha como valor de reserva',
+        mutate: (t) => t.replace(
+          'const altura = numero(keyboardHeight);', 'const altura = numero(keyboardHeight) || 382;') },
+      { id: 'M7', nome: 'o teto do cartão passa a ultrapassar a banda',
+        mutate: (t) => t.replace(
+          'numero(bandHeight) - numero(margin)', 'numero(bandHeight) + numero(margin)') },
+      { id: 'M8', nome: 'as assinaturas de teclado deixam de ser removidas',
+        mutate: (t) => t.replace(
+          'return () => { assinaAbre.remove(); assinaFecha.remove(); };', 'return () => {};') },
+      { id: 'M9', nome: 'o contrato assina duas vezes a ABERTURA e nunca o fechamento',
+        mutate: (t) => t.replace(
+          "const fechar = iOS ? 'keyboardWillHide' : 'keyboardDidHide';", 'const fechar = abrir;') },
+      { id: 'M10', nome: 'a banda esquece o inset superior e começa na borda da tela',
+        mutate: (t) => t.replace('return { top: topo, bottomReserve,', 'return { top: 0, bottomReserve,') },
+    ];
+
+    if (contrato) {
+      const textoIntegro = codeOf(IME_MOD);
+      G5_MUTANTES.forEach((mut) => {
+        let sobreviveu = null;
+        try {
+          const api = carregarContrato(mut.mutate);
+          const mortes = [];
+          G5_CENARIOS.forEach((c) => { mortes.push(...violacoes(api, c)); });
+          const textoMutante = mut.mutate(textoIntegro);
+          if (textoMutante !== textoIntegro) mortes.push(...violacoesTexto(textoMutante));
+          if (mortes.length === 0) sobreviveu = 'nenhuma cláusula reagiu — o portão aceitaria esta versão do contrato';
+        } catch (e) {
+          sobreviveu = `a mutação não pôde sequer ser aplicada (${e.message}) — âncora morta prova zero`;
+        }
+        if (sobreviveu) g5.push(`(MUT) ${mut.id} sobreviveu — ${mut.nome}: ${sobreviveu}`);
+      });
+    }
+
+    check(
+      '`G-CVS-5` (`F6-SG-C`, **novo**): o sheet de nome do Ateliê obedece a um contrato de oclusão por IME — oclusão vinda da ALTURA do evento (nunca de `screenY`) e reconstituída até o retângulo real, IME substituindo o inset inferior em vez de somar-se a ele, e cartão que fica FORA do retângulo do teclado nas duas orientações, em iOS e Android, com teclado de qualquer tamanho e mesmo quando o app não recebeu métrica nenhuma',
+      g5.length === 0,
+      g5.join(' · '),
     );
   }
 
