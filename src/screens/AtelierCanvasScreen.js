@@ -13,7 +13,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Pressable, Animated, ActivityIndicator, AccessibilityInfo,
-  BackHandler, StyleSheet, useWindowDimensions, TextInput, KeyboardAvoidingView, Platform, ScrollView,
+  BackHandler, StyleSheet, useWindowDimensions, TextInput, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -26,6 +26,7 @@ import { useProgressContext } from '../context/ProgressContext';
 import { useProfile } from '../context/ProfileContext';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
 import { useSurfaceLifecycle } from '../hooks/useSurfaceLifecycle';
+import { useImeOcclusion, computeAvailableBand, computeSheetPlacement } from '../hooks/useImeOcclusion';
 // `log` do helper central, e não um teste de ambiente escrito à mão: esta tela é vizinha do limite
 // de guarda do Plano Família, e o smoke proíbe que o sinalizador de desenvolvimento apareça aqui
 // como portão de produto. O helper já cala em produção sem trazer esse sinalizador para o arquivo.
@@ -47,14 +48,20 @@ const success = () => { Haptics.notificationAsync(Haptics.NotificationFeedbackTy
 
 /* [F6-SG-C · CAUSA D2] Teto de altura do sheet de nome (artefato 88 §6).
  *
- * O sheet é um cartão de altura NATURAL ancorado embaixo. Em paisagem a altura
- * útil encolhe, o teclado toma a metade de baixo e sobra menos espaço do que o
- * cartão pede — o campo de nome e o botão de guardar ficam fora de alcance
- * justamente na hora de salvar o desenho.
+ * CORREÇÃO DE PREMISSA (campanha física de 2026-08-21). A versão anterior deste
+ * comentário dizia que "em paisagem sobra menos espaço do que o cartão pede". Era
+ * FALSO: a medição no aparelho mostrou ~417 dp de faixa livre acima do teclado para
+ * um cartão de ~185 dp. Nunca faltou espaço — faltou ANCORAGEM. O cartão ficava no
+ * rodapé de uma janela que, sob edge-to-edge do Android 16, não encolhe com a IME,
+ * e o `KeyboardAvoidingView` que deveria resolver isso lê `screenY`, que é
+ * justamente o campo que essa janela envenena.
  *
- * `alturaUtilMedida` é o que o `KeyboardAvoidingView` reporta DEPOIS de o teclado
- * abrir. Enquanto ela não existe (primeiro quadro, ou medida de outra orientação),
- * a política cai na janela inteira: um valor seguro, nunca um cartão colapsado.
+ * Quem responde à IME agora é o contrato de `useImeOcclusion`, e quem prova isso é
+ * `G-CVS-5`. Esta função continua sendo o que sempre foi, e só isso: a POLÍTICA DE
+ * TETO. `alturaUtilMedida` é a altura da banda útil — a conta do contrato, cruzada
+ * com a medida real do `onLayout` da própria banda. Enquanto nenhuma das duas
+ * existe (primeiro quadro, ou medida de outra orientação), a política cai na janela
+ * inteira: um valor seguro, nunca um cartão colapsado.
  *
  * A função é pura e mora aqui em cima, fora do componente, porque `G-CVS-4` a
  * carrega do fonte real e a executa em Node. O documento lógico (`AtelierCanvas.js`)
@@ -74,15 +81,26 @@ export default function AtelierCanvasScreen({ route, navigation }) {
   const { mission, artId: routeArtId, from } = route.params ?? {};
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
-  // [F6-SG-C · CAUSA D2] A altura útil do sheet vem de uma MEDIDA, e medida obedece à
-  // CAUSA B: só vale para a janela em que foi tirada. Sem o carimbo, girar o tablet com o
-  // sheet aberto dimensionaria o cartão pela orientação anterior.
+  // [F6-SG-C · CAUSA D2] A geometria do sheet de nome nasce do CONTRATO DE OCLUSÃO POR
+  // IME (`useImeOcclusion`), e não de um `KeyboardAvoidingView`: sob edge-to-edge do
+  // Android 16 a janela não encolhe com o teclado, e o KAV lê exatamente o campo que essa
+  // janela envenena (`screenY`). Aqui a banda útil é CALCULADA, não adivinhada.
+  const { occlusion: imeOcclusion, everMeasured: imeEverMeasured } = useImeOcclusion();
+  const nameSheetBand = computeAvailableBand({
+    viewportHeight: winH, safeTop: insets.top, safeBottom: insets.bottom, imeOcclusion,
+  });
+  const nameSheetPlacement = computeSheetPlacement({
+    bandHeight: nameSheetBand.height, imeEverMeasured, margin: NAME_SHEET_MARGIN,
+  });
+  // A MEDIDA continua existindo como segunda opinião: se algum dia o layout entregar à
+  // banda menos do que a conta previu, o teto obedece ao MENOR dos dois. E ela segue
+  // obedecendo à CAUSA B — só vale para a janela em que foi tirada; sem o carimbo, girar
+  // o tablet com o sheet aberto dimensionaria o cartão pela orientação anterior.
   const [medidaSheet, setMedidaSheet] = useState({ altura: 0, janela: 0 });
-  const nameSheetMaxH = computeNameSheetMaxHeight(
-    winH,
-    medidaSheet.janela === winH ? medidaSheet.altura : 0,
-    insets.top,
-  );
+  const alturaUtilSheet = medidaSheet.janela === winH && medidaSheet.altura > 0
+    ? Math.min(medidaSheet.altura, nameSheetBand.height)
+    : nameSheetBand.height;
+  const nameSheetMaxH = computeNameSheetMaxHeight(winH, alturaUtilSheet, insets.top);
   const medirSheet = useCallback((e) => {
     const h = Math.round(e?.nativeEvent?.layout?.height ?? 0);
     setMedidaSheet((atual) => (
@@ -593,14 +611,16 @@ export default function AtelierCanvasScreen({ route, navigation }) {
         </>
       )}
 
-      {/* ── SHEET DE NOME (§5) — KeyboardAvoidingView para o teclado não cobrir o campo ── */}
+      {/* ── SHEET DE NOME (§5) — o cartão vive na BANDA útil acima da IME (CAUSA D2) ── */}
       {overlay === 'name' && (
         <View style={styles.nameOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setOverlay(null)} accessibilityLabel="Fechar" />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.nameKav}
-            keyboardVerticalOffset={insets.top}
+          <View
+            style={[styles.nameBand, {
+              top: nameSheetBand.top,
+              bottom: nameSheetBand.bottomReserve,
+              justifyContent: nameSheetPlacement.align,
+            }]}
             onLayout={medirSheet}
             pointerEvents="box-none"
           >
@@ -634,7 +654,7 @@ export default function AtelierCanvasScreen({ route, navigation }) {
                 </View>
               </ScrollView>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
       )}
 
@@ -1067,11 +1087,14 @@ const styles = StyleSheet.create({
   moreRowText: { fontFamily: 'FredokaOne', fontSize: 15 },
 
   /* sheet de nome (§5) */
-  nameOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(40,28,12,0.28)', justifyContent: 'flex-end' },
-  // [F6-SG-C · CAUSA D2] Sem `flex: 1` o KAV tinha o tamanho do proprio cartao — e
-  // `behavior='height'` nao tem o que encolher quando so existe conteudo. Com a area
-  // inteira e `flex-end`, o cartao continua ancorado embaixo e agora sobe com o teclado.
-  nameKav: { width: '100%', flex: 1, justifyContent: 'flex-end' },
+  nameOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(40,28,12,0.28)' },
+  // [F6-SG-C · CAUSA D2] A BANDA é posicionada por `top`/`bottom` absolutos, e não por
+  // padding, de propósito: assim a altura PRÓPRIA desta View é a altura da banda, e o
+  // `onLayout` dela mede a faixa útil de verdade. Com padding ele mediria a janela
+  // inteira — que foi exatamente o que aconteceu com o `KeyboardAvoidingView` e deixou
+  // o teto correto sem nunca morder. `bottom` recebe a reserva do contrato, então
+  // `flex-end` volta a significar "encostado no teclado".
+  nameBand: { position: 'absolute', left: 0, right: 0 },
   nameCardScroll: { flexGrow: 0 },
   nameCard: {
     backgroundColor: CL.surface, borderTopLeftRadius: CL.radiusPanel, borderTopRightRadius: CL.radiusPanel,
