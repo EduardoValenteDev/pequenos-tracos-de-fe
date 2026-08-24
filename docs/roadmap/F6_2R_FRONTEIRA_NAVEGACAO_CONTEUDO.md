@@ -312,3 +312,24 @@ histórias, áudio, **assets**, `tokens.breakpoints`, *layout* do shell, `AppScr
   quitada neste bloco, com o intervalo exato registrado em §6.
 - **Nenhum risco de classe nova.** A matriz canônica `P-nnn` não é alterada.
 - **`F6.3` não foi iniciada.**
+
+---
+
+## 11. Fechamento de `F6.2` — a fronteira VERTICAL (`F6.2R2`)
+
+- **`ROOT_CAUSE` vertical.** O app é *edge-to-edge*: a janela vai até o último pixel e
+  a barra do sistema desenha por cima. No telefone a **barra de abas** reserva
+  `64 + insets.bottom` abaixo da cena; no tablet ela vira coluna à esquerda e o rodapé
+  fica **sem dono**. Contrato aplicado, espelho do horizontal:
+  `APP WINDOW → SYSTEM BOTTOM INSET → SAFE CONTENT AREA → SCREEN`. Na Ovelhinha havia
+  um segundo defeito: `onLayout` media a *border box*, devolvendo a faixa da taskbar ao
+  retângulo jogável.
+- **Prova física do fundador (SM-X510 retrato, inset real de 48 dp): `PASS`.**
+  - **Home** — `PASS`: "Uma oração curtinha" rola por completo acima da taskbar.
+  - **Área dos Responsáveis** — `PASS`: o card "Administração (dev)" fecha acima da barra.
+  - **Cadê a Ovelhinha** — `PASS`: a busca termina antes da faixa do sistema e o toque na
+    ovelha continua pontuando (hitbox derivada do retângulo real).
+- **Commit da correção:** **`28aba98`** (6 arquivos, +231/−18) — 4 de *runtime*, 2 de
+  teste (`G-GAP-1` ganha a bateria F e os mutantes `MT-GUTTER-10..13`).
+- **`F6_2_COMPLETE = SIM` · `F6.2 = PASS`.** Nenhuma dívida transferida; `F6.3` não foi
+  iniciada e não há *push*.
