@@ -30,6 +30,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
+// [F6.3A] Fundação visual "O Livro Vivo": papel, tinta, terracota, dourado e as duas
+// famílias oficiais vêm de `tokens.js` — nenhuma tela inventa mais cor nem família.
+import { color, font } from '../theme/tokens';
 import SoundButton from '../components/SoundButton';
 import FaithIcon from '../components/ui/FaithIcon';
 import SafeImage from '../components/ui/SafeImage';
@@ -70,6 +73,9 @@ const BENI_GAMES = [
     tint: '#E9F8F0', border: '#B7E4CB', iconBg: '#0E9F6E20', color: pt.greenDeep,
     a11y: 'Cadê a Ovelhinha, jogo de atenção, jogar',
   },
+  // [F6.3A] A identidade de cor POR JOGO é conteúdo aprovado (spec B1 §11), não cromo
+  // estrutural: os quatro jogos mantêm azul/dourado/verde/violeta. A lei "roxo não é mais
+  // cor estrutural" vale para a interface, não para a assinatura de um jogo.
   {
     id: 'monte', title: 'Monte a Cena', category: 'Raciocínio', icon: 'puzzle',
     route: ROUTES.MONTE_A_CENA_HOME,
@@ -235,7 +241,7 @@ export default function BrincarScreen({ navigation, route }) {
       {/* ── HEADER compacto — o Beni recebe, a mensagem é curta; canto superior direito
              fica livre para o selo do Modo Criador (overlay global, não cobre nada). ── */}
       <LinearGradient
-        colors={['#F0E8FF', '#E4D6FF', '#D6ECFF']}
+        colors={[color.paper100, color.paper200, color.paper300]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: Math.max(insets.top, 28) }]}
       >
@@ -334,13 +340,13 @@ export default function BrincarScreen({ navigation, route }) {
                 <View style={[styles.creativeDot, { backgroundColor: pt.faithBlue, left: 12 }]} />
                 <View style={[styles.creativeDot, { backgroundColor: pt.goldDeep, left: 22 }]} />
                 <View style={[styles.creativeDot, { backgroundColor: pt.greenDeep, left: 32 }]} />
-                <FaithIcon name="criar_livre" size={24} color={pt.purple} />
+                <FaithIcon name="criar_livre" size={24} color={color.terra500} />
               </View>
               <View style={styles.creativeTexts}>
                 <Text style={styles.creativeTitle}>Criar livre</Text>
                 <Text style={styles.creativeDesc} numberOfLines={2}>Desenhe, invente e guarde suas criações.</Text>
               </View>
-              <View style={[styles.creativeBtn, { backgroundColor: pt.purple }]}>
+              <View style={[styles.creativeBtn, { backgroundColor: color.terra500 }]}>
                 <Text style={styles.creativeBtnText}>Abrir folha</Text>
               </View>
             </SoundButton>
@@ -397,7 +403,7 @@ export default function BrincarScreen({ navigation, route }) {
 
 const HAIR = 1;
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: pt.background },
+  container: { flex: 1, backgroundColor: color.paper50 },
 
   /* Header compacto (mais baixo que o anterior → mais jogo na 1ª tela). */
   header: {
@@ -409,11 +415,11 @@ const styles = StyleSheet.create({
   backPill: {
     alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.7)',
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6,
-    marginBottom: 8, borderWidth: 1, borderColor: 'rgba(124,58,237,0.18)',
+    marginBottom: 8, borderWidth: 1, borderColor: color.paper200,
   },
-  backPillText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#6E3FB5' },
-  headerTitle: { fontFamily: 'FredokaOne', fontSize: 20, color: pt.text, marginBottom: 2 },
-  headerSub: { fontFamily: 'Nunito', fontSize: 12.5, color: pt.textSoft },
+  backPillText: { fontFamily: font.bodyBold, fontSize: 13, color: color.terra600 },
+  headerTitle: { fontFamily: font.bodyBold, fontSize: 20, color: color.ink900, marginBottom: 2 },
+  headerSub: { fontFamily: font.body, fontSize: 12.5, color: color.ink600 },
 
   /* Chip do plano (compacto, canto do header). */
   planChip: {
@@ -423,7 +429,7 @@ const styles = StyleSheet.create({
   },
   planChipPremium: { backgroundColor: 'rgba(255,255,255,0.85)', borderColor: 'rgba(94,156,62,0.35)' },
   planChipFree: { backgroundColor: 'rgba(255,255,255,0.85)', borderColor: 'rgba(224,162,26,0.35)' },
-  planChipText: { fontFamily: 'Nunito', fontSize: 10.5, fontWeight: '800', color: pt.text, flexShrink: 1 },
+  planChipText: { fontFamily: font.body, fontSize: 10.5, fontWeight: '800', color: color.ink900, flexShrink: 1 },
 
   /* Beni sugere hoje (faixa compacta, não maior que os cards da grade). */
   suggestWrap: { marginHorizontal: 16, marginTop: 14 },
@@ -433,14 +439,14 @@ const styles = StyleSheet.create({
   },
   suggestIconBg: { width: 40, height: 40, borderRadius: 13, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
   suggestTexts: { flex: 1 },
-  suggestKicker: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: pt.textSoft },
-  suggestTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginTop: 1 },
+  suggestKicker: { fontFamily: font.body, fontSize: 11, fontWeight: '800', color: color.ink600 },
+  suggestTitle: { fontFamily: font.bodyBold, fontSize: 15, color: color.ink900, marginTop: 1 },
   suggestBtn: { borderRadius: radii.pill, paddingHorizontal: 16, paddingVertical: 8, flexShrink: 0 },
-  suggestBtnText: { fontFamily: 'FredokaOne', fontSize: 12.5, color: '#FFF' },
+  suggestBtnText: { fontFamily: font.bodyBold, fontSize: 12.5, color: color.onTerra },
 
   sectionHead: { marginTop: 18, marginHorizontal: 18 },
-  sectionTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: pt.text },
-  sectionSub: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, marginTop: 2 },
+  sectionTitle: { fontFamily: font.bodyBold, fontSize: 17, color: color.ink900 },
+  sectionSub: { fontFamily: font.body, fontSize: 12, color: color.ink600, marginTop: 2 },
 
   /* Grade 2×2 — duas linhas de dois cards flex:1 (responsivo, sem número mágico). */
   grid: { marginTop: 10, marginHorizontal: 16, gap: 10 },
@@ -459,39 +465,39 @@ const styles = StyleSheet.create({
   gameArtDot: { position: 'absolute', borderRadius: 999 },
   gameArtDotA: { width: 40, height: 40, top: -10, right: -8 },
   gameArtDotB: { width: 26, height: 26, bottom: -6, left: -4 },
-  gameTitle: { fontFamily: 'FredokaOne', fontSize: 14, color: pt.text, marginBottom: 5, minHeight: 38 },
+  gameTitle: { fontFamily: font.bodyBold, fontSize: 14, color: color.ink900, marginBottom: 5, minHeight: 38 },
   gameCatRow: { marginBottom: 10 },
-  gameCat: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800' },
+  gameCat: { fontFamily: font.body, fontSize: 11, fontWeight: '800' },
   gameBtn: { borderRadius: radii.pill, paddingVertical: 9, alignSelf: 'stretch', alignItems: 'center', minHeight: 38, justifyContent: 'center' },
-  gameBtnText: { fontFamily: 'FredokaOne', fontSize: 12.5, color: '#FFF' },
+  gameBtnText: { fontFamily: font.bodyBold, fontSize: 12.5, color: color.onTerra },
 
   /* Crie do seu jeito — card horizontal violeta. */
   creativeWrap: { marginHorizontal: 16, marginTop: 10 },
   creativeCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#F7F0FF', borderRadius: radii.lg, borderWidth: 1.5, borderColor: '#E0D0F5',
+    backgroundColor: color.paper100, borderRadius: radii.lg, borderWidth: 1.5, borderColor: color.paper200,
     padding: 12, ...shadows.card,
   },
   creativeArt: {
-    width: 54, height: 54, borderRadius: 15, backgroundColor: '#EBDCFB',
+    width: 54, height: 54, borderRadius: 15, backgroundColor: color.paper200,
     justifyContent: 'center', alignItems: 'center', flexShrink: 0, overflow: 'hidden',
   },
   creativeSheet: {
-    position: 'absolute', width: 30, height: 36, borderRadius: 5, backgroundColor: '#FFFDF8',
-    borderWidth: HAIR, borderColor: '#E0D0F5', top: 9,
+    position: 'absolute', width: 30, height: 36, borderRadius: 5, backgroundColor: color.paper50,
+    borderWidth: HAIR, borderColor: color.paper200, top: 9,
   },
   creativeDot: { position: 'absolute', bottom: 9, width: 6, height: 6, borderRadius: 3 },
   creativeTexts: { flex: 1 },
-  creativeTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 2 },
-  creativeDesc: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 16 },
+  creativeTitle: { fontFamily: font.bodyBold, fontSize: 15, color: color.ink900, marginBottom: 2 },
+  creativeDesc: { fontFamily: font.body, fontSize: 12, color: color.ink600, lineHeight: 16 },
   creativeBtn: { borderRadius: radii.pill, paddingHorizontal: 14, paddingVertical: 9, flexShrink: 0 },
-  creativeBtnText: { fontFamily: 'FredokaOne', fontSize: 12.5, color: '#FFF' },
+  creativeBtnText: { fontFamily: font.bodyBold, fontSize: 12.5, color: color.onTerra },
 
   /* Minhas artes. */
   cardCompact: {
     marginHorizontal: 16, marginTop: 12,
     borderRadius: radii.lg, overflow: 'hidden',
-    backgroundColor: '#FFF', ...shadows.soft,
+    backgroundColor: color.paper100, ...shadows.soft,
   },
   compactRow: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
   compactIconBg: {
@@ -499,10 +505,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', flexShrink: 0,
   },
   compactThumb: { width: 46, height: 46 },
-  compactTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 2 },
-  compactDesc: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 16 },
+  compactTitle: { fontFamily: font.bodyBold, fontSize: 15, color: color.ink900, marginBottom: 2 },
+  compactDesc: { fontFamily: font.body, fontSize: 12, color: color.ink600, lineHeight: 16 },
   compactBtn: { borderRadius: radii.pill, paddingHorizontal: 16, paddingVertical: 9, flexShrink: 0 },
-  compactBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF' },
+  compactBtnText: { fontFamily: font.bodyBold, fontSize: 13, color: color.onTerra },
 
   familyNote: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -510,5 +516,5 @@ const styles = StyleSheet.create({
     borderRadius: radii.md, paddingHorizontal: 12, paddingVertical: 10,
     borderWidth: 1, borderColor: pt.gold + '66',
   },
-  familyNoteText: { flex: 1, fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '700', lineHeight: 17 },
+  familyNoteText: { flex: 1, fontFamily: font.body, fontSize: 12, color: '#7A5800', fontWeight: '700', lineHeight: 17 },
 });

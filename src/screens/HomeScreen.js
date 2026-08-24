@@ -7,10 +7,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
+// [F6.3A] Fundação visual "O Livro Vivo": papel, tinta, terracota, dourado, céu-noite e as
+// duas famílias oficiais vêm de `tokens.js`. A tela não inventa mais cor nem família.
+import { color, font, seal } from '../theme/tokens';
 import { stories } from '../data/stories';
 import { images } from '../assets/images';
 import SoundButton from '../components/SoundButton';
 import RecoverableImage from '../components/ui/RecoverableImage';
+import FaithIcon from '../components/ui/FaithIcon';
 import HubSurface from '../components/layout/HubSurface';
 import { BeniAvatar } from '../components/beni';
 import BeniGuideOverlay from '../components/BeniGuideOverlay';
@@ -87,7 +91,7 @@ function BeniHeroScene({ greeting, totalStars, avatarImage, insets, bubbleMessag
   return (
     <View style={heroS.wrapper}>
       <LinearGradient
-        colors={['#FFFBEF', '#FEE9A0', '#BAE6FD']}
+        colors={[color.paper50, color.paper100, color.paper200]}
         start={{ x: 0.15, y: 0 }}
         end={{ x: 0.85, y: 1 }}
         style={[heroS.sky, { paddingTop: Math.max(insets.top, 20) + 4 }]}
@@ -105,8 +109,9 @@ function BeniHeroScene({ greeting, totalStars, avatarImage, insets, bubbleMessag
           <View style={heroS.greetingCol}>
             <Text style={heroS.greetingText} numberOfLines={1}>{greeting}</Text>
             <View style={heroS.starsPill}>
+              <FaithIcon name="star" size={13} color={color.gold700} />
               <Text style={heroS.starsText}>
-                ⭐ {totalStars}{' '}
+                {totalStars}{' '}
                 {totalStars === 1 ? 'estrelinha' : 'estrelinhas'}
               </Text>
             </View>
@@ -168,30 +173,31 @@ const heroS = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.85)',
     flexShrink: 0, elevation: 2,
-    shadowColor: '#F4B400',
+    shadowColor: color.gold500,
     shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 3,
   },
   greetingText: {
-    fontFamily: 'FredokaOne', fontSize: 20, color: '#3A2A1E', marginBottom: 5,
+    fontFamily: font.bodyBold, fontSize: 20, color: color.ink900, marginBottom: 5,
   },
   starsPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: 'rgba(255,255,255,0.72)',
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4,
     alignSelf: 'flex-start', borderWidth: 1,
-    borderColor: 'rgba(244,180,0,0.45)', elevation: 1,
+    borderColor: color.gold300, elevation: 1,
   },
   starsText: {
-    fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '700',
+    fontFamily: font.body, fontSize: 12, color: color.gold700, fontWeight: '700',
   },
   beniCol: { alignItems: 'center', flexShrink: 0 },
   bubbleWrap: {
     backgroundColor: 'rgba(255,255,255,0.82)',
     borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1.5, borderColor: 'rgba(108,158,255,0.35)',
+    borderWidth: 1.5, borderColor: color.paper200,
     alignItems: 'center',
   },
   bubbleText: {
-    fontFamily: 'Nunito', fontSize: 13, color: '#3A2A1E',
+    fontFamily: font.body, fontSize: 13, color: color.ink900,
     fontWeight: '700', lineHeight: 18, textAlign: 'center',
   },
   bubbleTipDown: {
@@ -205,7 +211,7 @@ const heroS = StyleSheet.create({
   hillBack: {
     position: 'absolute', bottom: 0, left: -20, right: -20, height: 36,
     borderTopLeftRadius: 40, borderTopRightRadius: 40,
-    backgroundColor: '#D4F0B0', opacity: 0.35,
+    backgroundColor: color.gold100, opacity: 0.35,
   },
   hillFront: {
     position: 'absolute', bottom: 0, left: -20, right: -20, height: 24,
@@ -250,7 +256,9 @@ function MissaoDeHoje({
     return (
       <View style={styles.missionHero}>
         <View ref={targetRef} collapsable={false} style={styles.missionAllDone}>
-          <Text style={styles.missionAllDoneEmoji}>🏆</Text>
+          <View style={styles.missionAllDoneIcon}>
+            <FaithIcon name="trophies" size={34} color={color.gold700} />
+          </View>
           <Text style={styles.missionAllDoneTitle}>{primaryAction.title}</Text>
           <Text style={styles.missionAllDoneSub}>{primaryAction.description}</Text>
           <SoundButton style={styles.missionBtn} onPress={onAdventure} activeOpacity={0.85}>
@@ -268,16 +276,18 @@ function MissaoDeHoje({
   }
 
   const badgeText = isPending
-    ? '🎁 PRESENTES ESPERANDO'
+    ? 'PRESENTES ESPERANDO'
     : isContinue
-      ? '✨ CONTINUE SUA AVENTURA'
-      : '✨ MISSÃO DE HOJE';
+      ? 'CONTINUE SUA AVENTURA'
+      : 'MISSÃO DE HOJE';
+  const badgeIcon = isPending ? 'gift' : 'lumi';
 
   return (
     <View style={styles.missionHero}>
       {/* Selo da missão + Beni guia */}
       <View style={styles.missionTopRow}>
         <View style={styles.missionBadge}>
+          <FaithIcon name={badgeIcon} size={13} color={color.gold700} />
           <Text style={styles.missionBadgeText}>{badgeText}</Text>
         </View>
         <BeniAvatar variant="pointing" size="small" />
@@ -323,11 +333,20 @@ function MissaoDeHoje({
       {/* O que vou viver nesta aventura — [P3J-R] o chip "Colorir" DERIVA da disponibilidade real
           (mesma porta do journey). Sem C60 na história, a Home não promete colorir. */}
       <View style={styles.missionFeatures}>
-        <View style={styles.missionFeature}><Text style={styles.missionFeatureText}>🔊 Ouvir</Text></View>
+        <View style={styles.missionFeature}>
+          <FaithIcon name="sound" size={12} color={color.ink600} />
+          <Text style={styles.missionFeatureText}>Ouvir</Text>
+        </View>
         {hasColoring && (
-          <View style={styles.missionFeature}><Text style={styles.missionFeatureText}>🎨 Colorir</Text></View>
+          <View style={styles.missionFeature}>
+            <FaithIcon name="atelier" size={12} color={color.ink600} />
+            <Text style={styles.missionFeatureText}>Colorir</Text>
+          </View>
         )}
-        <View style={styles.missionFeature}><Text style={styles.missionFeatureText}>⭐ Estrelas</Text></View>
+        <View style={styles.missionFeature}>
+          <FaithIcon name="star" size={12} color={color.gold500} />
+          <Text style={styles.missionFeatureText}>Estrelas</Text>
+        </View>
       </View>
 
       {/* Progresso visual quando a aventura já começou */}
@@ -340,7 +359,7 @@ function MissaoDeHoje({
       {/* CTA principal — forte, impossível de não achar */}
       <SoundButton style={styles.missionBtn} onPress={onAdventure} activeOpacity={0.85}>
         <LinearGradient
-          colors={['#FF8A5B', '#F4651F']}
+          colors={[color.terra500, color.terra600]}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           style={styles.missionBtnGradient}
         >
@@ -362,7 +381,8 @@ function MissaoDeHoje({
         accessibilityLabel="Criar livre"
         accessibilityHint="Abre a tela de desenho livre com o Beni"
       >
-        <Text style={styles.missionCriarText}>🎨 Criar livre</Text>
+        <FaithIcon name="atelier" size={15} color={color.terra600} />
+        <Text style={styles.missionCriarText}>Criar livre</Text>
         <Text style={styles.missionCriarArrow}>→</Text>
       </SoundButton>
     </View>
@@ -384,12 +404,12 @@ function ConquistaCard({ lastCompleted, totalStars, onPress }) {
   return (
     <SoundButton onPress={onPress} activeOpacity={0.85}>
       <LinearGradient
-        colors={['#FFF6D6', '#FCE6A8']}
+        colors={[color.paper50, color.paper100]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={styles.conquistaCard}
       >
         <View style={styles.conquistaMedal}>
-          <Text style={styles.conquistaMedalText}>{totalStars > 0 ? '⭐' : '✨'}</Text>
+          <FaithIcon name={totalStars > 0 ? 'star' : 'lumi'} size={24} color={color.gold700} />
         </View>
         <View style={styles.conquistaInfo}>
           <Text style={styles.conquistaLabel}>VOCÊ CONQUISTOU</Text>
@@ -407,18 +427,17 @@ function CultinhoCard({ onPress, targetRef }) {
   return (
     <SoundButton onPress={onPress} activeOpacity={0.88} style={styles.cultinhoWrap}>
      <View ref={targetRef} collapsable={false}>
-      <LinearGradient
-        colors={['#6E54C8', '#4C2E9E']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={styles.cultinhoCard}
-      >
+      <View style={styles.cultinhoCard}>
         <View style={styles.cultinhoIcon}>
-          <Text style={styles.cultinhoIconText}>🏡</Text>
+          <FaithIcon name="cultinho" size={23} color={color.star100} />
         </View>
         <View style={styles.cultinhoInfo}>
           <View style={styles.cultinhoTitleRow}>
             <Text style={styles.cultinhoTitle}>Cultinho em Casa</Text>
-            <View style={styles.cultinhoMin}><Text style={styles.cultinhoMinText}>⏱️ 5 min</Text></View>
+            <View style={styles.cultinhoMin}>
+              <FaithIcon name="timer" size={11} color={color.ink900} />
+              <Text style={styles.cultinhoMinText}>5 min</Text>
+            </View>
           </View>
           <Text style={styles.cultinhoDesc} numberOfLines={2}>
             Faça uma história curtinha em família com Beni.
@@ -427,7 +446,7 @@ function CultinhoCard({ onPress, targetRef }) {
         <View style={styles.cultinhoBtn}>
           <Text style={styles.cultinhoBtnText}>Começar</Text>
         </View>
-      </LinearGradient>
+      </View>
      </View>
     </SoundButton>
   );
@@ -438,13 +457,9 @@ function BauDoBeniCard({ onPress, count, targetRef }) {
   return (
     <SoundButton onPress={onPress} activeOpacity={0.88} style={styles.bauWrap}>
      <View ref={targetRef} collapsable={false}>
-      <LinearGradient
-        colors={['#2B5BA1', '#1E467F']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={styles.bauCard}
-      >
+      <View style={styles.bauCard}>
         <View style={styles.bauIcon}>
-          <Text style={styles.bauIconText}>🧰</Text>
+          <FaithIcon name="bau" size={22} color={color.paper50} />
         </View>
         <View style={styles.bauInfo}>
           <View style={styles.bauTitleRow}>
@@ -460,7 +475,7 @@ function BauDoBeniCard({ onPress, count, targetRef }) {
         <View style={styles.bauBtn}>
           <Text style={styles.bauBtnText}>Abrir</Text>
         </View>
-      </LinearGradient>
+      </View>
      </View>
     </SoundButton>
   );
@@ -480,13 +495,9 @@ function CriarLivreCard({ onPress, targetRef }) {
       accessibilityHint="Abre a tela de desenho livre com o Beni"
     >
      <View ref={targetRef} collapsable={false}>
-      <LinearGradient
-        colors={['#8E5BD0', '#6E3FB5']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={styles.criarCard}
-      >
+      <View style={styles.criarCard}>
         <View style={styles.criarIcon}>
-          <Text style={styles.criarIconText}>🎨</Text>
+          <FaithIcon name="atelier" size={22} color={color.onTerra} />
         </View>
         <View style={styles.criarInfo}>
           <Text style={styles.criarTitle}>Criar livre</Text>
@@ -495,7 +506,7 @@ function CriarLivreCard({ onPress, targetRef }) {
         <View style={styles.criarBtn}>
           <Text style={styles.criarBtnText}>Criar</Text>
         </View>
-      </LinearGradient>
+      </View>
      </View>
     </SoundButton>
   );
@@ -507,7 +518,7 @@ function CantinhoDoBeni({ idea, verse, prayer, canAccess, onVerse, targetRef }) 
     <View ref={targetRef} collapsable={false} style={styles.cantinho}>
       {/* Cabeçalho com Beni presente */}
       <LinearGradient
-        colors={['#EEE3FF', '#E0D2FA']}
+        colors={[color.paper100, color.paper50]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={styles.cantinhoHeader}
       >
@@ -842,10 +853,10 @@ export default function HomeScreen({ navigation }) {
 
 /* ── Estilos ─────────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: pt.background },
+  container: { flex: 1, backgroundColor: color.paper50 },
 
   sectionTitle: {
-    fontFamily: 'FredokaOne', fontSize: 16, color: pt.text,
+    fontFamily: font.bodyBold, fontSize: 16, color: color.ink900,
     marginHorizontal: 16, marginBottom: 8, marginTop: 4,
   },
 
@@ -854,15 +865,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 2,
     marginBottom: 6,
-    backgroundColor: '#FFFDF7',
+    backgroundColor: color.paper50,
     borderRadius: radii.xl,
     borderWidth: 1.5,
-    borderColor: '#F0E2C6',
+    borderColor: color.paper200,
     paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: 14,
     elevation: 5,
-    shadowColor: '#B07A2E',
+    shadowColor: color.gold500,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 12,
@@ -874,19 +885,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   missionBadge: {
-    backgroundColor: '#FFF1D6',
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: color.gold100,
     borderRadius: radii.pill,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: '#F4C969',
+    borderColor: color.gold300,
   },
   missionBadgeText: {
-    fontFamily: 'FredokaOne', fontSize: 11, color: '#9A6B12',
+    fontFamily: font.bodyBold, fontSize: 11, color: color.gold700,
     letterSpacing: 0.4,
   },
   missionBeniLine: {
-    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
+    fontFamily: font.body, fontSize: 13, color: color.ink600,
     fontWeight: '700', lineHeight: 18, marginBottom: 10,
   },
   // Alvo do guia (Card 2): abraça só capa + título (halo justo, leitura clara).
@@ -897,7 +909,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     overflow: 'hidden',
     marginBottom: 10,
-    backgroundColor: '#F0E8FF',
+    backgroundColor: color.paper100,
     position: 'relative',
   },
   missionCoverImg: { width: '100%', height: '100%' },
@@ -907,62 +919,71 @@ const styles = StyleSheet.create({
   missionCoverFallback: { justifyContent: 'center', alignItems: 'center' },
   missionCoverEmoji: { fontSize: 56 },
   missionTitle: {
-    fontFamily: 'FredokaOne', fontSize: 20, color: pt.text,
+    fontFamily: font.display, fontSize: 20, color: color.ink900,
     lineHeight: 26, marginBottom: 2,
   },
   missionRef: {
-    fontFamily: 'Nunito', fontSize: 12, color: pt.muted,
+    fontFamily: font.body, fontSize: 12, color: color.ink400,
     fontWeight: '700', marginBottom: 6,
   },
   missionLesson: {
-    fontFamily: 'Nunito', fontSize: 13.5, color: '#7A5800',
+    fontFamily: font.body, fontSize: 13.5, color: color.gold700,
     fontWeight: '700', lineHeight: 19, marginBottom: 10,
   },
   missionFeatures: {
     flexDirection: 'row', gap: 8, marginBottom: 12,
   },
+  // [F6.3A-R2] Estes chips DESCREVEM a aventura — não são conquista. Dourado é
+  // conquista/estrela/presente; portanto a superfície vira papel e só o ícone de
+  // estrela guarda a dose de ouro.
   missionFeature: {
-    backgroundColor: pt.goldSoft,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: color.paper100,
     borderRadius: radii.pill,
     paddingHorizontal: 11, paddingVertical: 6,
-    borderWidth: 1, borderColor: pt.gold + '40',
+    borderWidth: 1, borderColor: color.paper200,
   },
   missionFeatureText: {
-    fontFamily: 'Nunito', fontSize: 12, color: '#7A5800', fontWeight: '800',
+    fontFamily: font.body, fontSize: 12, color: color.ink600, fontWeight: '800',
   },
   missionBar: {
-    height: 6, backgroundColor: pt.border, borderRadius: 3,
+    height: 6, backgroundColor: color.paper200, borderRadius: 3,
     overflow: 'hidden', marginBottom: 12,
   },
   missionBarFill: { height: '100%', backgroundColor: pt.green, borderRadius: 3 },
   missionBtn: {
     borderRadius: radii.pill, overflow: 'hidden',
-    elevation: 4, shadowColor: pt.beniDeep,
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.35, shadowRadius: 6,
+    elevation: 3, shadowColor: color.terra600,
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 8,
   },
   missionBtnGradient: { paddingVertical: 16, alignItems: 'center' },
-  missionBtnText: { fontFamily: 'FredokaOne', fontSize: 18, color: '#FFF' },
+  missionBtnText: { fontFamily: font.bodyBold, fontSize: 18, color: color.onTerra },
   missionPromise: {
-    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft,
+    fontFamily: font.body, fontSize: 12, color: color.ink600,
     textAlign: 'center', marginTop: 10, fontWeight: '600',
   },
   missionCriar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: pt.lilac,
+    backgroundColor: color.terra100,
     borderRadius: radii.pill,
     paddingVertical: 11, marginTop: 10,
-    borderWidth: 1, borderColor: '#D7C8F5', gap: 6,
+    borderWidth: 1, borderColor: color.paper200, gap: 6,
   },
-  missionCriarText: { fontFamily: 'FredokaOne', fontSize: 14, color: '#7A4FB5' },
-  missionCriarArrow: { fontFamily: 'FredokaOne', fontSize: 14, color: '#8E44AD' },
+  missionCriarText: { fontFamily: font.bodyBold, fontSize: 14, color: color.terra600 },
+  missionCriarArrow: { fontFamily: font.bodyBold, fontSize: 14, color: color.terra600 },
   missionAllDone: { alignItems: 'center', paddingVertical: 10 },
-  missionAllDoneEmoji: { fontSize: 48, marginBottom: 8 },
+  missionAllDoneIcon: {
+    width: 62, height: 62, borderRadius: 31,
+    backgroundColor: color.gold100,
+    borderWidth: 1.5, borderColor: color.gold300,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+  },
   missionAllDoneTitle: {
-    fontFamily: 'FredokaOne', fontSize: 19, color: pt.text,
+    fontFamily: font.display, fontSize: 19, color: color.ink900,
     textAlign: 'center', marginBottom: 4,
   },
   missionAllDoneSub: {
-    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft,
+    fontFamily: font.body, fontSize: 13, color: color.ink600,
     textAlign: 'center', marginBottom: 14, lineHeight: 19,
   },
 
@@ -975,18 +996,18 @@ const styles = StyleSheet.create({
   },
   allDoneEmoji: { fontSize: 44, marginBottom: 8 },
   allDoneTitle: {
-    fontFamily: 'FredokaOne', fontSize: 18, color: pt.text,
+    fontFamily: font.display, fontSize: 18, color: color.ink900,
     textAlign: 'center', marginBottom: 4,
   },
   allDoneSub: {
-    fontFamily: 'Nunito', fontSize: 13, color: pt.textSoft, textAlign: 'center',
+    fontFamily: font.body, fontSize: 13, color: color.ink600, textAlign: 'center',
   },
 
   // ── Portal da aventura ──
   portalCard: {
     marginHorizontal: 16, marginBottom: 14,
     borderRadius: radii.xl, overflow: 'hidden',
-    ...shadows.card, backgroundColor: '#FFF',
+    ...shadows.card, backgroundColor: color.paper100,
   },
   portalArch: {
     flexDirection: 'row',
@@ -996,8 +1017,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   portalOpenLabel: {
-    fontFamily: 'Nunito', fontSize: 11,
-    color: '#5B21B6', fontWeight: '700',
+    fontFamily: font.bodyBold, fontSize: 11,
+    color: color.ink600, fontWeight: '700',
     letterSpacing: 0.3,
   },
   portalBody: {
@@ -1009,7 +1030,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     overflow: 'hidden',
     marginBottom: 12,
-    backgroundColor: '#F0E8FF',
+    backgroundColor: color.paper100,
   },
   portalCoverImg: { width: '100%', height: '100%' },
   portalCoverFallback: {
@@ -1017,50 +1038,50 @@ const styles = StyleSheet.create({
   },
   portalCoverEmoji: { fontSize: 52 },
   portalPendingLabel: {
-    fontFamily: 'Nunito', fontSize: 11, color: '#7C3AED',
+    fontFamily: font.body, fontSize: 11, color: color.ink600,
     fontWeight: '700', marginBottom: 4,
   },
   portalTitle: {
-    fontFamily: 'FredokaOne', fontSize: 18, color: pt.text,
+    fontFamily: font.display, fontSize: 18, color: color.ink900,
     lineHeight: 24, marginBottom: 4, textAlign: 'center',
   },
   portalProgress: {
-    fontFamily: 'Nunito', fontSize: 12, color: pt.muted,
+    fontFamily: font.body, fontSize: 12, color: color.ink400,
     textAlign: 'center', marginBottom: 8,
   },
   portalBar: {
-    height: 5, backgroundColor: pt.border, borderRadius: 3,
+    height: 5, backgroundColor: color.paper200, borderRadius: 3,
     overflow: 'hidden', marginBottom: 16,
   },
   portalBarFill: { height: '100%', backgroundColor: pt.green, borderRadius: 3 },
   portalBtn: {
     borderRadius: radii.pill, overflow: 'hidden',
-    elevation: 3, shadowColor: '#F4651F',
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
+    elevation: 3, shadowColor: color.terra600,
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 6,
   },
   portalBtnGradient: { paddingVertical: 15, alignItems: 'center' },
-  portalBtnText: { fontFamily: 'FredokaOne', fontSize: 17, color: '#FFF' },
+  portalBtnText: { fontFamily: font.bodyBold, fontSize: 17, color: color.onTerra },
 
   // ── Portinha do Ateliê ──
   atelierWrapper: { marginHorizontal: 16, marginBottom: 4 },
   atelierLabel: {
-    fontFamily: 'Nunito', fontSize: 10, color: pt.muted,
+    fontFamily: font.body, fontSize: 10, color: color.ink400,
     fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5,
     marginBottom: 4, marginLeft: 2,
   },
   atelierShortcut: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: pt.lilac,
+    backgroundColor: color.paper100,
     borderRadius: radii.lg,
     padding: 13,
-    borderWidth: 1.5, borderColor: '#C4B5FD',
+    borderWidth: 1.5, borderColor: color.paper200,
     ...shadows.soft, gap: 10,
   },
   atelierIconWrap: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.7)',
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: '#C4B5FD',
+    borderWidth: 1, borderColor: color.paper200,
     flexShrink: 0, position: 'relative',
   },
   atelierIconEmoji: { fontSize: 22 },
@@ -1069,163 +1090,168 @@ const styles = StyleSheet.create({
   },
   atelierInfo: { flex: 1 },
   atelierTitle: {
-    fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 1,
+    fontFamily: font.bodyBold, fontSize: 15, color: color.ink900, marginBottom: 1,
   },
   atelierDesc: {
-    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 17,
+    fontFamily: font.body, fontSize: 12, color: color.ink600, lineHeight: 17,
   },
   atelierBtn: {
-    backgroundColor: '#8E44AD',
+    backgroundColor: color.terra500,
     borderRadius: radii.pill, paddingHorizontal: 14, paddingVertical: 8, flexShrink: 0,
   },
-  atelierBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#FFF' },
+  atelierBtnText: { fontFamily: font.bodyBold, fontSize: 13, color: color.onTerra },
 
-  // ── Você conquistou (recompensa dourada) ──
+  // ── Você conquistou ──
+  // [F6.3A-R2] O dourado migrou da SUPERFÍCIE para a MEDALHA: o cartão é papel, e a
+  // dose de ouro fica onde ela significa alguma coisa — a estrela, o rótulo e a seta.
   conquistaCard: {
     flexDirection: 'row', alignItems: 'center',
     marginHorizontal: 16, marginBottom: 4,
     borderRadius: radii.lg, padding: 14, gap: 14,
-    borderWidth: 1, borderColor: '#F2D58A',
-    elevation: 3, shadowColor: '#C79A2E',
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 7,
+    borderWidth: 1, borderColor: color.paper200,
+    ...shadows.soft,
   },
   conquistaMedal: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.gold100,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2, borderColor: '#F4C95B',
+    borderWidth: 2, borderColor: color.gold300,
     elevation: 2,
   },
-  conquistaMedalText: { fontSize: 24 },
   conquistaInfo: { flex: 1 },
   conquistaLabel: {
-    fontFamily: 'FredokaOne', fontSize: 10, color: '#9A6B12',
+    fontFamily: font.bodyBold, fontSize: 10, color: color.gold700,
     letterSpacing: 0.6, marginBottom: 2,
   },
   conquistaTitle: {
-    fontFamily: 'FredokaOne', fontSize: 16, color: '#5A3E12', marginBottom: 1,
+    fontFamily: font.bodyBold, fontSize: 16, color: color.ink900, marginBottom: 1,
   },
-  conquistaSub: { fontFamily: 'Nunito', fontSize: 12, color: '#86683A', fontWeight: '700' },
-  conquistaChevron: { fontFamily: 'FredokaOne', fontSize: 26, color: '#C79A2E', marginLeft: 4 },
+  conquistaSub: { fontFamily: font.body, fontSize: 12, color: color.ink600, fontWeight: '700' },
+  conquistaChevron: { fontFamily: font.display, fontSize: 26, color: color.gold500, marginLeft: 4 },
 
   // ── Cultinho em Casa (atalho compacto) ──
   cultinhoWrap: { marginHorizontal: 16, marginTop: 14 },
+  // [F6.3A-R] O tint claro da família azul-noite já existe em `seal.premium`
+  // (bg/borda derivados de `night`): nenhum token novo nasce aqui.
   cultinhoCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderRadius: radii.xl, paddingVertical: 12, paddingHorizontal: 14,
-    elevation: 4, shadowColor: '#3A1E6E',
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8,
+    backgroundColor: seal.premium.bg,
+    borderWidth: 1.5, borderColor: seal.premium.border,
+    ...shadows.soft,
   },
   cultinhoIcon: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: color.night600,
     justifyContent: 'center', alignItems: 'center', flexShrink: 0,
-    borderWidth: 1.5, borderColor: 'rgba(249,199,79,0.55)',
   },
-  cultinhoIconText: { fontSize: 22 },
   cultinhoInfo: { flex: 1 },
   cultinhoTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  cultinhoTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF' },
+  cultinhoTitle: { fontFamily: font.bodyBold, fontSize: 15, color: color.night800 },
   cultinhoMin: {
-    backgroundColor: 'rgba(249,199,79,0.92)', borderRadius: radii.pill,
-    paddingHorizontal: 7, paddingVertical: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: color.gold100, borderRadius: radii.pill,
+    borderWidth: 1, borderColor: color.gold300,
+    paddingHorizontal: 8, paddingVertical: 2,
   },
-  cultinhoMinText: { fontFamily: 'Nunito', fontSize: 10, color: '#5A3E12', fontWeight: '800' },
-  cultinhoDesc: { fontFamily: 'Nunito', fontSize: 12, color: 'rgba(255,255,255,0.92)', lineHeight: 16, fontWeight: '600' },
+  cultinhoMinText: { fontFamily: font.body, fontSize: 10, color: color.ink900, fontWeight: '800' },
+  cultinhoDesc: { fontFamily: font.body, fontSize: 12, color: color.ink600, lineHeight: 16, fontWeight: '600' },
   cultinhoBtn: {
-    backgroundColor: '#FFFFFF', borderRadius: radii.pill,
-    paddingHorizontal: 14, paddingVertical: 9, flexShrink: 0,
+    backgroundColor: color.night600, borderRadius: radii.pill,
+    paddingHorizontal: 16, paddingVertical: 9, flexShrink: 0,
   },
-  cultinhoBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#4C2E9E' },
+  cultinhoBtnText: { fontFamily: font.bodyBold, fontSize: 13, color: color.star100 },
 
   // ── Baú do Beni (atalho compacto) ──
   bauWrap: { marginHorizontal: 16, marginTop: 10 },
+  // [F6.3A-R2] O Baú continua sendo memória/presente — por isso o ouro fica no ícone,
+  // na borda, no selo de contagem e no CTA. A SUPERFÍCIE, não: ela é papel.
   bauCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderRadius: radii.xl, paddingVertical: 11, paddingHorizontal: 14,
-    elevation: 3, shadowColor: '#13315C',
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.26, shadowRadius: 7,
+    backgroundColor: color.paper100,
+    borderWidth: 1.5, borderColor: color.gold300,
+    ...shadows.soft,
   },
   bauIcon: {
-    width: 42, height: 42, borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: color.gold500,
     justifyContent: 'center', alignItems: 'center', flexShrink: 0,
-    borderWidth: 1.5, borderColor: 'rgba(249,199,79,0.6)',
   },
-  bauIconText: { fontSize: 21 },
   bauInfo: { flex: 1 },
   bauTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  bauTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF' },
+  bauTitle: { fontFamily: font.bodyBold, fontSize: 15, color: color.ink900 },
   bauCountPill: {
-    backgroundColor: 'rgba(249,199,79,0.92)', borderRadius: radii.pill,
-    paddingHorizontal: 7, paddingVertical: 1,
+    backgroundColor: color.gold100, borderRadius: radii.pill,
+    borderWidth: 1, borderColor: color.gold300,
+    paddingHorizontal: 8, paddingVertical: 2,
   },
-  bauCountText: { fontFamily: 'Nunito', fontSize: 10, color: '#5A3E12', fontWeight: '800' },
-  bauDesc: { fontFamily: 'Nunito', fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+  bauCountText: { fontFamily: font.body, fontSize: 10, color: color.ink900, fontWeight: '800' },
+  bauDesc: { fontFamily: font.body, fontSize: 12, color: color.ink600, fontWeight: '600' },
   bauBtn: {
-    backgroundColor: '#F9C74F', borderRadius: radii.pill,
-    paddingHorizontal: 14, paddingVertical: 9, flexShrink: 0,
+    backgroundColor: color.gold500, borderRadius: radii.pill,
+    paddingHorizontal: 16, paddingVertical: 9, flexShrink: 0,
   },
-  bauBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#5A3E12' },
+  bauBtnText: { fontFamily: font.bodyBold, fontSize: 13, color: color.ink900 },
 
   // ── Criar livre (atalho compacto) ──
   criarWrap: { marginHorizontal: 16, marginTop: 10 },
   criarCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderRadius: radii.xl, paddingVertical: 11, paddingHorizontal: 14,
-    elevation: 3, shadowColor: '#3A1E6E',
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.26, shadowRadius: 7,
+    backgroundColor: color.terra100,
+    borderWidth: 1.5, borderColor: color.terra500 + '55',
+    ...shadows.soft,
   },
   criarIcon: {
-    width: 42, height: 42, borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: color.terra500,
     justifyContent: 'center', alignItems: 'center', flexShrink: 0,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)',
   },
-  criarIconText: { fontSize: 21 },
   criarInfo: { flex: 1 },
-  criarTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: '#FFF', marginBottom: 1 },
-  criarDesc: { fontFamily: 'Nunito', fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+  criarTitle: { fontFamily: font.bodyBold, fontSize: 15, color: color.ink900, marginBottom: 1 },
+  criarDesc: { fontFamily: font.body, fontSize: 12, color: color.ink600, fontWeight: '600' },
   criarBtn: {
-    backgroundColor: '#FFFFFF', borderRadius: radii.pill,
-    paddingHorizontal: 14, paddingVertical: 9, flexShrink: 0,
+    backgroundColor: color.terra500, borderRadius: radii.pill,
+    paddingHorizontal: 16, paddingVertical: 9, flexShrink: 0,
   },
-  criarBtnText: { fontFamily: 'FredokaOne', fontSize: 13, color: '#6E3FB5' },
+  criarBtnText: { fontFamily: font.bodyBold, fontSize: 13, color: color.onTerra },
 
   // ── Cantinho do Beni (bloco especial: ideia + versículo + oração) ──
+  // [F6.3A-R2] A moldura de ouro grosso competia com o Beni. Ela afina para um traço
+  // dourado claro; o bloco continua "especial" pela presença do mascote, não pelo metal.
   cantinho: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.paper50,
     marginHorizontal: 16, marginTop: 20, marginBottom: 4,
     borderRadius: radii.xl, overflow: 'hidden',
-    borderWidth: 1.5, borderColor: '#E0D2FA',
-    elevation: 4, shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10,
+    borderWidth: 1, borderColor: color.gold300,
+    ...shadows.soft,
   },
   cantinhoHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 14, paddingVertical: 12,
   },
   cantinhoHeaderText: { flex: 1 },
-  cantinhoTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: pt.purpleDeep },
+  cantinhoTitle: { fontFamily: font.display, fontSize: 17, color: color.ink900 },
   cantinhoSubtitle: {
-    fontFamily: 'Nunito', fontSize: 12, color: '#7A5FA8', fontWeight: '700', marginTop: 1,
+    fontFamily: font.body, fontSize: 12, color: color.ink600, fontWeight: '700', marginTop: 1,
   },
   cantinhoBody: { paddingHorizontal: 14, paddingTop: 6, paddingBottom: 14 },
   cantinhoItem: { flex: 1 },
   cantinhoItemLabel: {
-    fontFamily: 'FredokaOne', fontSize: 12, color: pt.text, marginBottom: 2,
+    fontFamily: font.display, fontSize: 12, color: color.ink900, marginBottom: 2,
   },
   cantinhoItemText: {
-    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 17,
+    fontFamily: font.body, fontSize: 12, color: color.ink600, lineHeight: 17,
   },
   cantinhoDivider: {
-    height: 1, backgroundColor: '#E0D2FA', marginVertical: 10,
+    height: 1, backgroundColor: color.paper200, marginVertical: 10,
   },
   cantinhoAction: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
   },
   cantinhoLink: {
-    fontFamily: 'FredokaOne', fontSize: 13, color: pt.purpleDeep, flexShrink: 0,
+    fontFamily: font.bodyBold, fontSize: 13, color: color.terra600, flexShrink: 0,
   },
-  cantinhoLinkLocked: { color: pt.muted, fontSize: 11 },
+  cantinhoLinkLocked: { color: color.ink400, fontSize: 11 },
 });

@@ -19,12 +19,18 @@
  * `source`: require local (number) ou { uri }.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Image, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Image, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors as pt } from '../../theme/productTheme';
+import { color, font, fontSize, fontWeight } from '../../theme/tokens';
 import { useImageRecovery } from '../../hooks/useImageRecovery';
+import FaithIcon from './FaithIcon';
+import EstadoCarregando from './EstadoCarregando';
 
-const DEFAULT_FALLBACK = ['#F3EEE6', '#E7DECF'];
+// [F6.3A] Este arquivo é a fonte canônica de ERRO e de LOADING de imagem no app — as
+// duas categorias que o contrato visual da v6 exige e que não tinham dono. Ambas param
+// de inventar cor: papel no fundo, tinta no texto e o ícone do set próprio no lugar do
+// emoji de sistema (Lei 3: "zero emoji de sistema como ícone de interface").
+const DEFAULT_FALLBACK = [color.paper200, color.paper300];
 
 function isUsableSource(source) {
   if (source == null) return false;
@@ -43,7 +49,7 @@ export default function SafeImage({
   source,
   style,
   resizeMode = 'cover',
-  fallbackIcon = '🖼️',
+  fallbackIcon = null,
   fallbackLabel,
   fallbackColors = DEFAULT_FALLBACK,
   loadingLabel,
@@ -86,15 +92,21 @@ export default function SafeImage({
           renderFallback()
         ) : (
           <LinearGradient colors={fallbackColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fill}>
-            <Text style={styles.icon}>{fallbackIcon}</Text>
+            {/* Sem `fallbackIcon`, o ícone é o do set próprio. Um chamador que ainda passe
+                string (emoji legado) continua desenhando — a migração dele é do bloco dele,
+                não uma quebra silenciosa aqui. */}
+            {fallbackIcon == null
+              ? <FaithIcon name="gallery" size={34} color={color.ink400} />
+              : (typeof fallbackIcon === 'string'
+                ? <Text style={styles.icon}>{fallbackIcon}</Text>
+                : fallbackIcon)}
             {fallbackLabel ? <Text style={styles.label} numberOfLines={2}>{fallbackLabel}</Text> : null}
           </LinearGradient>
         )
       )}
       {showLoading && (
         <View style={[styles.fill, styles.loading]} pointerEvents="none">
-          <ActivityIndicator size="small" color={pt.muted} />
-          {loadingLabel ? <Text style={styles.loadingLabel}>{loadingLabel}</Text> : null}
+          <EstadoCarregando tamanho="small" rotulo={loadingLabel} />
         </View>
       )}
 
@@ -120,8 +132,10 @@ const styles = StyleSheet.create({
   // Preenche o pai (que já tem tamanho via aspectRatio) sem usar %-height.
   wrapFill: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
   fill: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 },
-  icon: { fontSize: 34, opacity: 0.55 },
-  label: { fontFamily: 'FredokaOne', fontSize: 12, color: 'rgba(58,42,30,0.6)', textAlign: 'center', marginTop: 4 },
-  loading: { backgroundColor: '#F3EEE6' },
-  loadingLabel: { fontFamily: 'Nunito', fontSize: 11, color: pt.muted, fontWeight: '700', marginTop: 6 },
+  icon: { fontSize: 34, opacity: 0.55 },   // só o caminho legado (emoji vindo do chamador)
+  label: {
+    fontFamily: font.body, fontWeight: fontWeight.uiLabel, fontSize: fontSize.caption,
+    color: color.ink600, textAlign: 'center', marginTop: 4,
+  },
+  loading: { backgroundColor: color.paper100 },
 });

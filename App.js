@@ -1,7 +1,6 @@
 import 'react-native-gesture-handler'; // DEVE ser a primeira importação
 import './src/services/bootMark';      // LP1M-A: t0 do boot JS — 2º, antes do grafo de telas
 import React, { useEffect, useRef, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
@@ -18,6 +17,7 @@ import {
 import {
   Fraunces_600SemiBold,
 } from '@expo-google-fonts/fraunces';
+import EstadoCarregando from './src/components/ui/EstadoCarregando';
 import AppNavigator from './src/navigation/AppNavigator';
 import { ProfileProvider } from './src/context/ProfileContext';
 import { ProgressProvider } from './src/context/ProgressContext';
@@ -108,9 +108,10 @@ export default function App() {
   // Espera SÓ enquanto está de fato carregando. Em erro OU no teto, segue (nunca prende).
   if (waitingForFonts) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF8F0' }}>
-        <ActivityIndicator size="large" color="#FF8C42" />
-      </View>
+      // [F6.3A] A primeira coisa que a criança vê também é papel: a espera passa a usar
+      // a primitiva canônica de carregamento, não um hex escolhido aqui (era `#FF8C42`
+      // sobre `#FFF8F0` — dois valores que não existem na paleta oficial).
+      <EstadoCarregando fundo />
     );
   }
 

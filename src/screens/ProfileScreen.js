@@ -7,8 +7,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { colors as pt, radii, shadows } from '../theme/productTheme';
+// [F6.3A] Fundação visual "O Livro Vivo": papel, tinta, terracota e dourado — mais as duas
+// famílias oficiais — vêm de `tokens.js`. A tela não inventa mais cor nem família.
+import { color, font } from '../theme/tokens';
 import { getAvatarById, getAvatarImage, isAvatarUnlocked, getAvatarUnlockStars, avatarHasSkinTones, getProfileAvatarSkinTone, SKIN_TONES, PROFILE_AVATAR_ORDER } from '../data/avatars';
 import AvatarImage from '../components/AvatarImage';
+import FaithIcon from '../components/ui/FaithIcon';
 import CenteredContent from '../components/layout/CenteredContent';
 import { BeniGuideBubble } from '../components/beni';
 import { getBeniGuideMessage } from '../data/beniGuideMessages';
@@ -49,7 +53,7 @@ function AvatarPicker({ profile, onSelect, onLockedPress, totalStars = 0 }) {
               />
               {!unlocked && (
                 <View style={styles.avatarLockBadge}>
-                  <Text style={styles.avatarLockEmoji}>🔒</Text>
+                  <FaithIcon name="lock" size={11} color={color.paper50} />
                 </View>
               )}
             </View>
@@ -68,14 +72,16 @@ function AvatarPicker({ profile, onSelect, onLockedPress, totalStars = 0 }) {
   );
 }
 
-function AdultCard({ emoji, title, desc, onPress, tint = '#F5F0FF' }) {
+function AdultCard({ icone, title, desc, onPress, tint = color.paper100 }) {
   return (
     <TouchableOpacity
       style={[styles.adultCard, { backgroundColor: tint }]}
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <Text style={styles.adultCardEmoji}>{emoji}</Text>
+      <View style={styles.adultCardIcon}>
+        <FaithIcon name={icone} size={24} color={color.night800} />
+      </View>
       <View style={styles.adultCardInfo}>
         <Text style={styles.adultCardTitle}>{title}</Text>
         <Text style={styles.adultCardDesc}>{desc}</Text>
@@ -163,8 +169,11 @@ export default function ProfileScreen({ navigation }) {
   const childBlock = (
     <View style={styles.childBlock}>
       {/* Cabeçalho suave — Meu cantinho (avatar da CRIANÇA, não Beni) */}
+      {/* [F6.3A-R2] Os três hexes amarelos NÃO existiam na paleta v1.1 — eram a maior
+          massa dourada do app. O cantinho da criança passa a ser papel; o ouro fica só
+          onde tem significado (estrela e progresso). O protagonista é o avatar. */}
       <LinearGradient
-        colors={['#FFE6A8', '#FFD27F', '#FFC489']}
+        colors={[color.paper100, color.paper200]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[styles.childHeader, { paddingTop: Math.max(insets.top, 20) + 8 }]}
       >
@@ -183,9 +192,12 @@ export default function ProfileScreen({ navigation }) {
             {profile.name ? profile.name : 'Pequeno artista'}
           </Text>
         </View>
-        <Text style={styles.childStars}>
-          ⭐ {totalStars === 1 ? '1 estrela' : `${totalStars} estrelas`}
-        </Text>
+        <View style={styles.childStarsRow}>
+          <FaithIcon name="star" size={15} color={color.gold500} />
+          <Text style={styles.childStars}>
+            {totalStars === 1 ? '1 estrela' : `${totalStars} estrelas`}
+          </Text>
+        </View>
         <View style={styles.progressBarOuter}>
           <View style={[styles.progressBarInner, { width: `${starsPercent * 100}%` }]} />
         </View>
@@ -227,7 +239,7 @@ export default function ProfileScreen({ navigation }) {
       >
         <Pressable style={styles.avatarZoomBackdrop} onPress={() => setLockedInfo(null)}>
           <View style={styles.lockedCard}>
-            <Text style={styles.lockedEmoji}>🔒</Text>
+            <FaithIcon name="lock" size={36} color={color.ink400} />
             <Text style={styles.lockedText}>
               Continue sua jornada para liberar este avatar com {lockedInfo?.stars} estrelinhas.
             </Text>
@@ -261,7 +273,7 @@ export default function ProfileScreen({ navigation }) {
           onBlur={handleNameSubmit}
           onSubmitEditing={handleNameSubmit}
           placeholder="Digite seu nome aqui..."
-          placeholderTextColor={pt.muted}
+          placeholderTextColor={color.ink400}
           maxLength={30}
           returnKeyType="done"
         />
@@ -308,7 +320,10 @@ export default function ProfileScreen({ navigation }) {
   /* ── Adult block ── */
   const adultBlock = (
     <View style={styles.adultBlock}>
-      <Text style={styles.adultBlockTitle}>🔐 Para responsáveis</Text>
+      <View style={styles.adultBlockTitleRow}>
+        <FaithIcon name="lock" size={17} color={color.ink600} />
+        <Text style={styles.adultBlockTitle}>Para responsáveis</Text>
+      </View>
       <Text style={styles.adultBlockSub}>
         Configurações e acompanhamento para responsáveis.
       </Text>
@@ -316,7 +331,7 @@ export default function ProfileScreen({ navigation }) {
       {/* Alvo do guia (Card 3): card real da Área dos Pais (só destaca, não abre). */}
       <View ref={profileTargets.register('profile.parents')} collapsable={false} style={styles.parentsTarget}>
         <AdultCard
-          emoji="👨‍👩‍👧"
+          icone="parent"
           title="Área dos Pais"
           desc="Acompanhe o progresso e gerencie o perfil."
           tint="#EFF8FF"
@@ -363,7 +378,7 @@ export default function ProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: pt.background },
+  container: { flex: 1, backgroundColor: color.paper50 },
   content: {},
 
   /* ── Child block ── */
@@ -378,7 +393,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cantinhoTitle: {
-    fontFamily: 'FredokaOne', fontSize: 14, color: '#7A5800',
+    fontFamily: font.bodyBold, fontSize: 14, color: color.ink600,
     marginBottom: 10, letterSpacing: 0.3,
   },
   // Alvo medível do guia (Card 2): abraça avatar + nome, centralizado.
@@ -387,14 +402,14 @@ const styles = StyleSheet.create({
   parentsTarget: { alignSelf: 'stretch' },
   bigAvatarCircle: {
     width: 78, height: 78, borderRadius: 39,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: color.paper50,
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 8,
-    borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 2.5, borderColor: color.gold300,
     elevation: 4,
-    shadowColor: '#C98A00',
+    shadowColor: color.ink900,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.12,
     shadowRadius: 8,
   },
   avatarZoomBackdrop: {
@@ -405,7 +420,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   avatarZoomCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.paper50,
     borderRadius: 28,
     paddingVertical: 28,
     paddingHorizontal: 40,
@@ -417,50 +432,53 @@ const styles = StyleSheet.create({
   // num quadrado branco"). overflow hidden + zoom no AvatarImage preenchem o círculo.
   avatarZoomImage: {
     borderWidth: 4,
-    borderColor: '#EADFD2',
+    borderColor: color.paper200,
   },
   avatarZoomClose: {
-    backgroundColor: pt.primary ?? '#7C3AED',
+    backgroundColor: color.terra500,
     borderRadius: 999,
     paddingHorizontal: 28,
     paddingVertical: 10,
   },
   avatarZoomCloseText: {
-    fontFamily: 'FredokaOne',
+    fontFamily: font.bodyBold,
     fontSize: 16,
-    color: '#FFFFFF',
+    color: color.onTerra,
   },
   childName: {
-    fontFamily: 'FredokaOne', fontSize: 22, color: '#3A2A1E', marginBottom: 3,
+    fontFamily: font.display, fontSize: 22, color: color.ink900, marginBottom: 3,
+  },
+  childStarsRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10,
   },
   childStars: {
-    fontFamily: 'Nunito', fontSize: 14, color: '#7A5800', fontWeight: '700', marginBottom: 10,
+    fontFamily: font.body, fontSize: 14, color: color.gold700, fontWeight: '700',
   },
   progressBarOuter: {
-    width: '70%', height: 8, backgroundColor: 'rgba(122,88,0,0.18)',
+    width: '70%', height: 8, backgroundColor: color.paper300,
     borderRadius: 4, overflow: 'hidden', marginBottom: 6,
   },
-  progressBarInner: { height: '100%', backgroundColor: '#F4B400', borderRadius: 4 },
+  progressBarInner: { height: '100%', backgroundColor: color.gold500, borderRadius: 4 },
   progressBarLabel: {
-    fontFamily: 'Nunito', fontSize: 11, color: '#9B7B30',
+    fontFamily: font.body, fontSize: 11, color: color.ink600,
   },
   beniGuide: { marginHorizontal: 16, marginTop: 14, marginBottom: 4 },
 
   childSection: { paddingHorizontal: 16, paddingTop: 16, marginBottom: 4 },
   childSectionLabel: {
-    fontFamily: 'FredokaOne', fontSize: 16, color: pt.text, marginBottom: 10,
+    fontFamily: font.bodyBold, fontSize: 16, color: color.ink900, marginBottom: 10,
   },
 
   nameInput: {
-    backgroundColor: '#FFF',
+    backgroundColor: color.paper100,
     borderRadius: radii.md,
     borderWidth: 1.5,
-    borderColor: pt.border,
+    borderColor: color.paper200,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontFamily: 'Nunito',
+    fontFamily: font.body,
     fontSize: 15,
-    color: pt.text,
+    color: color.ink900,
     ...shadows.soft,
   },
 
@@ -470,7 +488,7 @@ const styles = StyleSheet.create({
   avatarOption: {
     width: '22%',
     minHeight: 86,
-    backgroundColor: '#FFF',
+    backgroundColor: color.paper100,
     borderRadius: radii.lg,
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 2.5, borderColor: 'transparent',
@@ -484,11 +502,11 @@ const styles = StyleSheet.create({
     shadowColor: colors.primary, shadowOpacity: 0.25, shadowRadius: 6,
   },
   avatarOptionLabel: {
-    fontFamily: 'Nunito', fontSize: 10, color: pt.text,
+    fontFamily: font.body, fontSize: 10, color: color.ink900,
     textAlign: 'center', marginTop: 5, lineHeight: 13, fontWeight: '700',
   },
   avatarOptionLocked: {
-    backgroundColor: '#F4F1EA',
+    backgroundColor: color.paper200,
   },
   avatarOptionImgWrap: {
     width: 44, height: 44, position: 'relative',
@@ -501,33 +519,32 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(58,42,30,0.62)',
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarLockEmoji: { fontSize: 11 },
   avatarUnlockHint: {
-    fontFamily: 'Nunito', fontSize: 9, color: '#9A6B12', fontWeight: '700',
+    fontFamily: font.body, fontSize: 9, color: color.gold700, fontWeight: '700',
     textAlign: 'center', marginTop: 2, lineHeight: 11,
   },
 
   // Toggle de tom de pele (Perfil) — só boy/girl
   toneRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   toneLabel: {
-    fontFamily: 'Nunito', fontSize: 13, fontWeight: '700', color: pt.textSoft,
+    fontFamily: font.body, fontSize: 13, fontWeight: '700', color: color.ink600,
   },
   toneOptions: { flexDirection: 'row', gap: 8 },
   toneChip: {
     paddingHorizontal: 16, paddingVertical: 7, borderRadius: 999,
-    backgroundColor: '#FFF', borderWidth: 1.5, borderColor: pt.border,
+    backgroundColor: color.paper100, borderWidth: 1.5, borderColor: color.paper200,
   },
   toneChipActive: {
     backgroundColor: colors.primary + '1A', borderColor: colors.primary,
   },
   toneChipText: {
-    fontFamily: 'Nunito', fontSize: 13, fontWeight: '700', color: pt.textSoft,
+    fontFamily: font.body, fontSize: 13, fontWeight: '700', color: color.ink600,
   },
-  toneChipTextActive: { color: '#7A5800' },
+  toneChipTextActive: { color: color.gold700 },
 
   // Modal de avatar bloqueado
   lockedCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: color.paper50,
     borderRadius: 24,
     paddingVertical: 24,
     paddingHorizontal: 28,
@@ -536,9 +553,8 @@ const styles = StyleSheet.create({
     gap: 14,
     maxWidth: 320,
   },
-  lockedEmoji: { fontSize: 36 },
   lockedText: {
-    fontFamily: 'Nunito', fontSize: 15, fontWeight: '700', color: pt.text,
+    fontFamily: font.body, fontSize: 15, fontWeight: '700', color: color.ink900,
     textAlign: 'center', lineHeight: 21,
   },
 
@@ -549,10 +565,10 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   adultBlockTitle: {
-    fontFamily: 'FredokaOne', fontSize: 18, color: pt.text, marginBottom: 4,
+    fontFamily: font.bodyBold, fontSize: 18, color: color.ink900,
   },
   adultBlockSub: {
-    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft,
+    fontFamily: font.body, fontSize: 12, color: color.ink600,
     lineHeight: 18, marginBottom: 16,
   },
 
@@ -562,17 +578,23 @@ const styles = StyleSheet.create({
     padding: 14, marginBottom: 10,
     gap: 12,
     ...shadows.soft,
-    borderWidth: 1, borderColor: pt.border,
+    borderWidth: 1, borderColor: color.paper200,
   },
-  adultCardEmoji: { fontSize: 28 },
+  adultBlockTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 4 },
+  adultCardIcon: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: color.paper50,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: color.paper200,
+  },
   adultCardInfo: { flex: 1 },
   adultCardTitle: {
-    fontFamily: 'FredokaOne', fontSize: 14, color: pt.text, marginBottom: 2,
+    fontFamily: font.bodyBold, fontSize: 14, color: color.ink900, marginBottom: 2,
   },
   adultCardDesc: {
-    fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 17,
+    fontFamily: font.body, fontSize: 12, color: color.ink600, lineHeight: 17,
   },
   adultCardArrow: {
-    fontFamily: 'FredokaOne', fontSize: 22, color: pt.muted,
+    fontFamily: font.bodyBold, fontSize: 22, color: color.ink400,
   },
 });

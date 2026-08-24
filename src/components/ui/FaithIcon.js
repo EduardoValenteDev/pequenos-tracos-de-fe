@@ -69,6 +69,17 @@ const ICON_MAP = {
   combo: 'flame',
   restart: 'refresh',
   swap: 'swap-horizontal',
+
+  // ── [F6.3A-R] Nomes que faltavam para tirar o emoji dos ÍCONES DE INTERFACE da
+  // Home e do Perfil. São entradas no mapa que já existe — nenhum set novo, nenhuma
+  // dependência nova. O emoji dentro de FRASE infantil continua onde está: aqui só
+  // saem os que faziam papel de ícone.
+  cultinho: 'home',          // Cultinho em Casa — a rotina de fé em família
+  bau: 'gift',               // Bau do Beni — a colecao de cartinhas
+  sound: 'volume-high',      // chip "Ouvir"
+  gift: 'gift',              // selo "Presentes esperando"
+  chevron: 'chevron-forward',
+  medal: 'ribbon',
 };
 
 /**

@@ -18269,11 +18269,18 @@ check(
 );
 
 const homeMundoSrc = readSrc('src/screens/HomeScreen.js');
+// [F6.3A-R] A PROPRIEDADE deste portão sempre foi a PROMESSA da Home ("o que a criança vai
+// viver"), nunca o glifo. Com o emoji-de-interface substituído pelo set próprio, o portão
+// passa a exigir as duas metades do chip — ÍCONE do set + PALAVRA — em vez do emoji colado
+// na palavra. Isso é mais forte, não mais fraco: antes bastava a string; agora o chip tem
+// de existir como chip. Nenhuma condição foi removida.
+const chipDaHome = (icone, palavra) =>
+  new RegExp(`<FaithIcon name="${icone}"[\\s\\S]{0,120}>${palavra}</Text>`).test(homeMundoSrc);
 check(
   'Home: hero da missão mostra o que a criança vai viver (Ouvir / Colorir / Estrelas)',
-  homeMundoSrc.includes('🔊 Ouvir') &&
-  homeMundoSrc.includes('🎨 Colorir') &&
-  homeMundoSrc.includes('⭐ Estrelas'),
+  chipDaHome('sound', 'Ouvir') &&
+  chipDaHome('atelier', 'Colorir') &&
+  chipDaHome('star', 'Estrelas'),
   'Home perdeu a linha de features (Ouvir/Colorir/Estrelas) do hero da missão',
 );
 check(
@@ -45439,7 +45446,9 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       const c = a1StripComments(src);
       return /const hasColoring = story \? isStoryColoringAvailable\(story\.id\) : false;/.test(c)
         && /\{hasColoring && \(/.test(c)
-        && /🎨 Colorir/.test(c);
+        // [F6.3A-R] O chip continua tendo de EXISTIR e de ser o de colorir — só que agora
+        // desenhado com o ícone do set próprio, não com emoji de sistema.
+        && /<FaithIcon name="atelier"[\s\S]{0,120}>Colorir<\/Text>/.test(c);
     };
     check('P3J-R [copy 2/5]: o chip "Colorir" da Home DERIVA da disponibilidade real (não é promessa fixa)',
       avaliarChipDaHome(SRC_HOME_P3JR),
@@ -45458,7 +45467,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
 
     check('P3J-R [copy 4/5]: o CTA oficial é "Criar livre" na Home, no guia e no canvas — e "Criar com Beni" não sobrevive',
       /accessibilityLabel="Criar livre"/.test(SRC_HOME_P3JR)
-      && /🎨 Criar livre/.test(SRC_HOME_P3JR)
+      && /<FaithIcon name="atelier"[\s\S]{0,120}>Criar livre<\/Text>/.test(SRC_HOME_P3JR)
       && /title: 'Criar livre'/.test(SRC_GUIAS_P3JR)
       && /'Criar livre'/.test(SRC_CANVAS_P3JR)
       && ![SRC_HOME_P3JR, SRC_GUIAS_P3JR, SRC_CANVAS_P3JR].some((s) => /Criar com Beni/.test(s)),

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { color, navSidebarRole, navSidebarWidth } from '../theme/tokens';
+import { color, font, radius, navSidebarRole, navSidebarWidth } from '../theme/tokens';
 import { getAvatarImage, getProfileAvatarSkinTone } from '../data/avatars';
 import AvatarImage from './AvatarImage';
 import { useProfile } from '../context/ProfileContext';
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
     marginLeft: -10,
   },
   greeting: {
-    fontFamily: 'FredokaOne',
+    fontFamily: font.bodyBold,
     fontSize: 15,
     color: color.ink900,
     marginBottom: 3,
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   },
   starsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
   stars: {
-    fontFamily: 'Nunito',
+    fontFamily: font.body,
     fontSize: 11,
     color: color.ink600,
     textAlign: 'center',
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   progressLabel: {
-    fontFamily: 'Nunito',
+    fontFamily: font.body,
     fontSize: 10,
     color: color.ink600,
   },
@@ -289,21 +289,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 13,
     paddingHorizontal: 14,
-    borderRadius: 14,
+    borderRadius: radius.pill,
     gap: 10,
   },
   navButtonActive: {
     backgroundColor: color.terra100,
+    borderWidth: 1,
+    borderColor: color.terra500 + '33',
   },
   // Bloco 1.2: ícone semântico (FaithIcon) no lugar do emoji.
   navIcon: { width: 26, alignItems: 'center', justifyContent: 'center' },
   navLabel: {
-    fontFamily: 'Nunito',
+    fontFamily: font.body,
     fontSize: 14,
     color: color.ink600,
     fontWeight: '600',
   },
   navLabelActive: {
+    fontFamily: font.bodyBold,
     color: color.terra600,
     fontWeight: '700',
   },
