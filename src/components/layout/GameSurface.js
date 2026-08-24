@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useWindowBand } from '../../hooks/useWindowBand';
+// [F6.2] Ver `HubSurface`: o tabuleiro cabe na REGIÃO entregue à tela, não na janela.
+import { useContentViewport } from '../../context/ContentViewportContext';
 
 /**
  * GameSurface — arquétipo da família **Jogo** (Fase 6 · F6-R1.2 · F6-SG-C · TK-C-004).
@@ -58,7 +59,9 @@ export function gameFrame({ availableWidth, availableHeight, aspectRatio }) {
  * Props:
  *   children        — nó, ou função que recebe a área jogável (`{ width, height, … }`)
  *   aspectRatio     — proporção do tabuleiro (largura ÷ altura); quem a conhece é o jogo
- *   availableWidth  — espaço real; sem ele, vale a janela
+ *   availableWidth  — espaço real; sem ele, vale a REGIÃO em que o arquétipo vive
+ *                    (`F6.2`: a região, nunca a janela — onde há barra lateral
+ *                    entre a tela e a borda, as duas divergem)
  *   availableHeight — idem
  *   frameStyle      — estilo da moldura (o que preenche a sobra é decisão da tela)
  */
@@ -71,7 +74,7 @@ export default function GameSurface({
   frameStyle,
   ...rest
 }) {
-  const { width, height } = useWindowBand();
+  const { width, height } = useContentViewport();
   const area = gameFrame({
     availableWidth: Number.isFinite(availableWidth) ? availableWidth : width,
     availableHeight: Number.isFinite(availableHeight) ? availableHeight : height,

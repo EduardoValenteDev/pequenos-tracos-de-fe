@@ -1,7 +1,8 @@
 import React from 'react';
 import { View } from 'react-native';
 import { maxContentWidth } from '../../theme/tokens';
-import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
+import { BANDS } from '../../hooks/useWindowBand';
+import { useContentViewport } from '../../context/ContentViewportContext';
 
 /**
  * ContentContainer — A0.3 (Direção de Arte v1.1 §2.4).
@@ -31,6 +32,12 @@ import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
  * para entregar o excedente da faixa expandida à região de apoio (`SD-3`); a única
  * forma de ele saber isso SEM reimplementar a regra é perguntando aqui. Mesma
  * expressão, mesmos degraus, mesmos tokens — só ganhou nome.
+ *
+ * [Fase 6 · `F6.2`] MUDANÇA DE REFERENCIAL, não de política. A faixa deixa de ser
+ * lida da JANELA e passa a ser lida da REGIÃO em que este contêiner vive. Onde não
+ * há barra lateral entre a tela e a borda, os dois números são o mesmo; onde há, a
+ * janela era um número que ninguém entregou a esta coluna. Os três degraus, os três
+ * *tokens* e a expressão continuam idênticos — quem mudou foi a origem da largura.
  */
 
 /**
@@ -46,7 +53,7 @@ export function contentColumnMaxWidth(band) {
 }
 
 export default function ContentContainer({ children, style, ...rest }) {
-  const { band } = useWindowBand();
+  const { band } = useContentViewport();
   const maxWidth = contentColumnMaxWidth(band);
 
   return (

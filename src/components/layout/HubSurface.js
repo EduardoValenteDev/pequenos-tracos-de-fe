@@ -2,7 +2,10 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { grid } from '../../theme/tokens';
 import { displayTypeSizes } from './displayType';
-import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
+import { BANDS } from '../../hooks/useWindowBand';
+// [F6.2] A largura de referência é a REGIÃO entregue à tela, não a janela: onde o
+// shell publica barra lateral, a janela inclui espaço que este arquétipo não tem.
+import { useContentViewport } from '../../context/ContentViewportContext';
 
 /**
  * HubSurface — arquétipo da família **Hub** (Fase 6 · F6-R1.2 · F6-SG-C · TK-C-004).
@@ -17,7 +20,8 @@ import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
  *
  * O teto vem de `grid` (`tokens.js`), que até aqui existia sem consumidor. Nenhum
  * número de coluna nasce neste arquivo, e nenhum corte de largura é decidido aqui:
- * a faixa chega pronta de `useWindowBand`, a única tradução de medida em política.
+ * a faixa chega pronta do referencial de CONTEÚDO, que deriva a política pela mesma
+ * e única tradução de medida em faixa (`bandForWidth`, em `useWindowBand.js`).
  *
  * Consequências que este arquétipo aceita de propósito:
  * - faixa média com cartão largo entrega UMA coluna — o teto não é uma promessa;
@@ -150,7 +154,7 @@ export function hubRows(items, columns) {
  * só quem o consome — a lista pede a densidade e continua sendo a lista.
  */
 export function useHubComposition({ itemCount, minItemWidth, gap = 0, availableWidth }) {
-  const { band, width } = useWindowBand();
+  const { band, width } = useContentViewport();
   const largura = Number.isFinite(availableWidth) ? availableWidth : width;
   return hubComposition({ band, availableWidth: largura, itemCount, minItemWidth, gap });
 }
@@ -166,7 +170,9 @@ export function useHubComposition({ itemCount, minItemWidth, gap = 0, availableW
  *   itemCount      — inventário declarado, quando os filhos não o representam
  *   minItemWidth   — largura mínima legível do cartão desta tela
  *   gap            — intervalo entre cartões (a tela decide; nenhum padrão inventado)
- *   availableWidth — largura real da região; sem ela, vale a largura da janela
+ *   availableWidth — largura real da GRADE dentro da região; sem ela, vale a REGIÃO em que o arquétipo vive
+ *                    (`F6.2`: a região, nunca a janela — onde há barra lateral
+ *                    entre a tela e a borda, as duas divergem)
  */
 export default function HubSurface({
   children,
@@ -178,7 +184,7 @@ export default function HubSurface({
   rowStyle,
   ...rest
 }) {
-  const { band, width } = useWindowBand();
+  const { band, width } = useContentViewport();
   const largura = Number.isFinite(availableWidth) ? availableWidth : width;
   const ehFuncao = typeof children === 'function';
   const nos = ehFuncao ? [] : React.Children.toArray(children);

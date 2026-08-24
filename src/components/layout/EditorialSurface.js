@@ -2,7 +2,10 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import ContentContainer, { contentColumnMaxWidth } from '../ui/ContentContainer';
 import { displayTypeSizes } from './displayType';
-import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
+import { BANDS } from '../../hooks/useWindowBand';
+// [F6.2] Ver `HubSurface`: a coluna de leitura e a região de apoio se decidem pelo
+// espaço que a tela RECEBEU, não pela janela que ela vê.
+import { useContentViewport } from '../../context/ContentViewportContext';
 
 /**
  * EditorialSurface — arquétipo da família **Editorial** (Fase 6 · F6-R1.2 · F6-SG-C · TK-C-004).
@@ -122,7 +125,7 @@ export function editorialLayout({ band, availableWidth, hasSupport = false }) {
  * material como apoio quando a região abre, e o mantém no lugar de sempre quando não.
  */
 export function useEditorialSupport() {
-  const { band } = useWindowBand();
+  const { band } = useContentViewport();
   return editorialSupportCapacity(band);
 }
 
@@ -131,7 +134,9 @@ export function useEditorialSupport() {
  *   children       — o corpo de leitura, sempre dentro de `ContentContainer`
  *   support        — conteúdo da região de apoio; sem ele, região nenhuma aparece
  *   supportStyle   — estilo da região de apoio (a tela decide o que ela é)
- *   availableWidth — espaço real quando a tela já o conhece; sem ele, vale a janela
+ *   availableWidth — espaço real quando a tela já o conhece; sem ele, vale a REGIÃO em que o arquétipo vive
+ *                    (`F6.2`: a região, nunca a janela — onde há barra lateral
+ *                    entre a tela e a borda, as duas divergem)
  */
 export default function EditorialSurface({
   children,
@@ -141,7 +146,7 @@ export default function EditorialSurface({
   availableWidth,
   ...rest
 }) {
-  const { band, width } = useWindowBand();
+  const { band, width } = useContentViewport();
   const largura = Number.isFinite(availableWidth) ? availableWidth : width;
   const layout = editorialLayout({ band, availableWidth: largura, hasSupport: support != null });
 

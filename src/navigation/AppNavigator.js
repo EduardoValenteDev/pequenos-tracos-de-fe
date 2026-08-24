@@ -82,6 +82,9 @@ import PackSandboxDevScreen from '../screens/PackSandboxDevScreen';
 // M1 — gate único das ferramentas internas (Administração dev): rotas internas só sob ele.
 import { isInternalToolsEnabled } from '../config/internalTools';
 import { useWindowBand, BANDS } from '../hooks/useWindowBand';
+// [F6.2] A REGIÃO entregue à cena, publicada UMA vez pelo shell. Ver
+// `ContentViewportContext.js`: `WINDOW VIEWPORT ≠ CONTENT VIEWPORT`.
+import ContentViewportProvider from '../context/ContentViewportContext';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -323,6 +326,18 @@ function MainTabs() {
     <View style={{ flex: 1 }}>
     <Tab.Navigator
       tabBar={isTablet ? (props) => <TabletSidebarTabBar {...props} /> : undefined}
+      /* [F6.2 · FUNDAÇÃO] A cena de TODA aba nasce dentro do provedor de região.
+         Este é o ponto exato em que a barra lateral já consumiu o espaço dela por
+         flex (`tabBarPosition: 'left'` → `flexDirection: 'row'`) e o restante
+         pertence à tela: medir aqui é medir o que a tela de fato recebeu.
+
+         É `screenLayout` — não um `HOC` por aba — porque o contrato é do SHELL,
+         não de cada destino: uma sexta aba nasceria dentro dele sem que ninguém
+         precise lembrar. E é só nas ABAS: telas de `Stack` ocupam a janela
+         inteira, e para elas a janela CONTINUA sendo a resposta certa. */
+      screenLayout={({ children }) => (
+        <ContentViewportProvider>{children}</ContentViewportProvider>
+      )}
       screenOptions={{
         headerShown: false,
         // A sidebar fica à ESQUERDA; no celular a barra continua embaixo.

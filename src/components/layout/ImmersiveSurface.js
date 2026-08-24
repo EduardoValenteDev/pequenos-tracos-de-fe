@@ -1,6 +1,9 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useWindowBand, BANDS } from '../../hooks/useWindowBand';
+import { BANDS } from '../../hooks/useWindowBand';
+// [F6.2] Ver `HubSurface`: a obra ocupa a REGIÃO entregue à tela. Numa aba com barra
+// lateral, projetar pela janela colocaria parte da obra debaixo da navegação.
+import { useContentViewport } from '../../context/ContentViewportContext';
 import { useViewportProjection } from '../../hooks/useViewportProjection';
 
 /**
@@ -57,7 +60,9 @@ export function immersiveComposition({ band }) {
  * Props:
  *   children        — nó, ou função que recebe a composição + a projeção
  *   logicalSize     — espaço lógico da obra (`{width,height}`); sem ele não há projeção
- *   availableWidth  — espaço real; sem ele, vale a janela (idioma das outras famílias)
+ *   availableWidth  — espaço real; sem ele, vale a REGIÃO em que o arquétipo vive
+ *                    (`F6.2`: a região, nunca a janela — onde há barra lateral
+ *                    entre a tela e a borda, as duas divergem)
  *   availableHeight — idem
  */
 export default function ImmersiveSurface({
@@ -68,7 +73,7 @@ export default function ImmersiveSurface({
   style,
   ...rest
 }) {
-  const { band, width, height } = useWindowBand();
+  const { band, width, height } = useContentViewport();
   const composicao = immersiveComposition({ band });
 
   // A conta de caber a obra NÃO acontece aqui — acontece no dono dela. Sem

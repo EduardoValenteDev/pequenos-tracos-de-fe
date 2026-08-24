@@ -23552,19 +23552,35 @@ try {
      *
      * O par faixa→token é conferido ORDENADAMENTE de propósito: trocar `EXPANDED`
      * por `MEDIUM` manteria todos os símbolos presentes e passaria num teste de
-     * mera existência. É exatamente esse falso verde que a ordem impede. */
+     * mera existência. É exatamente esse falso verde que a ordem impede.
+     *
+     * [`F6.2`] REAPONTADA DE NOVO — e ESTREITADA, não relaxada. O MECANISMO mudou
+     * uma segunda vez: a faixa deixou de ser lida da JANELA e passou a ser lida da
+     * REGIÃO onde a coluna vive (`useContentViewport`). A intenção de `A0.3` segue
+     * inteira — dimensão reativa, política de fonte canônica, `maxContentWidth` por
+     * *token*, zero `Dimensions.get`, fluidez `100%` — e o portão GANHOU um dente
+     * que não tinha: `useWindowBand()` chamado DIRETO aqui passa a ser falha. Era
+     * por essa porta que a coluna de leitura, dentro de uma aba com barra lateral,
+     * se dimensionava por um espaço que ninguém lhe entregou.
+     *
+     * A cadeia continua sem origem nova: `useContentViewport` deriva a faixa por
+     * `bandForWidth`, o mesmo e único tradutor de medida em política, que por sua
+     * vez lê `tokens.breakpoints`. E `TA-6-FAIXAS [4/4]` continua obrigando o hook
+     * de janela a usar `useWindowDimensions` — a reatividade não perdeu dono. */
     const ccCode = codeOf('src/components/ui/ContentContainer.js');
 
     check(
-      'A0.3: ContentContainer decide por FAIXA (`useWindowBand` + `BANDS`), mapeando EXPANDED→tabletL · MEDIUM→tablet · compacta→phone',
+      'A0.3 (`F6.2`, reapontada): ContentContainer decide por FAIXA da REGIÃO (`useContentViewport` + `BANDS`), mapeando EXPANDED→tabletL · MEDIUM→tablet · compacta→phone — e nunca pela janela',
       ccSrc.length > 0 &&
-      /import\s*\{[^}]*\buseWindowBand\b[^}]*\bBANDS\b[^}]*\}\s*from\s*'\.\.\/\.\.\/hooks\/useWindowBand'/.test(ccCode) &&
-      /useWindowBand\(\)/.test(ccCode) &&
+      /import\s*\{[^}]*\bBANDS\b[^}]*\}\s*from\s*'\.\.\/\.\.\/hooks\/useWindowBand'/.test(ccCode) &&
+      /import\s*\{[^}]*\buseContentViewport\b[^}]*\}\s*from\s*'\.\.\/\.\.\/context\/ContentViewportContext'/.test(ccCode) &&
+      /useContentViewport\(\)/.test(ccCode) &&
+      !/\buseWindowBand\s*\(/.test(ccCode) &&
       /band\s*===\s*BANDS\.EXPANDED\s*\?\s*maxContentWidth\.tabletL[\s\S]*?band\s*===\s*BANDS\.MEDIUM\s*\?\s*maxContentWidth\.tablet\b[\s\S]*?maxContentWidth\.phone/.test(ccCode) &&
       !/breakpoints\s*\.\s*tabletL?\b/.test(ccCode) &&
       /import\s*\{[^}]*maxContentWidth[^}]*\}\s*from\s*'\.\.\/\.\.\/theme\/tokens'/.test(ccCode) &&
       /maxWidth/.test(ccSrc) && /alignSelf:\s*'center'/.test(ccSrc),
-      'ContentContainer ausente, não consome `useWindowBand`/`BANDS`, inverteu o mapeamento faixa→token, deixou de ler `maxContentWidth` do token, ou voltou a comparar largura contra `breakpoints` localmente',
+      'ContentContainer ausente, não consome `useContentViewport`/`BANDS`, VOLTOU a decidir pela JANELA (`useWindowBand()` direto), inverteu o mapeamento faixa→token, deixou de ler `maxContentWidth` do token, ou voltou a comparar largura contra `breakpoints` localmente',
     );
     check(
       'A0.3: ContentContainer é FLUIDO (width 100%) e centraliza por token — sem largura fixa de tela',
@@ -53201,17 +53217,32 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
      * `G-RSP-1`/`G-RSP-3`/`G-RSP-7` já varrem `src/` inteiro; esta asserção é a
      * constitutiva DOS ARQUÉTIPOS: eles são exatamente o lugar onde a tentação de
      * reintroduzir um corte local é maior, porque é onde a composição é decidida.
-     * A faixa entra por `useWindowBand` — nunca por medida crua nem por literal. */
+     * A faixa entra pelo referencial de CONTEÚDO — nunca por medida crua nem por
+     * literal.
+     *
+     * [`F6.2`] REAPONTADA E ESTREITADA. Antes esta cláusula exigia `useWindowBand`;
+     * agora exige `useContentViewport` E PROÍBE `useWindowBand` nos quatro. A troca
+     * não afrouxa nada — as três proibições originais (`breakpoints` próprio,
+     * literal de largura, medida crua) continuam idênticas, e nasce uma quarta.
+     * Motivo: o fallback `Number.isFinite(availableWidth) ? availableWidth : width`
+     * é legítimo, mas o `width` dele precisa ser a REGIÃO. Lido da janela, ele
+     * incluía a barra lateral — a causa provada em `F6.2`, e a mesma que `G-RSP-8`
+     * só conseguia cobrir tela a tela. */
     const ARQ_LITERAL = /(?:[A-Za-z_$][\w$]*\.)?\b\w*[Ww]idth\s*[<>]=?\s*\d{2,}\b|\b\d{2,}\s*[<>]=?\s*(?:[A-Za-z_$][\w$]*\.)?\w*[Ww]idth\b/;
     const c04ComBreakpoint = FAMILIAS.filter((chave) => /\bbreakpoints\b/.test(arqCodigo(chave)));
     const c04ComLiteral = FAMILIAS.filter((chave) => ARQ_LITERAL.test(arqCodigo(chave)));
     const c04ComMedidaCrua = FAMILIAS.filter((chave) => /\bDimensions\s*\.\s*get\s*\(|\buseWindowDimensions\b/.test(arqCodigo(chave)));
-    const c04SemHook = FAMILIAS.filter((chave) => !/\buseWindowBand\b/.test(arqCodigo(chave)));
+    const c04SemHook = FAMILIAS.filter((chave) => !/\buseContentViewport\b/.test(arqCodigo(chave)));
+    const c04PelaJanela = FAMILIAS.filter((chave) => /\buseWindowBand\s*\(/.test(arqCodigo(chave)));
+    /* A CHAMADA, não o caminho do import: `BANDS` continua morando em
+     * `useWindowBand.js` e ser importado de lá é o idioma correto — o que morre
+     * aqui é o arquétipo VOLTAR a perguntar a largura à janela. */
 
     check(
-      'TA-14 [9/21]: os quatro arquétipos leem faixa só por `useWindowBand` — zero `breakpoints` próprio, zero comparação de largura contra literal, zero `Dimensions.get`/`useWindowDimensions` paralelo',
-      c04ComBreakpoint.length === 0 && c04ComLiteral.length === 0 && c04ComMedidaCrua.length === 0 && c04SemHook.length === 0,
-      `com \`breakpoints\`: ${c04ComBreakpoint.join(' · ') || '(nenhum)'} · com literal de largura: ${c04ComLiteral.join(' · ') || '(nenhum)'} · com medida crua: ${c04ComMedidaCrua.join(' · ') || '(nenhum)'} · sem \`useWindowBand\`: ${c04SemHook.join(' · ') || '(nenhum)'}`,
+      'TA-14 [9/21] (`F6.2`, reapontada): os quatro arquétipos leem faixa e largura só pelo referencial de CONTEÚDO (`useContentViewport`) — zero `useWindowBand` direto, zero `breakpoints` próprio, zero comparação de largura contra literal, zero `Dimensions.get`/`useWindowDimensions` paralelo',
+      c04ComBreakpoint.length === 0 && c04ComLiteral.length === 0 && c04ComMedidaCrua.length === 0
+      && c04SemHook.length === 0 && c04PelaJanela.length === 0,
+      `com \`breakpoints\`: ${c04ComBreakpoint.join(' · ') || '(nenhum)'} · com literal de largura: ${c04ComLiteral.join(' · ') || '(nenhum)'} · com medida crua: ${c04ComMedidaCrua.join(' · ') || '(nenhum)'} · sem \`useContentViewport\`: ${c04SemHook.join(' · ') || '(nenhum)'} · compondo pela JANELA: ${c04PelaJanela.join(' · ') || '(nenhum)'}`,
     );
 
     /* ── [10] A coluna editorial pertence a UMA família só ──
@@ -54876,6 +54907,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       'src/components/layout/SafeScreenHeader.js',
       'src/components/layout/displayType.js',
       'src/hooks/useWindowBand.js',
+      // [F6.2] O referencial de CONTEÚDO é módulo de geometria como os outros: entra
+      // na varredura para que não possa fundar *design system* paralelo (`G-RSP-4`)
+      // nem virar porta dos fundos de navegação (`CN-12`).
+      'src/context/ContentViewportContext.js',
       SIDEBAR_REL,
       NAV_REL,
     ];
@@ -55593,6 +55628,247 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       '`G-OVL-1` (`F6-SG-C`, **novo**): a cena da Ovelhinha tem saída da capa técnica que NÃO depende de um `onError` — expiração por rodada no reducer puro, com geração de recarga própria, e que se recusa a agir sobre rodada antiga, cena pronta, cena revelada ou erro já declarado',
       e1.length === 0,
       e1.join(' · '),
+    );
+  }
+
+  /* ═════════════════════════════════════════════════════════════════════════
+   * Fase 6 · `F6.2` — `G-CVP-1`: WINDOW VIEWPORT ≠ CONTENT VIEWPORT
+   *
+   * A causa provada em `F6.2` não foi "uma tela errada". Foi um REFERENCIAL errado:
+   * telas e arquétipos recebiam a largura da JANELA onde deveriam receber a largura
+   * da REGIÃO que a navegação lhes deixou. Num telefone os dois números coincidem, e
+   * por isso o defeito atravessou a Fase 6 inteira sem aparecer. Onde existe trilho
+   * lateral eles divergem — às vezes em magnitude, às vezes em FAIXA.
+   *
+   * O que este portão cobra, e que nenhum portão anterior cobrava:
+   *   · a região é MEDIDA, nunca aritmética — subtrair a barra lateral seria
+   *     reabrir `G-SID-3` e recriar exatamente o número mágico que a ordem proíbe;
+   *   · a medida só vale para a janela em que foi tirada (a mesma política de
+   *     carimbo de `G-RSP-9`), porque girar produz um quadro em que a janela já
+   *     mudou e a medida ainda descreve a orientação anterior;
+   *   · FORA de um provedor — telas de `Stack`, modais — a janela CONTINUA sendo a
+   *     resposta certa. O contrato não pode devolver vazio lá;
+   *   · o provedor é montado UMA vez, pelo shell, no `screenLayout` do navegador de
+   *     abas: é o ponto em que o trilho já consumiu o espaço dele por flex. Uma
+   *     sexta aba nasce dentro do contrato sem que ninguém precise lembrar;
+   *   · este módulo NÃO é um segundo dono de `safeInsets` — quem aplica inset
+   *     continua sendo `AppScreen`, e um segundo dono seria `P-30` de novo.
+   *
+   * A bateria de produto é o dente: ela reproduz, com a composição REAL do Hub e
+   * os números que a própria tela de Estrelinhas declara, um cartão ABAIXO do piso
+   * de legibilidade que aquela tela exigiu — e mostra a fundação devolvendo-o.
+   * ════════════════════════════════════════════════════════════════════════ */
+  {
+    console.log('\n── Fase 6 · F6.2: portão G-CVP-1 (viewport de conteúdo) ──');
+
+    const CVP = require('./testing/contentViewportHarness');
+    const CVP_MOD = 'src/context/ContentViewportContext.js';
+    const CVP_NAV = 'src/navigation/AppNavigator.js';
+    const cvpModRaw = readSrc(CVP_MOD);
+    const cvpModCode = codeOf(CVP_MOD);
+    const cvpNavCode = codeOf(CVP_NAV);
+
+    const cvp = [];
+
+    /* ── A · o carimbo: a medida só vale para a janela em que foi tirada ── */
+    const cvpA = CVP.executarCarimbo();
+    if (cvpA.ausente) {
+      cvp.push(`(A) a região pura do contrato não carrega: ${cvpA.erro}`);
+    } else {
+      cvpA.linhas.filter((l) => !l.ok).forEach((l) => {
+        cvp.push(`(A) ${l.nome} — esperado ${JSON.stringify(l.esperado)}, obtido ${JSON.stringify(l.obtido)}`);
+      });
+    }
+
+    /* ── B · a faixa publicada é a da REGIÃO ── */
+    const cvpB = CVP.executarReferenciais();
+    if (cvpB.ausente) {
+      cvp.push(`(B) referenciais não avaliados: ${cvpB.erro}`);
+    } else {
+      cvpB.linhas.filter((l) => !l.ok).forEach((l) => {
+        cvp.push(`(B) ${l.nome} — publicou faixa ${l.publicada}, a da região é ${l.faixaRegiao}`);
+      });
+      /* Sem ao menos um caso em que os dois referenciais discordam de FAIXA, a
+       * bateria passaria mesmo se o contrato lesse a janela: a tabela precisa
+       * conter o defeito, não só o caso confortável. */
+      if (cvpB.divergentes < 2) {
+        cvp.push(`(B) a tabela perdeu as zonas de divergência de faixa (${cvpB.divergentes}) — sem elas o portão não distingue janela de região`);
+      }
+    }
+
+    /* ── C · a consequência de produto, com a composição REAL ── */
+    const cvpC = CVP.executarProduto();
+    if (cvpC.ausente) {
+      cvp.push(`(C) bateria de produto indisponível: ${cvpC.erro}`);
+    } else {
+      if (!cvpC.reproduzDefeito) {
+        cvp.push(`(C) o defeito deixou de ser reproduzível: compor pela janela (${cvpC.peloDefeito.largura}) deu ${cvpC.peloDefeito.colunas} coluna(s) e célula ${cvpC.peloDefeito.celula} — sem cair abaixo do piso ${cvpC.piso}. Reveja a âncora antes de seguir: um portão que não reproduz o defeito não prova a cura`);
+      }
+      if (!cvpC.cura) {
+        cvp.push(`(C) a fundação não cura: pela região (${cvpC.resolvido}) saiu ${cvpC.pelaFundacao.colunas} coluna(s) com célula ${cvpC.pelaFundacao.celula}, piso ${cvpC.piso}`);
+      }
+    }
+
+    /* ── D · as cláusulas constitutivas, no fonte ── */
+
+    // D1 · zero aritmética de barra lateral: a região vem de `onLayout`, não de conta.
+    if (!/onLayout=\{/.test(cvpModCode)) {
+      cvp.push('(D1) o provedor não mede a região por `onLayout` — sem medida, só restaria subtrair, que é o número mágico proibido');
+    }
+    if (/\b(sidebarWidth|navSidebarWidth|railWidth|SIDEBAR_WIDTH)\b/.test(cvpModCode)) {
+      cvp.push('(D1) o contrato passou a conhecer a largura da barra lateral — `G-SID-3` reaberto e a proibição central de `F6.2` violada');
+    }
+
+    // D2 · dono ÚNICO de insets continua sendo `AppScreen`.
+    if (/useSafeAreaInsets|SafeAreaView|\binsets\b/.test(cvpModCode)) {
+      cvp.push('(D2) o contrato leu ou republicou inset — nasceu um segundo dono de `safeInsets` (`P-30`)');
+    }
+
+    // D3 · nenhuma condição de aparelho, plataforma ou resolução física.
+    if (/Platform|SM-X510|isTablet|Dimensions\.get/.test(cvpModCode)) {
+      cvp.push('(D3) o contrato passou a decidir por aparelho, plataforma ou medida crua — proibição expressa de `F6.2`');
+    }
+
+    // D4 · montado UMA vez, no shell, e só nas ABAS.
+    const montaNoShell = (txt) => /screenLayout=\{/.test(txt)
+      && /<ContentViewportProvider>\{children\}<\/ContentViewportProvider>/.test(txt);
+    if (!montaNoShell(cvpNavCode)) {
+      cvp.push('(D4) o shell deixou de publicar a região pelo `screenLayout` do navegador de abas — o contrato existiria sem quem o monte');
+    }
+    if ((cvpNavCode.match(/<ContentViewportProvider>/g) || []).length !== 1) {
+      cvp.push('(D4) o provedor é montado mais de uma vez (ou nenhuma) no shell — região aninhada mede a si mesma e o dono deixa de ser único');
+    }
+    // Nenhuma TELA monta o próprio provedor: o contrato é do shell.
+    {
+      const donos = [];
+      const varrer = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) return varrer(p);
+        if (!e.name.endsWith('.js')) return;
+        const rel = path.relative(root, p).replace(/\\/g, '/');
+        if (rel === CVP_MOD || rel === CVP_NAV) return;
+        if (/<ContentViewportProvider/.test(fs.readFileSync(p, 'utf8'))) donos.push(rel);
+      });
+      varrer(path.join(root, 'src'));
+      if (donos.length > 0) {
+        cvp.push(`(D4) alguém fora do shell monta o provedor: ${donos.join(' · ')} — o contrato voltaria a ser tela a tela`);
+      }
+    }
+
+    // D5 · os cinco consumidores leem o referencial de CONTEÚDO, e nenhum a janela.
+    {
+      const CONSUMIDORES = [
+        'src/components/ui/ContentContainer.js',
+        'src/components/layout/HubSurface.js',
+        'src/components/layout/EditorialSurface.js',
+        'src/components/layout/ImmersiveSurface.js',
+        'src/components/layout/GameSurface.js',
+      ];
+      const semContrato = CONSUMIDORES.filter((f) => !/\buseContentViewport\s*\(/.test(codeOf(f)));
+      const pelaJanela = CONSUMIDORES.filter((f) => /\buseWindowBand\s*\(/.test(codeOf(f)));
+      if (semContrato.length > 0) {
+        cvp.push(`(D5) consumidor sem o referencial de conteúdo: ${semContrato.join(' · ')}`);
+      }
+      if (pelaJanela.length > 0) {
+        cvp.push(`(D5) consumidor voltou a compor pela JANELA: ${pelaJanela.join(' · ')} — é a causa de \`F6.2\` renascendo`);
+      }
+    }
+
+    // D6 · o shell continua sendo dono da JANELA: ele é quem decide o modo de
+    // navegação, e isso NÃO é uma violação — é a assimetria correta.
+    if (!/\buseWindowBand\s*\(/.test(cvpNavCode)) {
+      cvp.push('(D6) o shell deixou de ler a janela — quem decide o modo de navegação precisa da janela, e só ele');
+    }
+
+    // D7 · a marca de procedência, para que a origem da regra não se perca.
+    if (!cvpModRaw.includes('WINDOW VIEWPORT ≠ CONTENT VIEWPORT')) {
+      cvp.push('(D7) a marca `WINDOW VIEWPORT ≠ CONTENT VIEWPORT` sumiu do fonte — a razão do módulo deixou de estar escrita nele');
+    }
+
+    /* ── MUTANTES · seis regressões NOMEADAS, uma por cláusula que importa ──
+     * Cada um reescreve a política REAL e exige que a bateria correspondente caia.
+     * Mutante sobrevivente = cláusula decorativa. */
+    const MUTANTES = [
+      {
+        id: 'MT-CVP-1',
+        nome: 'a medida volta a valer para QUALQUER janela (carimbo removido)',
+        de: 'const vale = daJanela && real;',
+        para: 'const vale = real;',
+        bateria: 'carimbo',
+      },
+      {
+        id: 'MT-CVP-2',
+        nome: 'a faixa volta a ser a da JANELA',
+        de: 'band: bandForWidth(width),',
+        para: 'band: bandForWidth(janelaW),',
+        bateria: 'referenciais',
+      },
+      {
+        id: 'MT-CVP-3',
+        nome: 'região degenerada (0) passa a ser aceita como medida boa',
+        de: '&& Number.isFinite(measure.width) && measure.width > 0',
+        para: '&& Number.isFinite(measure.width)',
+        bateria: 'carimbo',
+      },
+      {
+        id: 'MT-CVP-4',
+        nome: 'o consumidor perde o sinal de procedência (`measured` sempre verdadeiro)',
+        de: 'measured: vale,',
+        para: 'measured: true,',
+        bateria: 'carimbo',
+      },
+      {
+        id: 'MT-CVP-5',
+        nome: 'fora do provedor a janela deixa de ser a resposta (telas de `Stack` sem viewport)',
+        de: 'const width = vale ? measure.width : janelaW;',
+        para: 'const width = vale ? measure.width : 0;',
+        bateria: 'carimbo',
+      },
+      {
+        id: 'MT-CVP-6',
+        nome: 'a largura entregue volta a ser a da janela inteira',
+        de: 'const width = vale ? measure.width : janelaW;',
+        para: 'const width = janelaW;',
+        bateria: 'produto',
+      },
+    ];
+
+    MUTANTES.forEach((mt) => {
+      if (!cvpModRaw.includes(mt.de)) {
+        cvp.push(`(MUT) ${mt.id} perdeu a âncora \`${mt.de}\` — mutante que não muta nada não prova nada`);
+        return;
+      }
+      const mutar = (src) => src.replace(mt.de, mt.para);
+      let morreu = false;
+      try {
+        if (mt.bateria === 'carimbo') {
+          const r = CVP.executarCarimbo(mutar);
+          morreu = r.ausente || r.linhas.some((l) => !l.ok);
+        } else if (mt.bateria === 'referenciais') {
+          const r = CVP.executarReferenciais(mutar);
+          morreu = r.ausente || r.linhas.some((l) => !l.ok);
+        } else {
+          const r = CVP.executarProduto(mutar);
+          morreu = r.ausente || !r.cura;
+        }
+      } catch (e) {
+        morreu = true; // explodir também é morrer
+      }
+      if (!morreu) {
+        cvp.push(`(MUT) ${mt.id} sobreviveu — ${mt.nome}`);
+      }
+    });
+
+    // O sétimo: textual, sobre o PONTO DE MONTAGEM. Não cabe em `mutate` porque
+    // o defeito não está na política — está em ninguém publicá-la.
+    if (montaNoShell(cvpNavCode.replace('screenLayout={', 'screenLayoutRemovido={'))) {
+      cvp.push('(MUT) MT-CVP-7 sobreviveu — o portão aceita um shell que não monta o provedor');
+    }
+
+    check(
+      '`G-CVP-1` (`F6.2`, **novo**): WINDOW VIEWPORT ≠ CONTENT VIEWPORT — a região é MEDIDA (nunca subtraída), só vale para a janela em que foi tirada, publica a faixa da REGIÃO, cai na janela fora do provedor, é montada UMA vez pelo shell, não é segundo dono de inset — e devolve à Estrelinhas um cartão acima do piso que a própria tela exigiu',
+      cvp.length === 0,
+      cvp.join(' · '),
     );
   }
 
