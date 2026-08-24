@@ -29,6 +29,11 @@ Este índice classifica a documentação do projeto. Em caso de conflito, vale s
   — artefato do bloco **`F6.1`** (2026-08-24): declara a **linha canônica** após prova de
   convergência, registra a absorção do ícone, o crosswalk de riscos, o inventário de builds e o
   reconhecimento da orientação iOS.
+- **[roadmap/F6_2_FUNDACAO_DE_GEOMETRIA_PORTRAIT.md](roadmap/F6_2_FUNDACAO_DE_GEOMETRIA_PORTRAIT.md)**
+  — artefato do bloco **`F6.2`** (2026-08-24): prova que **WINDOW VIEWPORT ≠ CONTENT VIEWPORT**,
+  registra o mapa causal da geometria, a causa raiz, o contrato de área útil publicado pelo shell,
+  o raio de correção por tela, a matriz responsível em retrato e o roteiro de prova física.
+  **Prova física pendente.**
 - **[launch/RECONCILIACAO_E1.md](launch/RECONCILIACAO_E1.md)** — reconciliação da governança
   (E1, 2026-07-15): precedência, decisões consolidadas, superadas e pendentes.
 
