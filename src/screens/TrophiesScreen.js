@@ -247,7 +247,27 @@ export default function TrophiesScreen({ navigation, route }) {
   // cabem numa linha deixou de ser resposta de "é tablet?" e passou a ser composição
   // do inventário do álbum com a largura real. Em 1180dp a grade abre a terceira
   // coluna (PLAN §18) em vez de manter duas metades de 560.
-  const { columns } = useHubComposition({ itemCount: total, minItemWidth: HUB_MIN_CARD, gap: HUB_GAP });
+  // [F6.2R · `G-RSP-8`] Estrelinhas passa a MEDIR a própria grade, como Início e
+  // Brincar já faziam. A latência era conhecida e estava registrada como dívida da
+  // fase dona; `F6.2R` a paga aqui porque ela não é defeito de Estrelinhas, e sim a
+  // MESMA classe que o resto do bloco corrige: compor por uma largura e desenhar em
+  // outra. A região é o espaço da tela; a GRADE é a região menos o recuo de página
+  // que esta tela declara — e é na grade que o cartão nasce. Perguntar a densidade
+  // pela região abria uma coluna a mais em janelas estreitas o bastante para que a
+  // diferença de 32dp virasse célula abaixo do piso declarado logo acima (a condição
+  // exata está no artefato do bloco). A tela não subtrai barra nenhuma: ela mede.
+  const [gradeW, setGradeW] = useState(0);
+  const onGradeLayout = useCallback((e) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    setGradeW((prev) => (prev === w ? prev : w));
+  }, []);
+
+  const { columns } = useHubComposition({
+    itemCount: total,
+    minItemWidth: HUB_MIN_CARD,
+    gap: HUB_GAP,
+    availableWidth: gradeW > 0 ? gradeW : undefined,
+  });
   const emGrade = columns > 1;
 
   const albumSections = ACHIEVEMENT_CATEGORIES
@@ -296,6 +316,10 @@ export default function TrophiesScreen({ navigation, route }) {
         stickySectionHeadersEnabled={false}
         ListHeaderComponent={
           <>
+            {/* Sonda de largura: vive DENTRO do contêiner de conteúdo, então mede a
+                grade real (região menos o recuo de página). Altura zero — não desloca
+                nada e não muda o desenho de coisa alguma. */}
+            <View style={styles.gradeProbe} onLayout={onGradeLayout} />
             {/* ── HERO ── */}
             <LinearGradient
               colors={['#F4EFFF', '#E7DBFF']}
@@ -482,6 +506,7 @@ export default function TrophiesScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: pt.background },
   content: { paddingHorizontal: 16, paddingBottom: 24 },
+  gradeProbe: { height: 0 },
 
   // Hero
   header: {

@@ -176,6 +176,33 @@ export const displayScaleTablet = 1.10;                                         
 export const navSidebarRole = { tablet: 'rail', tabletL: 'full' };              // papel por faixa (sem `phone`: restrição 6)
 export const navSidebarWidth = { rail: 180, full: 240 };                        // largura ESTRUTURAL por papel → TabletSidebar (TK-C-019)
 
+// [Fase 6 · `F6.2R`] FRONTEIRA NAVEGAÇÃO → CONTEÚDO. A `F6.2` provou a distinção
+// `WINDOW VIEWPORT ≠ CONTENT VIEWPORT` e fez a região ser MEDIDA em vez de estimada.
+// O que ela não resolveu — e a validação física do fundador mostrou — é que a região
+// começava no MESMO x em que a barra terminava: entre a borda direita da navegação e o
+// primeiro pixel de conteúdo havia ZERO dp. O único separador era a hairline pintada
+// DENTRO da própria barra (RN é *border-box*), e um card com `marginHorizontal: 16`
+// encostava nela. Reservar a largura da barra por flex é necessário e não é suficiente.
+//
+// Este *token* declara a ÚNICA fronteira compartilhada entre a barra lateral e TODA
+// superfície que coexiste com ela. É GEOMETRIA ESTRUTURAL, não decoração: o viewport de
+// conteúdo nasce DEPOIS dele, de modo que nenhuma tela, jogo ou canvas precise conhecer
+// a navegação para começar no lugar certo.
+//
+// É UM NÚMERO SÓ, E DE PROPÓSITO. A largura da barra varia por papel porque o que a
+// barra MOSTRA varia; a distância até o conteúdo não varia — ela responde à mesma
+// pergunta em toda faixa que tem barra ("onde a navegação acaba e a página começa").
+// Uma tabela por faixa aqui seria três números para um contrato único. A ausência de
+// variação é o contrato, como a ausência da chave `phone` é o contrato acima.
+//
+// DISTÂNCIA EFETIVA, SEM DUPLA SOMA: `24` é o que separa a borda VISÍVEL da barra do
+// início da superfície útil — não se soma a nenhum outro recuo estrutural, porque
+// nenhum outro existe nesse ponto (o recuo interno que cada tela já tem é paginação
+// dela, dentro do viewport, e continua sendo dela). Vale só onde HÁ barra lateral: no
+// telefone a navegação é a barra inferior e a fronteira lateral não existe — quem
+// traduz faixa em "tem barra?" é o consumidor nomeado, `NavigationContentHost`.
+export const navContentGap = 24;                                                // dp → NavigationContentHost (F6.2R)
+
 // Agregador conveniente (uso opcional: `import tokens from '../theme/tokens'`).
 export const tokens = {
   color,
@@ -195,6 +222,7 @@ export const tokens = {
   displayScaleTablet,
   navSidebarRole,
   navSidebarWidth,
+  navContentGap,
 };
 
 export default tokens;

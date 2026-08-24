@@ -54299,24 +54299,35 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
    * janela inteira — que na aba inclui a barra lateral.
    *
    * O caso é objetivo e físico, não hipotético: SM-X510 em paisagem publica
-   * `1317dp` de janela, e a região de conteúdo da aba mede `1077dp`. Pelo número
-   * errado a grade abre TRÊS colunas; a célula resultante fica em ~348dp, abaixo
-   * do piso de `420dp` que a própria tela declara. Pelo número certo abre DUAS,
-   * com célula de ~530dp.
+   * `1317dp` de janela, e a região de conteúdo da aba mede `1053dp` (a janela
+   * menos a barra de `240dp` e menos a fronteira de navegação de `F6.2R`). Pelo
+   * número errado a grade abre TRÊS colunas; a célula resultante fica em ~340dp,
+   * abaixo do piso de `420dp` que a própria tela declara. Pelo número certo abre
+   * DUAS, com célula de ~519dp.
    *
-   * Duas telas de aba entram: Início e Brincar. `TrophiesScreen` (Estrelinhas)
-   * carrega a MESMA latência e fica de fora POR DECISÃO — `PASS_NO_CHANGE` no
-   * artefato 88 §11, com a correção pertencendo à fase dona (F11). Registrar a
-   * ausência aqui é o que impede que ela seja lida como esquecimento. */
+   * TRÊS telas de aba entram: Início, Brincar e Estrelinhas. As duas primeiras
+   * foram corrigidas em `F6-SG-C`; `TrophiesScreen` carregava a MESMA latência e
+   * ficou de fora POR DECISÃO — `PASS_NO_CHANGE` no artefato 88 §11, com a
+   * correção adiada para a fase dona (F11). `F6.2R` pagou essa dívida em vez de
+   * transferi-la: a tela mede a própria grade e entrega a largura ao arquétipo,
+   * e é por isso que ela entra na lista abaixo. A dívida registrada some daqui
+   * porque foi QUITADA, não porque foi esquecida.
+   *
+   * A forma da entrega difere entre elas, e o portão aceita as duas: Início e
+   * Brincar passam `availableWidth` como PROPRIEDADE de componente; Estrelinhas
+   * passa como CAMPO do objeto que entrega ao `useHubComposition`. Exigir só a
+   * forma JSX seria exigir um idioma, não o contrato. */
   {
     console.log('\n── Fase 6 · F6-SG-C · CAUSA A1: portão G-RSP-8 ──');
     const arnesA1 = require('./testing/surfaceArchetypeHarness');
 
-    const G8_TELAS_DE_ABA = ['src/screens/HomeScreen.js', 'src/screens/BrincarScreen.js'];
+    const G8_TELAS_DE_ABA = [
+      'src/screens/HomeScreen.js', 'src/screens/BrincarScreen.js', 'src/screens/TrophiesScreen.js',
+    ];
     const G8_MIN = 420;
     const G8_GAP = 16;
     const G8_JANELA = 1317;
-    const G8_CONTEUDO = 1077;
+    const G8_CONTEUDO = 1053;
     const g8 = [];
 
     const g8Hub = arnesA1.carregarArquetipo('hub');
@@ -54344,7 +54355,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     G8_TELAS_DE_ABA.forEach((rel) => {
       if (!srcExists(rel)) { g8.push(`${rel} → ausente`); return; }
       const codigo = codeOf(rel);
-      if (!/\bavailableWidth\s*=\s*\{/.test(codigo)) {
+      if (!/\bavailableWidth\s*(?:=\s*\{|:)/.test(codigo)) {
         g8.push(`${rel} → compõe sem entregar \`availableWidth\` ao arquétipo: a grade cai na janela inteira, barra lateral incluída`);
       }
       if (!/\bonLayout\s*=\s*\{/.test(codigo)) {
@@ -54911,6 +54922,10 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       // na varredura para que não possa fundar *design system* paralelo (`G-RSP-4`)
       // nem virar porta dos fundos de navegação (`CN-12`).
       'src/context/ContentViewportContext.js',
+      // [F6.2R] A fronteira NAVEGAÇÃO → CONTEÚDO entra pela mesma razão: ela publica
+      // uma grandeza de geometria e, se pudesse declarar tabela própria por faixa,
+      // seria o começo do *design system* paralelo que `RG-3` descreve.
+      'src/components/layout/NavigationContentHost.js',
       SIDEBAR_REL,
       NAV_REL,
     ];
@@ -55869,6 +55884,322 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       '`G-CVP-1` (`F6.2`, **novo**): WINDOW VIEWPORT ≠ CONTENT VIEWPORT — a região é MEDIDA (nunca subtraída), só vale para a janela em que foi tirada, publica a faixa da REGIÃO, cai na janela fora do provedor, é montada UMA vez pelo shell, não é segundo dono de inset — e devolve à Estrelinhas um cartão acima do piso que a própria tela exigiu',
       cvp.length === 0,
       cvp.join(' · '),
+    );
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * Fase 6 · `F6.2R` — `G-GAP-1`: a FRONTEIRA entre a NAVEGAÇÃO e o CONTEÚDO
+   *
+   * `G-CVP-1` provou a metade difícil: a região é medida, carimbada e publicada.
+   * A validação física provou que faltava a metade óbvia. A região começava no
+   * MESMO x em que a barra terminava — zero dp entre a navegação e a primeira
+   * coisa que a criança vê. O único separador era a hairline pintada DENTRO da
+   * barra, porque RN é *border-box*: ela não empurra nada, só sublinha o encosto.
+   *
+   * O contrato que este portão cobra é uma cadeia, e vale para TODA superfície
+   * que coexista com a barra — sem exceção por tela, por arquétipo ou por jogo:
+   *
+   *     `SIDEBAR → NAVIGATION CONTENT GAP → CONTENT VIEWPORT → SCREEN`
+   *
+   * O que ele cobra, e que nenhum portão anterior cobrava:
+   *   · a fronteira existe EXATAMENTE onde existe barra lateral, e some onde ela
+   *     some — o telefone não ganha recuo lateral nenhum (`A1`/`A3`);
+   *   · ela vale UM número, não uma tabela por faixa: tabela por faixa é a porta
+   *     por onde entra a tabela por aparelho, que a ordem proíbe (`A2`);
+   *   · ela é aplicada ANTES da medição, e é isso que faz o conserto ser único:
+   *     o viewport publicado já NASCE descontado, e nenhum filho — arquétipo,
+   *     `ContentContainer`, jogo ou canvas — precisa lembrar de subtrair `G`
+   *     (`B1`/`B2`). Aplicá-la dentro do provedor passaria em qualquer teste de
+   *     forma e recriaria a arquitetura que `F6.2` derrubou;
+   *   · a área jogável cabe DENTRO da região, e cabe pela geometria REAL do jogo
+   *     — não por coordenada deslocada, não por sprite movido (`C`);
+   *   · a dívida de `G-RSP-8` em Estrelinhas foi QUITADA, não transferida: a
+   *     varredura dp a dp não encontra mais janela em que o cartão nasça abaixo
+   *     do piso que a própria tela exige (`D`). O intervalo exato que o relatório
+   *     anterior descreveu de forma contraditória está calculado, não estimado;
+   *   · o dono é ÚNICO e é o shell: um `NavigationContentHost` no `screenLayout`,
+   *     um token, nenhum `paddingLeft` de tela (`E4`/`E5`);
+   *   · nenhuma tela de aba volta a compor pela JANELA sem medir nada (`E6`) —
+   *     é o lacre estrutural que faz uma SEXTA aba nascer dentro do contrato.
+   *
+   * O que ele deliberadamente NÃO cobra: área segura (dona é `AppScreen`) e
+   * largura de barra dentro de tela (`G-SID-3` já fecha). Um segundo dono para
+   * qualquer das duas seria `P-30` outra vez.
+   * ════════════════════════════════════════════════════════════════════════ */
+  {
+    console.log('\n── Fase 6 · F6.2R: portão G-GAP-1 (fronteira navegação → conteúdo) ──');
+
+    const NAVGAP = require('./testing/navigationGapHarness');
+    const NG_HOST = 'src/components/layout/NavigationContentHost.js';
+    const NG_NAV = 'src/navigation/AppNavigator.js';
+    const NG_TOKENS = 'src/theme/tokens.js';
+    const NG_TROFEUS = 'src/screens/TrophiesScreen.js';
+    const NG_PERFIL = 'src/screens/ProfileScreen.js';
+
+    const gnav = [];
+
+    if (!srcExists(NG_HOST)) {
+      gnav.push(`(0) \`${NG_HOST}\` não existe — sem dono único, a fronteira volta a ser \`paddingLeft\` de tela`);
+    }
+    const ngHostCode = srcExists(NG_HOST) ? codeOf(NG_HOST) : '';
+    const ngNavCode = codeOf(NG_NAV);
+    const ngTokensRaw = readSrc(NG_TOKENS);
+
+    // A varredura real de `src` — a lista não pode ser escrita à mão, senão uma
+    // tela NOVA nasceria fora do lacre.
+    const ngArquivos = [];
+    (function varrerNg(dirRel) {
+      for (const entrada of fs.readdirSync(path.join(root, dirRel), { withFileTypes: true })) {
+        const rel = `${dirRel}/${entrada.name}`;
+        if (entrada.isDirectory()) varrerNg(rel);
+        else if (entrada.name.endsWith('.js')) ngArquivos.push(rel);
+      }
+    })('src');
+
+    /* ── A · a fronteira acompanha a barra, vale UM número, poupa o telefone ── */
+    const ngA = NAVGAP.executarFronteira();
+    if (ngA.ausente) gnav.push(`(A) a política da fronteira não carrega: ${ngA.erro}`);
+    else ngA.falhas.forEach((f) => gnav.push(`(A) ${f}`));
+
+    /* ── B · o viewport nasce descontado (a ORDEM) ── */
+    const ngB = NAVGAP.executarOrdem();
+    if (ngB.ausente) gnav.push(`(B) a ordem não foi avaliada: ${ngB.erro}`);
+    else ngB.falhas.filter((f) => !f.startsWith('[A')).forEach((f) => gnav.push(`(B) ${f}`));
+
+    /* ── C · a área jogável cabe na região ── */
+    const ngC = NAVGAP.executarJogo();
+    if (ngC.ausente) gnav.push(`(C) a bateria do jogo está indisponível: ${ngC.erro}`);
+    else ngC.falhas.forEach((f) => gnav.push(`(C) ${f}`));
+
+    /* ── D · a residual de Estrelinhas, varrida dp a dp ── */
+    const ngD = NAVGAP.executarEstrelinhas();
+    if (ngD.ausente) gnav.push(`(D) a varredura de Estrelinhas está indisponível: ${ngD.erro}`);
+    else ngD.falhas.forEach((f) => gnav.push(`(D) ${f}`));
+
+    /* ── E · as cláusulas constitutivas, no fonte ── */
+
+    // E1 · zero aritmética de barra: a pergunta à navegação é qualitativa.
+    if (/\b(sidebarWidth|navSidebarWidth|railWidth|SIDEBAR_WIDTH)\b/.test(ngHostCode)) {
+      gnav.push('(E1) a fronteira passou a conhecer a LARGURA da barra — `G-SID-3` reaberto: a barra declara quanto ocupa, nunca quanto sobra');
+    }
+    // E2 · não é segundo dono de área segura.
+    if (/\b(useSafeAreaInsets|SafeAreaView|insets)\b/.test(ngHostCode)) {
+      gnav.push('(E2) a fronteira passou a ler área segura — o dono único continua sendo `AppScreen`, e um segundo dono é `P-30` de novo');
+    }
+    // E3 · nenhuma condicional por aparelho, modelo ou plataforma.
+    if (/\b(Platform|isTablet)\b/.test(ngHostCode) || /Dimensions\s*\.\s*get/.test(ngHostCode) || /SM-?X510/i.test(ngHostCode)) {
+      gnav.push('(E3) a fronteira passou a decidir por aparelho, plataforma ou dimensão de janela — a lista de exceções por device é exatamente o que `F6.2R` existe para não criar');
+    }
+
+    // E4 · montada UMA vez, e pelo shell.
+    const ngMontagens = ngArquivos.filter((rel) => /<NavigationContentHost\b/.test(codeOf(rel)));
+    if (ngMontagens.length !== 1 || ngMontagens[0] !== NG_NAV) {
+      gnav.push(`(E4) a fronteira é montada em [${ngMontagens.join(', ') || 'nenhum arquivo'}] — o contrato exige exatamente uma montagem, no shell (\`${NG_NAV}\`)`);
+    }
+    const ngQuantas = (ngNavCode.match(/<NavigationContentHost\b/g) || []).length;
+    if (ngQuantas !== 1) {
+      gnav.push(`(E4) o shell monta a fronteira ${ngQuantas} vez(es) — duas montagens somariam dois recuos, e a "dupla soma" é o defeito que o contrato proíbe`);
+    }
+
+    // E5 · o token é único, semântico e tem UM leitor.
+    if (!/export const navContentGap\s*=\s*\d+\s*;/.test(ngTokensRaw)) {
+      gnav.push('(E5) `tokens.navContentGap` deixou de ser declarado na fonte única — a fronteira viraria literal solto em cada tela');
+    }
+    const ngLeitores = ngArquivos.filter((rel) => rel !== NG_TOKENS && /\bnavContentGap\b/.test(codeOf(rel)));
+    if (ngLeitores.length !== 1 || ngLeitores[0] !== NG_HOST) {
+      gnav.push(`(E5) \`navContentGap\` é lido por [${ngLeitores.join(', ') || 'ninguém'}] — o único leitor legítimo é a fronteira; qualquer outro é o recuo repetido por tela que a ordem proíbe`);
+    }
+
+    /* E6 · o LACRE ESTRUTURAL: nenhuma tela de aba compõe pela JANELA sem medir.
+     *
+     * O inventário das telas de aba é LIDO da árvore de navegação (`TAB_DEFS` +
+     * os imports do shell), nunca escrito aqui: uma sexta aba entra no lacre
+     * sozinha. E a cláusula é precisa de propósito — ler a ALTURA da janela é
+     * legítimo (a barra lateral divide o eixo horizontal, não o vertical), e o
+     * mapa lê a largura da janela como CARIMBO de uma medida própria, que é o
+     * caminho certo. O defeito é ler a largura da janela e não medir NADA. */
+    const ngTelasDeAba = (() => {
+      const navRaw = readSrc(NG_NAV);
+      const bloco = navRaw.match(/const TAB_DEFS = \[[\s\S]*?\n\];/);
+      if (!bloco) return null;
+      const componentes = Array.from(bloco[0].matchAll(/component:\s*([A-Za-z_$][\w$]*)/g)).map((m) => m[1]);
+      return componentes.map((nome) => {
+        const imp = new RegExp('import\\s+' + nome + "\\s+from\\s+'([^']+)'").exec(navRaw);
+        if (!imp) return null;
+        return `${imp[1].replace(/^\.\.\//, 'src/')}.js`;
+      });
+    })();
+
+    const avaliarTelasDeAba = (codigoDe) => {
+      if (!ngTelasDeAba) return ['`TAB_DEFS` não foi encontrado — o inventário das telas de aba deixou de ser legível'];
+      const problemas = [];
+      ngTelasDeAba.forEach((rel, i) => {
+        if (!rel) { problemas.push(`a ${i + 1}ª aba não pôde ser resolvida a um arquivo`); return; }
+        if (!srcExists(rel)) { problemas.push(`${rel} → ausente`); return; }
+        const codigo = codigoDe(rel);
+        const leLarguraDaJanela = /(?:const|let)\s*\{[^}]*\bwidth\b[^}]*\}\s*=\s*useWindowDimensions\s*\(/.test(codigo)
+          || /Dimensions\s*\.\s*get\s*\(\s*['"]window['"]\s*\)/.test(codigo);
+        const mede = /\bonLayout\s*=\s*\{/.test(codigo) || /\buseContentViewport\s*\(/.test(codigo);
+        if (leLarguraDaJanela && !mede) {
+          problemas.push(`${rel} → compõe pela LARGURA DA JANELA sem medir região alguma: a barra lateral entra na conta e o conteúdo nasce por cima da navegação`);
+        }
+      });
+      return problemas;
+    };
+
+    avaliarTelasDeAba(codeOf).forEach((p) => gnav.push(`(E6) ${p}`));
+
+    /* E7 · NENHUMA tela remenda a navegação por conta própria.
+     *
+     * Esta é a cláusula que torna EXECUTÁVEL a lista de proibições da ordem —
+     * `HomeScreen paddingLeft`, `ParentArea paddingLeft`, `CadeAOvelhinha
+     * marginLeft`, `Dimensions.width - 180 - 24`, offset por aparelho. Todas
+     * têm a mesma assinatura no fonte: uma TELA sabendo quanto a navegação ocupa.
+     *
+     * É também a resposta ao caso da Área dos Responsáveis. Ela hoje é irmã das
+     * abas no `Stack` (barra oculta, região = janela), e por isso NÃO recebe a
+     * fronteira — o que o portão cobra dela não é um recuo, é a AUSÊNCIA de um
+     * recuo próprio: se um dia ela passar a coexistir com a barra, quem lhe dá a
+     * fronteira é o shell, sem uma linha de diferença no arquivo dela. Um
+     * `paddingLeft` privado hoje seria a dívida que impediria isso amanhã. */
+    const NG_TELAS = ngArquivos.filter((rel) => rel.startsWith('src/screens/'));
+    const NG_REMENDO = /\b(navSidebarWidth|sidebarWidth|SIDEBAR_WIDTH|railWidth|navContentGap)\b|from\s+['"][^'"]*(TabletSidebar|NavigationContentHost)['"]/;
+    const avaliarRemendos = (codigoDe) => NG_TELAS
+      .filter((rel) => NG_REMENDO.test(codigoDe(rel)))
+      .map((rel) => `${rel} → a TELA passou a conhecer a navegação (aritmética de barra, token da fronteira ou import do shell) — é o remendo local que a ordem proíbe nome por nome`);
+
+    avaliarRemendos(codeOf).forEach((p) => gnav.push(`(E7) ${p}`));
+
+    /* E8 · FULL-BLEED não é WINDOW-BLEED.
+     *
+     * "Sangrar até a borda" mudou de significado no dia em que a barra passou a
+     * existir: a borda de uma superfície full-bleed é a da REGIÃO, não a da
+     * janela. Preencher a janela sob a barra é o defeito que o fundador viu como
+     * "a barra invade a imagem" — e é indistinguível de estar certo em telefone.
+     *
+     * Duas metades. A primeira é de FONTE, sobre a única superfície full-bleed
+     * que coexiste com a barra: a área da arte vem da MEDIDA, com a janela
+     * entrando só como carimbo e primeiro quadro (contrato de `G-RSP-9`, cujo
+     * dono continua sendo aquele portão — aqui interessa a CONSEQUÊNCIA dele
+     * para a sangria). A segunda é a identidade aritmética que diz onde a
+     * superfície começa e termina: depois da fronteira, e exatamente na borda
+     * direita da janela — nem invadindo a barra, nem deixando faixa morta. */
+    const NG_MAPA = 'src/screens/AdventureMapScreen.js';
+    const avaliarSangria = (codigoDe) => (
+      /janela\s*===\s*width\s*&&\s*contentW\s*>\s*0\s*\?\s*contentW\s*:\s*width/.test(codigoDe(NG_MAPA))
+        ? []
+        : [`${NG_MAPA} → a superfície full-bleed deixou de derivar a área da MEDIDA: sangrar "até a borda" voltaria a significar sangrar POR BAIXO da barra`]
+    );
+
+    avaliarSangria(codeOf).forEach((p) => gnav.push(`(E8) ${p}`));
+
+    (ngA.linhas || []).forEach((l) => {
+      if (l.inicioConteudo + l.regiao !== l.janela) {
+        gnav.push(`(E8) janela ${l.janela}dp: uma superfície que preenche a região ocuparia [${l.inicioConteudo}, ${l.inicioConteudo + l.regiao}] — deveria terminar em ${l.janela}dp`);
+      }
+    });
+
+    /* ── MUTANTES ────────────────────────────────────────────────────────────
+     * Sete defeitos plausíveis. Cada um precisa MATAR alguma bateria; um mutante
+     * que sobrevive é a prova de que o portão não descreve o contrato. */
+    const ngMutantes = [
+      {
+        id: 'MT-GUTTER-1',
+        nome: 'a fronteira é removida — a região volta a encostar na barra',
+        rodar: () => NAVGAP.executarFronteira((src) => src.replace('sidebarRole(band) ? navContentGap : 0', '0')),
+      },
+      {
+        id: 'MT-GUTTER-2',
+        nome: 'a região é medida ANTES da fronteira — cada filho volta a ter de subtrair `G`',
+        rodar: () => NAVGAP.executarOrdem(undefined, undefined,
+          '<ContentViewportProvider>\n  <NavigationContentHost>{children}</NavigationContentHost>\n</ContentViewportProvider>'),
+      },
+      {
+        id: 'MT-GUTTER-3',
+        nome: 'o telefone ganha recuo lateral — regressão no compacto',
+        rodar: () => NAVGAP.executarFronteira((src) => src.replace('sidebarRole(band) ? navContentGap : 0', 'navContentGap')),
+      },
+      {
+        id: 'MT-GUTTER-4',
+        nome: 'a cena de "Cadê a Ovelhinha?" volta a ser dimensionada pela JANELA',
+        rodar: () => NAVGAP.executarJogo((src) => src.replace(
+          'const { width } = useContentViewport()', 'const { width } = useWindowDimensions()')),
+      },
+      {
+        id: 'MT-GUTTER-5',
+        nome: 'a Área dos Responsáveis passa a remendar a fronteira por conta própria',
+        rodar: () => {
+          const alvo = 'src/screens/ParentAreaScreen.js';
+          const mutado = (rel) => (rel === alvo
+            ? codeOf(rel).replace('bodyTablet: { paddingHorizontal: 48 }', 'bodyTablet: { paddingHorizontal: 48, paddingLeft: navSidebarWidth + 24 }')
+            : codeOf(rel));
+          if (mutado(alvo) === codeOf(alvo)) {
+            return { ausente: true, erro: 'âncora da Área dos Responsáveis não encontrada', falhas: [] };
+          }
+          return { ausente: false, falhas: avaliarRemendos(mutado) };
+        },
+      },
+      {
+        id: 'MT-GUTTER-6',
+        nome: 'o token da fronteira é zerado na fonte única',
+        rodar: () => NAVGAP.executarFronteira(undefined, (src) => src.replace('navContentGap = 24', 'navContentGap = 0')),
+      },
+      {
+        id: 'MT-GUTTER-7',
+        nome: 'Estrelinhas volta à lógica antiga de grade (compõe pela região, desenha na grade)',
+        rodar: () => NAVGAP.executarEstrelinhas((src) => src.replace(
+          'availableWidth: gradeW > 0 ? gradeW : undefined,', '')),
+      },
+      /* Os dois abaixo excedem a lista da ordem de propósito: as cláusulas `E6`
+       * e `E8` são as únicas do portão que valem para telas que ainda não
+       * existem, e uma cláusula sem mutante é uma cláusula sem dentes. */
+      {
+        id: 'MT-GUTTER-8',
+        nome: 'uma tela de aba passa a compor pela janela sem medir nada',
+        rodar: () => {
+          const mutado = (rel) => (rel === NG_PERFIL
+            ? codeOf(rel).replace('const { height: screenH } = useWindowDimensions()', 'const { width, height: screenH } = useWindowDimensions()')
+            : codeOf(rel));
+          if (mutado(NG_PERFIL) === codeOf(NG_PERFIL)) {
+            return { ausente: true, erro: 'âncora de `ProfileScreen` não encontrada', falhas: [] };
+          }
+          return { ausente: false, falhas: avaliarTelasDeAba(mutado) };
+        },
+      },
+      {
+        id: 'MT-GUTTER-9',
+        nome: 'a superfície full-bleed volta a dimensionar a arte pela JANELA',
+        rodar: () => {
+          const mutado = (rel) => (rel === NG_MAPA
+            ? codeOf(rel).replace(/janela === width && contentW > 0 \? contentW : width/, 'width')
+            : codeOf(rel));
+          if (mutado(NG_MAPA) === codeOf(NG_MAPA)) {
+            return { ausente: true, erro: 'âncora da superfície full-bleed não encontrada', falhas: [] };
+          }
+          return { ausente: false, falhas: avaliarSangria(mutado) };
+        },
+      },
+    ];
+
+    ngMutantes.forEach((mt) => {
+      let morreu = false;
+      let motivo = '';
+      try {
+        const r = mt.rodar();
+        morreu = Boolean(r.ausente) || (r.falhas || []).length > 0;
+        motivo = r.ausente ? r.erro : (r.falhas || [])[0];
+      } catch (e) {
+        morreu = true; // explodir também é morrer
+        motivo = e.message;
+      }
+      if (!morreu) gnav.push(`(MUT) ${mt.id} sobreviveu — ${mt.nome}`);
+      void motivo;
+    });
+
+    check(
+      '`G-GAP-1` (`F6.2R`, **novo**): a fronteira `SIDEBAR → GAP → CONTENT VIEWPORT → SCREEN` é um contrato do shell — existe só onde há barra, vale um número, é aplicada ANTES da medição (o viewport nasce descontado), cabe a área jogável, fecha a residual de Estrelinhas e impede que uma tela de aba volte a compor pela janela',
+      gnav.length === 0,
+      gnav.join(' · '),
     );
   }
 

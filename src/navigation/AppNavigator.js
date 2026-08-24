@@ -85,6 +85,7 @@ import { useWindowBand, BANDS } from '../hooks/useWindowBand';
 // [F6.2] A REGIÃO entregue à cena, publicada UMA vez pelo shell. Ver
 // `ContentViewportContext.js`: `WINDOW VIEWPORT ≠ CONTENT VIEWPORT`.
 import ContentViewportProvider from '../context/ContentViewportContext';
+import NavigationContentHost from '../components/layout/NavigationContentHost';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -326,7 +327,14 @@ function MainTabs() {
     <View style={{ flex: 1 }}>
     <Tab.Navigator
       tabBar={isTablet ? (props) => <TabletSidebarTabBar {...props} /> : undefined}
-      /* [F6.2 · FUNDAÇÃO] A cena de TODA aba nasce dentro do provedor de região.
+      /* [F6.2R · FRONTEIRA] E nasce depois do GAP DE NAVEGAÇÃO. `NavigationContentHost`
+         é o dono da distância entre a borda da barra e o primeiro pixel útil; por
+         estar FORA do provedor, o `onLayout` que publica a região já mede o espaço
+         descontado — nenhuma tela, jogo ou canvas precisa conhecer a barra para
+         começar no lugar certo. No telefone o recuo é zero e este caminho é o de
+         sempre.
+
+         [F6.2 · FUNDAÇÃO] A cena de TODA aba nasce dentro do provedor de região.
          Este é o ponto exato em que a barra lateral já consumiu o espaço dela por
          flex (`tabBarPosition: 'left'` → `flexDirection: 'row'`) e o restante
          pertence à tela: medir aqui é medir o que a tela de fato recebeu.
@@ -336,7 +344,9 @@ function MainTabs() {
          precise lembrar. E é só nas ABAS: telas de `Stack` ocupam a janela
          inteira, e para elas a janela CONTINUA sendo a resposta certa. */
       screenLayout={({ children }) => (
-        <ContentViewportProvider>{children}</ContentViewportProvider>
+        <NavigationContentHost>
+          <ContentViewportProvider>{children}</ContentViewportProvider>
+        </NavigationContentHost>
       )}
       screenOptions={{
         headerShown: false,

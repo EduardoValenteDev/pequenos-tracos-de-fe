@@ -39,26 +39,30 @@ function montarViewport(mutate) {
  * Uma medida daquela outra janela descreveria uma tela que já morreu.
  *
  * Números do SM-X510 (campanha física): retrato `823×1220`, paisagem `1317×726`.
- * A região é o que sobra da janela depois da barra lateral — MEDIDA, nunca
- * subtraída. */
+ * A região é o que sobra da janela depois da barra lateral E da fronteira de
+ * navegação (`F6.2R`) — MEDIDA, nunca subtraída. Em retrato sobram `619`; em
+ * paisagem, `1053`. Os números MUDARAM em `F6.2R` e mudar aqui é o esperado: o
+ * arnês descreve o que o `onLayout` passa a devolver depois que o recuo entra
+ * ANTES do provedor. Se a fronteira fosse aplicada DEPOIS da medição, estes
+ * seriam `643` e `1077` — e cada tela teria de subtrair 24 sozinha. */
 const QUADROS = [
   {
     nome: 'q0 · retrato estável — a medida desta janela vale',
     janela: { width: 823, height: 1220 },
-    medida: { width: 643, height: 1220, janelaWidth: 823, janelaHeight: 1220 },
-    esperado: { width: 643, measured: true, source: 'measured' },
+    medida: { width: 619, height: 1220, janelaWidth: 823, janelaHeight: 1220 },
+    esperado: { width: 619, measured: true, source: 'measured' },
   },
   {
     nome: 'q1 · girou: janela nova, medida velha — vale a JANELA',
     janela: { width: 1317, height: 726 },
-    medida: { width: 643, height: 1220, janelaWidth: 823, janelaHeight: 1220 },
+    medida: { width: 619, height: 1220, janelaWidth: 823, janelaHeight: 1220 },
     esperado: { width: 1317, measured: false, source: 'window' },
   },
   {
     nome: 'q2 · paisagem estável — a medida desta janela vale de novo',
     janela: { width: 1317, height: 726 },
-    medida: { width: 1137, height: 726, janelaWidth: 1317, janelaHeight: 726 },
-    esperado: { width: 1137, measured: true, source: 'measured' },
+    medida: { width: 1053, height: 726, janelaWidth: 1317, janelaHeight: 726 },
+    esperado: { width: 1053, measured: true, source: 'measured' },
   },
   {
     nome: 'q3 · primeiro quadro, ninguém mediu ainda — vale a JANELA',
@@ -107,9 +111,9 @@ function executarCarimbo(mutate) {
  * errada inteira. A tabela precisa conter ao menos um caso desses — sem ele o
  * portão não descreveria defeito nenhum. */
 const REFERENCIAIS = [
-  { nome: 'tablet 768dp em retrato com trilho — janela média, região COMPACTA', janela: 768, regiao: 588 },
-  { nome: 'SM-X510 em retrato — mesma faixa, magnitude diferente', janela: 823, regiao: 643 },
-  { nome: 'tablet grande — janela expandida, região MÉDIA', janela: 1080, regiao: 820 },
+  { nome: 'tablet 768dp em retrato com trilho — janela média, região COMPACTA', janela: 768, regiao: 564 },
+  { nome: 'SM-X510 em retrato — mesma faixa, magnitude diferente', janela: 823, regiao: 619 },
+  { nome: 'tablet grande — janela expandida, região MÉDIA', janela: 1080, regiao: 816 },
   { nome: 'telefone — sem barra lateral, os dois referenciais coincidem', janela: 412, regiao: 412 },
 ];
 
@@ -145,9 +149,11 @@ function executarReferenciais(mutate) {
  * As duas baterias acima provam a POLÍTICA. Esta prova por que ela importa — e
  * é a que dá dente ao portão: sem ela, `G-CVP-1` seria um teste de forma.
  *
- * Estrelinhas compõe um Hub e é a única família que NÃO passa `availableWidth`
- * próprio — ela aceita a largura que o arquétipo tiver. Era, portanto, a tela em
- * que a diferença entre janela e região aparecia crua.
+ * Estrelinhas compõe um Hub e era, até `F6.2R`, a única família que NÃO passava
+ * `availableWidth` próprio: aceitava a largura que o arquétipo tivesse. Era,
+ * portanto, a tela em que a diferença entre janela e região aparecia crua — e a
+ * última devedora do contrato `G-RSP-8`, dívida que o artefato 88 §11 havia
+ * adiado para a fase dona e que `F6.2R` pagou.
  *
  * Piso do cartão, intervalo e recuo lateral são os que A PRÓPRIA TELA declara
  * (`HUB_MIN_CARD`, `HUB_GAP`, `content.paddingHorizontal`) — este arnês não
@@ -156,13 +162,17 @@ function executarReferenciais(mutate) {
  * A grade real é sempre a da REGIÃO menos o recuo: o desenho acontece lá, tenha
  * a composição perguntado a quem tiver perguntado. É justamente essa assimetria
  * — compor por uma largura e desenhar em outra — que produz um cartão ABAIXO do
- * piso que a tela exigiu, sem que nenhum número pareça errado isoladamente. */
+ * piso que a tela exigiu, sem que nenhum número pareça errado isoladamente. Com
+ * `G-RSP-8` aplicado, a tela passou a compor pela GRADE que mede, e a assimetria
+ * fechou: é essa a largura que a coluna `pelaFundacao` usa. O braço `peloDefeito`
+ * continua compondo pela JANELA, porque um portão que perde o defeito deixa de
+ * provar a cura. */
 const { carregarArquetipo } = require('./surfaceArchetypeHarness');
 
 const ESTRELINHAS = Object.freeze({
   tela: 'src/screens/TrophiesScreen.js',
   janela: 823,        // SM-X510 em RETRATO, medido em campanha física
-  regiao: 643,        // o que sobrou depois do trilho — MEDIDO, nunca subtraído
+  regiao: 619,        // o que sobra depois do trilho E da fronteira (`F6.2R`) — MEDIDO
   recuoLateral: 32,   // `content: { paddingHorizontal: 16 }` × 2 lados
   itens: 12,
 });
@@ -215,7 +225,9 @@ function executarProduto(mutate) {
   };
 
   const peloDefeito = compor(ESTRELINHAS.janela);   // como era: a janela inteira
-  const pelaFundacao = compor(resolvido.width);     // como fica: a região recebida
+  // Como fica: a GRADE que a tela mede (`G-RSP-8`), dentro da região que a
+  // fundação publica. Compor pela região e desenhar na grade era a assimetria.
+  const pelaFundacao = compor(grade);
 
   return {
     ausente: false,

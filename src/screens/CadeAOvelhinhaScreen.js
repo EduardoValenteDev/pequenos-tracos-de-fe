@@ -19,8 +19,9 @@
  */
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
-  View, Text, Animated, Pressable, AppState, StyleSheet, ScrollView, useWindowDimensions,
+  View, Text, Animated, Pressable, AppState, StyleSheet, ScrollView,
 } from 'react-native';
+import { useContentViewport } from '../context/ContentViewportContext';
 import { Image as ExpoImage } from 'expo-image';
 import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -140,7 +141,14 @@ function melhorTempoDaDificuldade(stats, difId) {
 
 export default function CadeAOvelhinhaScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  /* [F6.2R] A cena compõe pela REGIÃO que a tela recebeu, não pela janela que ela vê.
+     Hoje esta é uma tela de `Stack` e as duas grandezas coincidem — o referencial cai
+     na janela fora de um provedor, e isso é o contrato, não tolerância. O que muda é
+     que a coincidência deixou de ser PREMISSA: se esta superfície um dia coexistir com
+     a barra lateral, a cena nasce dentro do retângulo certo sem que ninguém precise
+     lembrar, e sem que uma única coordenada de esconderijo seja tocada. O jogo não
+     conhece — e continua não podendo conhecer — a largura da navegação. */
+  const { width } = useContentViewport();
   const progressCtx = useProgressContext();
   const refreshProgress = progressCtx?.refreshProgress;
   const premium = isPremiumUser();
