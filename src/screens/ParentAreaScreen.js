@@ -664,7 +664,10 @@ export default function ParentAreaScreen({ navigation }) {
       >
       <ScrollView
         style={styles.wrapper}
-        contentContainerStyle={[styles.content, { paddingBottom: 24 }]}
+        // [F6.2R2] Tela de `Stack`: não há barra de abas nem shell de aba abaixo dela, então
+        // o rodapé do sistema é DELA. O 24 é respiro editorial e não substitui o inset real —
+        // sem esta soma o último card (Administração) fica atrás da taskbar do Android.
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >

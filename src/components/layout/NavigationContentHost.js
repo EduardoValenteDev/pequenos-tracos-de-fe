@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, navContentGap } from '../../theme/tokens';
 import { useWindowBand } from '../../hooks/useWindowBand';
 import { sidebarRole } from '../TabletSidebar';
@@ -39,10 +40,28 @@ import { sidebarRole } from '../TabletSidebar';
  * telefone, cuja navegação é a barra inferior), a fronteira lateral não existe e o
  * recuo é zero: o caminho compacto fica idêntico ao que era.
  *
- * ─── A ÁREA SEGURA CONTINUA SENDO DE `AppScreen` ────────────────────────────────
+ * ─── O RODAPÉ DO SISTEMA TAMBÉM É FRONTEIRA (`F6.2R2`) ──────────────────────────
  *
- * Nenhum inset é lido, aplicado ou republicado aqui. Recorte, barra de status e
- * gesto continuam com o dono que já tinham — este módulo resolve UMA distância.
+ * O app é *edge-to-edge* (`edgeToEdgeEnabled`): a janela do Android vai até o pixel
+ * final da tela, e a barra do sistema é desenhada POR CIMA dela. No telefone isso não
+ * aparece, porque a navegação é a barra inferior e ela já reserva `64 + inset` ABAIXO
+ * da cena. No tablet a navegação foi para a lateral — e o rodapé ficou SEM DONO: a
+ * cena recebia a janela inteira (1316dp medidos no SM-X510) e os últimos 48dp dela
+ * ficavam atrás da taskbar. Foi o que a prova física mostrou: o fim do Cantinho do
+ * Beni e o card de Administração coberto pela barra do sistema.
+ *
+ * O eixo vertical é o mesmo contrato do horizontal, com o outro dono:
+ *
+ *   `APP WINDOW → SYSTEM BOTTOM INSET → SAFE CONTENT AREA → SCREEN`
+ *
+ * E é a MESMA pergunta qualitativa: quem já reservou o rodapé? Onde a navegação é a
+ * barra inferior, ela — e somar aqui seria *double inset*, o defeito espelhado. Onde
+ * a navegação é lateral, ninguém — e então é o shell. O valor é o inset REAL do
+ * sistema, nunca uma altura mágica de aparelho.
+ *
+ * O que continua fora daqui: topo, recorte, gesto lateral e o `paddingTop` das telas.
+ * `AppScreen` segue dono da área segura de quem o usa; este módulo resolve a borda
+ * que a cena de aba não tinha como resolver sozinha.
  *
  * ─── A FAIXA DO GAP É PINTADA ───────────────────────────────────────────────────
  *
@@ -68,14 +87,27 @@ export function navigationContentGap(band) {
   return sidebarRole(band) ? navContentGap : 0;
 }
 
+/**
+ * A altura do rodapé que pertence ao SISTEMA e que a cena não pode usar.
+ *
+ * `0` onde a navegação é a barra inferior — ali o inset já foi reservado abaixo da
+ * cena, e somá-lo de novo seria contá-lo duas vezes. O valor nunca é constante: é o
+ * inset medido, e vale zero sozinho quando o aparelho não tem barra nenhuma.
+ */
+export function systemBottomClearance(band, insetBottom) {
+  return sidebarRole(band) ? insetBottom : 0;
+}
+
 export default function NavigationContentHost({ children }) {
   const { band } = useWindowBand();
+  const insets = useSafeAreaInsets();
   const recuo = navigationContentGap(band);
+  const rodape = systemBottomClearance(band, insets.bottom);
 
   return (
     <View
-      style={recuo > 0
-        ? [styles.host, { paddingLeft: recuo, backgroundColor: color.paper50 }]
+      style={recuo > 0 || rodape > 0
+        ? [styles.host, { paddingLeft: recuo, paddingBottom: rodape, backgroundColor: color.paper50 }]
         : styles.host}
     >
       {children}

@@ -20791,11 +20791,20 @@ console.log('\n── Brincar B1: hub premium + sugestão equilibrada ──');
     'a BrincarScreen reintroduziu o selo/gate do Modo Criador');
 
   // §16 — safe area real: header por insets.top; último card rola acima da barra inferior.
-  check('B1 §16 (safe area): header por insets.top; paddingBottom insets.bottom + 28',
+  //
+  // [F6.2R2] O RODAPÉ MUDOU DE DONO — a intenção do gate, não. O que §16 sempre
+  // cobrou é que o último card consiga rolar acima da barra de baixo; o que mudou
+  // é QUEM reserva essa faixa. No telefone é a barra de abas (`64 + insets.bottom`,
+  // `AppNavigator`); no tablet, onde a barra vira coluna à esquerda e o rodapé
+  // ficaria órfão, é o shell da aba (`NavigationContentHost`). Somar o inset aqui de
+  // novo seria double inset — a mesma conclusão que `AdventureMapScreen` já
+  // registrava em :31-32. Continua obrigatório: ler a safe area e ter respiro.
+  check('B1 §16 (safe area): header por insets.top; rodapé do shell + respiro editorial (sem double inset)',
     /paddingTop: Math\.max\(insets\.top, 28\)/.test(brc)
-    && /paddingBottom: insets\.bottom \+ 28/.test(brc)
+    && /paddingBottom: 28 \}/.test(brc)
+    && !/paddingBottom: insets\.bottom/.test(brcN)
     && /useSafeAreaInsets/.test(brcN),
-    'a safe area do topo/rodapé regrediu');
+    'a safe area do topo/rodapé regrediu, ou a tela voltou a somar o inset que o shell já reserva');
 
   // §12/§19 — movimento reduzido respeitado (entrada sem animação quando ativo).
   check('B1 §12/§19 (movimento reduzido): AccessibilityInfo + AnimatedCard sem animação em reduzido',
@@ -28556,7 +28565,7 @@ try {
 
     check('1.4/B1 (hub visual): Beni no topo, safe area no fim da rolagem, cards acessíveis',
       /<BeniAvatar variant="happy"/.test(brc14)
-      && /paddingBottom: insets\.bottom \+ 28/.test(brc14)
+      && /paddingBottom: 28 \}/.test(brc14)   // [F6.2R2] o inset é do shell (tablet) ou da barra de abas (telefone)
       && /<GameCard\b/.test(brc14)
       && /accessibilityRole="button"/.test(brc14)
       && !/\p{Extended_Pictographic}/u.test(readSrc('src/screens/BrincarScreen.js')),
@@ -55976,15 +55985,40 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     if (ngD.ausente) gnav.push(`(D) a varredura de Estrelinhas está indisponível: ${ngD.erro}`);
     else ngD.falhas.forEach((f) => gnav.push(`(D) ${f}`));
 
+    /* ── F · o RODAPÉ do sistema tem exatamente um dono (`F6.2R2`) ──
+     * A fronteira lateral de `F6.2R` não resolveu — nem podia — o defeito vertical
+     * que o fundador fotografou depois: a taskbar do Android cobrindo o fim do
+     * "Cantinho do Beni", o card "Administração (dev)" e o pé da busca. É a mesma
+     * família de causa, na outra direção: no telefone quem reservava `insets.bottom`
+     * era a barra de abas; no tablet ela virou coluna à esquerda e o rodapé ficou
+     * órfão. A bateria varre insets REAIS (0 a 84dp) e recusa tanto o rodapé ausente
+     * quanto o rodapé somado duas vezes. */
+    const ngF = NAVGAP.executarRodape();
+    if (ngF.ausente) gnav.push(`(F) a política do rodapé não carrega: ${ngF.erro}`);
+    else ngF.falhas.forEach((f) => gnav.push(`(F) ${f}`));
+
     /* ── E · as cláusulas constitutivas, no fonte ── */
 
     // E1 · zero aritmética de barra: a pergunta à navegação é qualitativa.
     if (/\b(sidebarWidth|navSidebarWidth|railWidth|SIDEBAR_WIDTH)\b/.test(ngHostCode)) {
       gnav.push('(E1) a fronteira passou a conhecer a LARGURA da barra — `G-SID-3` reaberto: a barra declara quanto ocupa, nunca quanto sobra');
     }
-    // E2 · não é segundo dono de área segura.
-    if (/\b(useSafeAreaInsets|SafeAreaView|insets)\b/.test(ngHostCode)) {
-      gnav.push('(E2) a fronteira passou a ler área segura — o dono único continua sendo `AppScreen`, e um segundo dono é `P-30` de novo');
+    // E2 · área segura: dono do RODAPÉ, e de mais nada.
+    //
+    // `F6.2R` proibiu a fronteira de tocar em área segura, e estava certa PARA A
+    // ÉPOCA: o rodapé tinha dono (a barra de abas, no telefone) e um segundo dono
+    // seria `P-30` outra vez. `F6.2R2` mostrou o outro lado da mesma moeda — no
+    // tablet a barra de abas vira coluna, o rodapé fica SEM dono nenhum e a taskbar
+    // come o fim do conteúdo. A herança cabe ao shell porque é ele, e só ele, que
+    // sabe que a barra saiu de baixo. O que continua proibido é AMPLIAR a herança:
+    // topo, recorte e laterais seguem de `AppScreen`, e `SafeAreaView` — que decide
+    // sozinho quais bordas respeita — segue fora.
+    if (/\bSafeAreaView\b/.test(ngHostCode)) {
+      gnav.push('(E2) a fronteira trocou o container por `SafeAreaView` — o rodapé entra como padding medido e explícito, não como um container que escolhe bordas sozinho');
+    }
+    const ngBordas = Array.from(new Set(ngHostCode.match(/insets\s*\.\s*(top|left|right)\b/g) || []));
+    if (ngBordas.length) {
+      gnav.push('(E2) a fronteira passou a ler ' + ngBordas.join(', ') + ' — o rodapé é a ÚNICA borda que o shell herda; o resto continua sendo de `AppScreen`');
     }
     // E3 · nenhuma condicional por aparelho, modelo ou plataforma.
     if (/\b(Platform|isTablet)\b/.test(ngHostCode) || /Dimensions\s*\.\s*get/.test(ngHostCode) || /SM-?X510/i.test(ngHostCode)) {
@@ -56166,6 +56200,31 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
           return { ausente: false, falhas: avaliarTelasDeAba(mutado) };
         },
       },
+      /* `F6.2R2` — os quatro do rodapé. Os três primeiros são a lista de proibições
+       * da ordem ("altura mágica", "valor de Samsung", "screenHeight − 60") virada
+       * regressão executável; o quarto é o da área jogável. */
+      {
+        id: 'MT-GUTTER-10',
+        nome: 'o shell deixa de herdar o rodapé — a taskbar volta a cobrir o fim do conteúdo',
+        rodar: () => NAVGAP.executarRodape((src) => src.replace('sidebarRole(band) ? insetBottom : 0', '0')),
+      },
+      {
+        id: 'MT-GUTTER-11',
+        nome: 'o rodapé vira altura mágica fixa em vez do inset REAL do sistema',
+        rodar: () => NAVGAP.executarRodape((src) => src.replace('sidebarRole(band) ? insetBottom : 0', 'sidebarRole(band) ? 48 : 0')),
+      },
+      {
+        id: 'MT-GUTTER-12',
+        nome: 'o telefone também recebe o rodapé — double inset sob a barra de abas',
+        rodar: () => NAVGAP.executarRodape((src) => src.replace('sidebarRole(band) ? insetBottom : 0', 'insetBottom')),
+      },
+      {
+        id: 'MT-GUTTER-13',
+        nome: 'a área jogável volta a ser medida na caixa que carrega a reserva',
+        rodar: () => NAVGAP.executarRodape(undefined, (src) => src
+          .replace('<View style={styles.cenaMedida} onLayout={medirArea}>', '<View style={styles.cenaMedida}>')
+          .replace('Math.max(insets.bottom, 8) + 4 }]}', 'Math.max(insets.bottom, 8) + 4 }]} onLayout={medirArea}')),
+      },
       {
         id: 'MT-GUTTER-9',
         nome: 'a superfície full-bleed volta a dimensionar a arte pela JANELA',
@@ -56197,7 +56256,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     });
 
     check(
-      '`G-GAP-1` (`F6.2R`, **novo**): a fronteira `SIDEBAR → GAP → CONTENT VIEWPORT → SCREEN` é um contrato do shell — existe só onde há barra, vale um número, é aplicada ANTES da medição (o viewport nasce descontado), cabe a área jogável, fecha a residual de Estrelinhas e impede que uma tela de aba volte a compor pela janela',
+      '`G-GAP-1` (`F6.2R` + `F6.2R2`): as DUAS fronteiras do shell — `SIDEBAR → GAP → CONTENT VIEWPORT → SCREEN` na horizontal, `APP WINDOW → SYSTEM BOTTOM INSET → SAFE CONTENT AREA → SCREEN` na vertical — existem só onde têm dono, valem um número cada, são aplicadas ANTES da medição, cabem a área jogável, fecham a residual de Estrelinhas e impedem tanto o remendo local quanto o double inset',
       gnav.length === 0,
       gnav.join(' · '),
     );

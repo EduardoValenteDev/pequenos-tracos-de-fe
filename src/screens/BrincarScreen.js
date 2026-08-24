@@ -227,8 +227,9 @@ export default function BrincarScreen({ navigation, route }) {
   return (
     <ScrollView
       style={styles.container}
-      // Safe area real: o último card precisa rolar por completo acima da barra inferior.
-      contentContainerStyle={{ paddingBottom: insets.bottom + 28 }}
+      // [F6.2R2] Só o respiro editorial: o inset do sistema é do shell (`NavigationContentHost`),
+      // e somá-lo aqui de novo seria double inset — no telefone a barra inferior já o reservou.
+      contentContainerStyle={{ paddingBottom: 28 }}
       showsVerticalScrollIndicator={false}
     >
       {/* ── HEADER compacto — o Beni recebe, a mensagem é curta; canto superior direito

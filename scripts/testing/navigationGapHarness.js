@@ -452,10 +452,120 @@ function executarEstrelinhas(mutateTela, mutateToken) {
   };
 }
 
+/* ── Bateria F · O RODAPÉ (`F6.2R2`) ──────────────────────────────────────────
+ * `F6.2R` fechou a fronteira HORIZONTAL. O fundador voltou com o defeito da outra
+ * direção: a taskbar do Android cobrindo o fim do conteúdo. A causa não é a barra
+ * lateral — é que o rodapé do sistema, no tablet, ficou SEM DONO: a janela vai até
+ * a borda (edge-to-edge), a barra de abas que reservava `insets.bottom` no telefone
+ * virou coluna à esquerda, e ninguém herdou a reserva.
+ *
+ * Esta bateria mede a POLÍTICA pura (`systemBottomClearance`), com insets reais
+ * variados, e é o que impede a lista de proibições da ordem de virar documentação:
+ *
+ *   [F1] existe reserva  ⟺  existe barra lateral E o sistema pede algo
+ *   [F2] a reserva é o inset REAL, nunca um número escolhido — a mesma política
+ *        atravessa 0, 16, 24, 48 e 84dp sem constante nenhuma no meio
+ *   [F3] telefone: reserva ZERO — lá quem já reservou foi a barra de abas, e somar
+ *        de novo é o double inset
+ *   [F4] em QUALQUER faixa a faixa do sistema é coberta por EXATAMENTE um dono
+ *   [F5] o último conteúdo de uma lista rolável termina ACIMA da faixa do sistema
+ *   [F6] a área jogável é medida DENTRO da reserva, não fora dela */
+const INSETS_PROVA = Object.freeze([0, 16, 24, 48, 84]);
+const ALTURA_PROVA = 1316;          // SM-X510 em retrato, em dp
+const RESPIRO_EDITORIAL = 24;       // o `paddingBottom` de respiro que as telas já tinham
+const BARRA_ABAS = 64;              // altura da barra de abas do telefone, sem o inset
+
+function montarRodape(mutate, mutateToken) {
+  const { BANDS, bandForWidth, tokens, barra } = montarBarra();
+  const navContentGap = mutateToken
+    ? loadModule(TOKENS, {}, ['navContentGap'], mutateToken).navContentGap
+    : tokens.navContentGap;
+  const mod = loadModule(HOST, {
+    navContentGap,
+    sidebarRole: barra.sidebarRole,
+  }, ['navigationContentGap', 'systemBottomClearance'], mutate);
+  return { ...mod, BANDS, bandForWidth, barra };
+}
+
+function executarRodape(mutate, mutateTela) {
+  let pol;
+  try {
+    pol = montarRodape(mutate);
+  } catch (e) {
+    return { ausente: true, erro: e.message, linhas: [], falhas: ['política do rodapé indisponível'] };
+  }
+
+  const linhas = [];
+  LARGURAS.forEach((janela) => {
+    const faixa = pol.bandForWidth(janela);
+    const temBarra = pol.barra.sidebarWidth(faixa) !== null && pol.barra.sidebarWidth(faixa) !== undefined;
+    INSETS_PROVA.forEach((inset) => {
+      const reserva = pol.systemBottomClearance(faixa, inset);
+      // Quem cobre a faixa do sistema em cada faixa de janela: no telefone, a barra
+      // de abas (que já soma o inset à própria altura); no tablet, o shell.
+      const dono = temBarra ? 'shell' : 'barraDeAbas';
+      const coberto = temBarra ? reserva : BARRA_ABAS + inset;
+      // A altura que a CENA recebe: no tablet, a janela menos a reserva do shell; no
+      // telefone, a janela menos a barra de abas inteira (que já embute o inset).
+      const util = ALTURA_PROVA - coberto;
+      linhas.push({
+        janela, faixa, temBarra, inset, reserva, dono, coberto, util,
+        // O fim do conteúdo quando a lista está rolada até o fim: a última linha
+        // encosta no fim da área útil MENOS o respiro editorial.
+        fimConteudo: util - RESPIRO_EDITORIAL,
+        limiteSistema: ALTURA_PROVA - inset,
+        f1: (reserva > 0) === (temBarra && inset > 0),
+        f2: reserva === (temBarra ? inset : 0),
+        f3: temBarra ? true : reserva === 0,
+        f4: coberto >= inset,
+      });
+    });
+  });
+
+  const falhas = [];
+  linhas.forEach((l) => {
+    if (!l.f1) falhas.push(`[F1] janela ${l.janela}dp (inset ${l.inset}dp): barra=${l.temBarra ? 'sim' : 'não'} mas reserva=${l.reserva}dp — o rodapé não acompanha quem é o dono`);
+    if (!l.f2) falhas.push(`[F2] janela ${l.janela}dp: reserva ${l.reserva}dp com inset REAL de ${l.inset}dp — a política deixou de derivar do sistema e virou número escolhido`);
+    if (!l.f3) falhas.push(`[F3] janela ${l.janela}dp é compacta e mesmo assim reservou ${l.reserva}dp — a barra de abas já reservou o inset, isto é double inset`);
+    if (!l.f4) falhas.push(`[F4] janela ${l.janela}dp (inset ${l.inset}dp): a faixa do sistema recebeu ${l.coberto}dp de ${l.dono} — ficou descoberta`);
+    // [F5] a prova da rolagem: com a reserva aplicada, o último conteúdo termina
+    // acima da faixa do sistema — e não apenas "quase".
+    if (l.fimConteudo > l.limiteSistema) {
+      falhas.push(`[F5] janela ${l.janela}dp (inset ${l.inset}dp): o fim do conteúdo cai em ${l.fimConteudo}dp, abaixo do limite ${l.limiteSistema}dp — a taskbar continua cobrindo a última linha`);
+    }
+  });
+
+  // [F6] fato de FONTE, na única superfície que desenha até o fim sem rolagem: quem
+  // mede a área jogável tem de ser o retângulo DE DENTRO da reserva. `onLayout`
+  // entrega a caixa com padding, e medir a caixa de fora devolveria a taskbar ao
+  // retângulo jogável por uma porta que nenhum teste de forma veria.
+  const fonteJogo = mutateTela ? mutateTela(lerFonte(JOGO)) : lerFonte(JOGO);
+  const linhaMedida = (fonteJogo.split('\n').find((l) => /onLayout=\{medirArea\}/.test(l)) || '');
+  const reservaNaTela = /paddingBottom:\s*Math\.max\(insets\.bottom/.test(fonteJogo);
+  const mediuPorFora = /paddingBottom/.test(linhaMedida);
+  if (!linhaMedida) {
+    falhas.push('[F6] a área jogável deixou de ser medida (`onLayout={medirArea}` sumiu) — sem medida não há retângulo real');
+  } else if (mediuPorFora) {
+    falhas.push('[F6] a área jogável voltou a ser medida na caixa QUE CARREGA a reserva — `onLayout` inclui o padding, e a faixa da taskbar volta para dentro do retângulo jogável');
+  }
+  if (!reservaNaTela) {
+    falhas.push('[F6] a tela do jogo deixou de reservar o rodapé do sistema — ela é irmã das abas no `Stack` e o rodapé é DELA');
+  }
+
+  return {
+    ausente: false, linhas, falhas,
+    insets: INSETS_PROVA,
+    comBarra: linhas.filter((l) => l.temBarra).length,
+    semBarra: linhas.filter((l) => !l.temBarra).length,
+    mediuPorDentro: !!linhaMedida && !mediuPorFora,
+  };
+}
+
 module.exports = {
   LARGURAS, REGIOES_JOGO, CENA_PROVA, SPOT_PROVA, PONTOS_ARTE,
   montarBarra, montarRecuo, carregarNucleoJogo, lerEnquadramentoDaTela,
-  executarFronteira, executarOrdem, executarJogo, executarEstrelinhas,
+  executarFronteira, executarOrdem, executarJogo, executarEstrelinhas, executarRodape,
+  montarRodape, INSETS_PROVA, ALTURA_PROVA, RESPIRO_EDITORIAL, BARRA_ABAS,
   VARREDURA, ITENS_ESTRELINHAS, TROFEUS,
   HOST, SIDEBAR, TOKENS, NAV, JOGO, NUCLEO_JOGO,
 };

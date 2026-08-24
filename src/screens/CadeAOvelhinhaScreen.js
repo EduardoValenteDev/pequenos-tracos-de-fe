@@ -1334,7 +1334,13 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
         </Text>
       </View>
 
-      <View style={[styles.cenaWrap, { paddingBottom: Math.max(insets.bottom, 8) + 4 }]} onLayout={medirArea}>
+      {/* [F6.2R2] Quem mede é o retângulo DE DENTRO do respiro, não o de fora.
+          `onLayout` entrega a caixa COM padding — e o padding de baixo é justamente
+          a faixa do sistema (`insets.bottom`) que a cena não pode ocupar. Medindo o
+          filho, `areaRef` passa a guardar o retângulo REALMENTE disponível: viewport,
+          contentRect e hitbox continuam derivando dele, agora sem a taskbar dentro. */}
+      <View style={[styles.cenaWrap, { paddingBottom: Math.max(insets.bottom, 8) + 4 }]}>
+        <View style={styles.cenaMedida} onLayout={medirArea}>
         {/* Pressable-pai = ERRO (toque fora da ovelha). O wrapper da ovelha (dentro do
             SceneLayer) captura o ACERTO e impede que o pai dispare no mesmo toque. */}
         <Pressable
@@ -1392,6 +1398,7 @@ export default function CadeAOvelhinhaScreen({ navigation }) {
             </Animated.View>
           )}
         </Pressable>
+        </View>
       </View>
 
       {/* Infinito: "Tempo!" curto antes do resultado (bloqueia toque; sem ajuda automática). */}
@@ -1875,6 +1882,7 @@ const styles = StyleSheet.create({
   criadorToggleTxt: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '800', color: '#FFF' },
 
   cenaWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10, paddingTop: 4 },
+  cenaMedida: { flex: 1, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
   viewport: { borderRadius: radii.xl, overflow: 'hidden', backgroundColor: '#EAF2F5', ...shadows.soft },
   bgFallback: { backgroundColor: '#DDEFF6' },
   debugTxt: { fontFamily: 'Nunito', fontSize: 9, color: '#C0392B', fontWeight: '800' },
