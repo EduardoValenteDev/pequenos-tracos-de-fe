@@ -3599,9 +3599,24 @@ check(
   trophiesSrc11.includes("FaithIcon") && trophiesSrc11.includes('name="star"'),
   'TrophiesScreen header does not use FaithIcon name="star" for Minhas Estrelinhas',
 );
+// [F6.3B] A PROPRIEDADE deste portão sempre foi a IDENTIDADE da conquista bloqueada: o
+// card mostra a FIGURA da própria conquista, apagada — nunca um cadeado genérico no lugar
+// dela, que apagaria de qual conquista se trata. O `!includes('name="lock"')` era um
+// carimbo de arquivo INTEIRO, e por isso também proibia o cadeado na DICA de texto ("como
+// conquistar"), onde ele não compete com nada. O portão passa a olhar exatamente o lugar
+// que ele sempre quis proteger — o círculo da figura — e continua exigindo o esmaecimento.
+// Mais estreito no alvo, mais forte na afirmação: nenhuma condição foi removida.
+const circuloDaFiguraTrofeu = (() => {
+  const i = trophiesSrc11.indexOf('styles.emojiCircle');
+  const f = trophiesSrc11.indexOf('styles.cardInfo');
+  return i >= 0 && f > i ? trophiesSrc11.slice(i, f) : '';
+})();
 check(
   'TrophiesScreen AchievementCard locked state shows dimmed emoji (no FaithIcon lock in card)',
-  trophiesSrc11.includes('cardEmojiDimmed') && !trophiesSrc11.includes('name="lock"'),
+  trophiesSrc11.includes('cardEmojiDimmed') &&
+  circuloDaFiguraTrofeu.includes('achievement.faithIcon') &&
+  circuloDaFiguraTrofeu.includes('achievement.emoji') &&
+  !circuloDaFiguraTrofeu.includes('name="lock"'),
   'TrophiesScreen AchievementCard locked state still uses FaithIcon lock instead of dimmed emoji',
 );
 check(
@@ -28241,10 +28256,18 @@ try {
       && /try \{\s*brincarCtx = \(await readBrincarAchievementCtx\(\)\) \|\| \{\};\s*\} catch/.test(acsB13),
       'buildCtx não lê as flags de Brincar, ou pode lançar se a leitura falhar');
 
+    // [F6.3B] A PROPRIEDADE é a MESMA: a categoria que DECLARA `faithIcon` manda, e a
+    // categoria antiga não fica sem ícone. O que mudou é que a resolução deixou de ser um
+    // ternário inline: `ACHIEVEMENT_CATEGORIES` é dado de área protegida, então a tradução
+    // dos glifos legados para o set próprio acontece na camada de desenho. O portão agora
+    // exige as TRÊS metades — o dado continua tendo precedência, existe fallback para o
+    // emoji do dado, e é ESSE resolvedor que o cabeçalho chama — em vez de carimbar uma
+    // forma sintática. Nenhuma condição foi removida.
     check('1.3 (álbum): TrophiesScreen renderiza faithIcon sem perder os emojis antigos',
       (() => { const t = a1StripComments(readSrc('src/screens/TrophiesScreen.js'));
         return /achievement\.faithIcon \?/.test(t) && /achievement\.emoji/.test(t)
-          && /section\.cat\.faithIcon \?/.test(t) && /section\.cat\.icon/.test(t); })(),
+          && /function iconeDaCategoria\(cat\) \{\s*return cat\.faithIcon \|\|/.test(t)
+          && /iconeDaCategoria\(section\.cat\) \?/.test(t) && /section\.cat\.icon/.test(t); })(),
       'o álbum não desenha as conquistas novas, ou perdeu os ícones antigos');
 
     check('1.3 (legado intacto): chaves do Ateliê preservadas; chave nova do Brincar isolada',

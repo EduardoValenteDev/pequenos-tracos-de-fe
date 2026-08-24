@@ -27,7 +27,12 @@ import { measureGuideTarget } from '../services/guideTargetRegistry';
 import { STARS_GUIDE } from '../data/beniGuides';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors as pt, radii, shadows } from '../theme/productTheme';
+import { radii, shadows } from '../theme/productTheme';
+// [F6.3B] Estrelinhas entra na fundação visual de "O Livro Vivo": papel e tinta vêm de
+// `tokens.js`, Nunito é a família de interface, terracota é ação e o dourado fica onde
+// significa conquista. A COR DA CONQUISTA (`achievement.color`) continua sendo dado —
+// identidade semântica aprovada —, só que aplicada em dose: borda, ícone e barra.
+import { color, font, seal } from '../theme/tokens';
 import { stories } from '../data/stories';
 import { useProgressContext } from '../context/ProgressContext';
 import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, isAchievementVisible } from '../data/achievements';
@@ -49,6 +54,24 @@ import { useHubComposition, hubRows } from '../components/layout/HubSurface';
  */
 const HUB_MIN_CARD = 320;
 const HUB_GAP = 10;
+
+/**
+ * [F6.3B] O cabeçalho de categoria era a última superfície da tela a usar EMOJI COMO
+ * ÍCONE (`📖 ⭐ 🎨 💛`). Os glifos vêm de `ACHIEVEMENT_CATEGORIES`, que é DADO de área
+ * protegida — então a tradução acontece aqui, na camada de desenho: cada categoria
+ * ganha o nome do set que já existe, e nada no dado muda. A categoria que já declara
+ * `faithIcon` continua mandando; uma categoria futura sem tradução cai no emoji do dado
+ * em vez de sumir.
+ */
+const ICONE_POR_CATEGORIA = {
+  historias: 'adventures',
+  cenas: 'star',
+  atelie: 'atelier',
+  momentos: 'heart',
+};
+function iconeDaCategoria(cat) {
+  return cat.faithIcon || ICONE_POR_CATEGORIA[cat.id] || null;
+}
 
 /* Extrai a unidade ("cenas", "artes"...) do progressLabel para frases naturais. */
 function unitFromLabel(label) {
@@ -129,21 +152,28 @@ function AchievementCard({ achievement, unlocked, ctx, onPress }) {
       onPress={onPress}
       style={[
         styles.card,
+        // [F6.3B] O fundo do card conquistado deixa de ser um banho TRANSLÚCIDO da cor da
+        // conquista. Além de contrariar o contrato ("cor mais viva, não card saturado"),
+        // ele deixava a sombra de elevação aparecer POR BAIXO do próprio card — era daí
+        // que vinha o cinza sujo que fazia o álbum parecer do sistema visual antigo. O
+        // fundo agora é papel opaco (em `cardUnlocked`) e a cor vive na borda.
         unlocked
-          ? [styles.cardUnlocked, { borderColor: achievement.color, backgroundColor: achievement.color + '12' }]
+          ? [styles.cardUnlocked, { borderColor: achievement.color }]
           : styles.cardLocked,
       ]}
     >
       {unlocked && (
-        <View style={[styles.stickerCorner, { backgroundColor: achievement.color }]}>
-          <Text style={styles.stickerCornerText}>⭐</Text>
+        <View style={styles.stickerCorner}>
+          <FaithIcon name="star" size={12} color={color.gold700} />
         </View>
       )}
-      <View style={[styles.emojiCircle, { backgroundColor: unlocked ? achievement.color + '2A' : '#ECE7E0' }]}>
+      <View style={[styles.emojiCircle, { backgroundColor: unlocked ? achievement.color + '22' : color.paper200 }]}>
         {/* Bloco 1.3: conquistas novas trazem `faithIcon` (sem emoji). As antigas
-            seguem com `emoji` — nada quebra. */}
+            seguem com `emoji` — nada quebra.
+            [F6.3B] A FIGURA da conquista é conteúdo do álbum (o adesivo), não cromo de
+            interface: ela continua sendo a própria, só que apagada quando bloqueada. */}
         {achievement.faithIcon ? (
-          <FaithIcon name={achievement.faithIcon} size={24} color={unlocked ? achievement.color : '#B9B2A9'} />
+          <FaithIcon name={achievement.faithIcon} size={24} color={unlocked ? achievement.color : color.ink400} />
         ) : (
           <Text style={[styles.cardEmoji, !unlocked && styles.cardEmojiDimmed]}>{achievement.emoji}</Text>
         )}
@@ -155,8 +185,9 @@ function AchievementCard({ achievement, unlocked, ctx, onPress }) {
         <Text style={styles.cardDesc} numberOfLines={2}>{achievement.desc}</Text>
 
         {unlocked ? (
-          <View style={[styles.unlockedBadge, { backgroundColor: achievement.color + '26' }]}>
-            <Text style={[styles.unlockedBadgeText, { color: achievement.color }]}>✨ Você conquistou isso!</Text>
+          <View style={[styles.unlockedBadge, { backgroundColor: achievement.color + '1F' }]}>
+            <FaithIcon name="check" size={12} color={achievement.color} />
+            <Text style={[styles.unlockedBadgeText, { color: achievement.color }]}>Você conquistou isso!</Text>
           </View>
         ) : inProgress ? (
           <View style={styles.cardProgressWrap}>
@@ -166,9 +197,12 @@ function AchievementCard({ achievement, unlocked, ctx, onPress }) {
             <Text style={styles.cardProgressText}>{progLabel}</Text>
           </View>
         ) : (
-          <Text style={styles.lockedHint} numberOfLines={2}>
-            🔒 {achievement.how || 'Toque para ver como conquistar'}
-          </Text>
+          <View style={styles.lockedHintRow}>
+            <FaithIcon name="lock" size={11} color={color.ink400} />
+            <Text style={styles.lockedHint} numberOfLines={2}>
+              {achievement.how || 'Toque para ver como conquistar'}
+            </Text>
+          </View>
         )}
       </View>
     </SoundButton>
@@ -299,7 +333,8 @@ export default function TrophiesScreen({ navigation, route }) {
       {fromCena && (
         <View style={[styles.backRow, { paddingTop: insets.top || 16 }]}>
           <SoundButton style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Text style={styles.backBtnText}>‹ {backLabelFor(route?.params?.from)}</Text>
+            <FaithIcon name="back" size={18} color={color.terra600} />
+            <Text style={styles.backBtnText}>{backLabelFor(route?.params?.from)}</Text>
           </SoundButton>
         </View>
       )}
@@ -320,15 +355,18 @@ export default function TrophiesScreen({ navigation, route }) {
                 grade real (região menos o recuo de página). Altura zero — não desloca
                 nada e não muda o desenho de coisa alguma. */}
             <View style={styles.gradeProbe} onLayout={onGradeLayout} />
-            {/* ── HERO ── */}
+            {/* ── HERO ──
+                [F6.3B] O lilás do cabeçalho era o último resto do sistema visual antigo
+                nesta tela. O álbum passa a nascer no papel; quem é protagonista é a
+                estrela e o Beni, não uma placa colorida atrás deles. */}
             <LinearGradient
-              colors={['#F4EFFF', '#E7DBFF']}
+              colors={[color.paper100, color.paper200]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.header}
             >
               <View style={styles.headerTopRow}>
                 <View style={styles.headerIconCircle}>
-                  <FaithIcon name="star" size={34} color="#B8860B" />
+                  <FaithIcon name="star" size={34} color={color.gold700} />
                 </View>
                 <BeniAvatar variant="celebrating" size="medium" />
               </View>
@@ -354,11 +392,16 @@ export default function TrophiesScreen({ navigation, route }) {
             {next ? (
               <View ref={starsTargets.register('stars.next')} collapsable={false} style={styles.nextCard}>
                 <View style={styles.nextLabelRow}>
-                  <Text style={styles.nextLabel}>🎯 PRÓXIMA CONQUISTA</Text>
+                  <FaithIcon name="medal" size={13} color={color.terra600} />
+                  <Text style={styles.nextLabel}>PRÓXIMA CONQUISTA</Text>
                 </View>
                 <View style={styles.nextBody}>
-                  <View style={[styles.nextEmojiCircle, { backgroundColor: next.achievement.color + '22' }]}>
-                    <Text style={styles.nextEmoji}>{next.achievement.emoji}</Text>
+                  <View style={[styles.nextEmojiCircle, { backgroundColor: next.achievement.color + '1F' }]}>
+                    {next.achievement.faithIcon ? (
+                      <FaithIcon name={next.achievement.faithIcon} size={28} color={next.achievement.color} />
+                    ) : (
+                      <Text style={styles.nextEmoji}>{next.achievement.emoji}</Text>
+                    )}
                   </View>
                   <View style={styles.nextInfo}>
                     <Text style={styles.nextTitle}>{next.achievement.title}</Text>
@@ -373,14 +416,16 @@ export default function TrophiesScreen({ navigation, route }) {
               </View>
             ) : ctx && unlockedCount < total ? (
               <View ref={starsTargets.register('stars.next')} collapsable={false} style={styles.nextCardSoft}>
+                <FaithIcon name="lumi" size={16} color={color.gold700} />
                 <Text style={styles.nextSoftText}>
-                  ✨ Continue uma aventura para descobrir sua próxima estrelinha.
+                  Continue uma aventura para descobrir sua próxima estrelinha.
                 </Text>
               </View>
             ) : ctx && unlockedCount === total ? (
               <View ref={starsTargets.register('stars.next')} collapsable={false} style={styles.nextCardSoft}>
+                <FaithIcon name="trophies" size={16} color={color.gold700} />
                 <Text style={styles.nextSoftText}>
-                  🏅 Uau! Você acendeu todas as estrelinhas. Beni está muito orgulhoso!
+                  Uau! Você acendeu todas as estrelinhas. Beni está muito orgulhoso!
                 </Text>
               </View>
             ) : null}
@@ -388,8 +433,8 @@ export default function TrophiesScreen({ navigation, route }) {
         }
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader}>
-            {section.cat.faithIcon ? (
-              <FaithIcon name={section.cat.faithIcon} size={20} color={section.cat.color} style={styles.sectionIcon} />
+            {iconeDaCategoria(section.cat) ? (
+              <FaithIcon name={iconeDaCategoria(section.cat)} size={20} color={section.cat.color} style={styles.sectionIcon} />
             ) : (
               <Text style={styles.sectionIcon}>{section.cat.icon}</Text>
             )}
@@ -440,8 +485,12 @@ export default function TrophiesScreen({ navigation, route }) {
             const unlocked = isUnlocked(selected);
             return (
               <View style={styles.detailBox}>
-                <View style={[styles.detailEmojiCircle, { backgroundColor: selected.color + (unlocked ? '2A' : '18') }]}>
-                  <Text style={[styles.detailEmoji, !unlocked && { opacity: 0.5 }]}>{selected.emoji}</Text>
+                <View style={[styles.detailEmojiCircle, { backgroundColor: selected.color + (unlocked ? '22' : '14') }]}>
+                  {selected.faithIcon ? (
+                    <FaithIcon name={selected.faithIcon} size={46} color={unlocked ? selected.color : color.ink400} />
+                  ) : (
+                    <Text style={[styles.detailEmoji, !unlocked && { opacity: 0.5 }]}>{selected.emoji}</Text>
+                  )}
                 </View>
                 <Text style={styles.detailTitle}>{selected.title}</Text>
                 <Text style={styles.detailDesc}>{selected.desc}</Text>
@@ -457,13 +506,17 @@ export default function TrophiesScreen({ navigation, route }) {
                   </Text>
                 </View>
 
+                {/* [F6.3B] Os dois estados de selo já existem como token canônico
+                    (`seal.done` para o conquistado, `seal.premium` para o que ainda vem
+                    pela frente): a tela para de escolher verde e azul por conta própria. */}
                 {unlocked ? (
-                  <View style={[styles.detailStatus, { backgroundColor: pt.greenSoft }]}>
-                    <Text style={[styles.detailStatusText, { color: pt.greenDeep }]}>✅ Beni viu essa vitória!</Text>
+                  <View style={[styles.detailStatus, { backgroundColor: seal.done.bg, borderColor: seal.done.border }]}>
+                    <FaithIcon name="check" size={15} color={seal.done.text} />
+                    <Text style={[styles.detailStatusText, { color: seal.done.text }]}>Beni viu essa vitória!</Text>
                   </View>
                 ) : (
-                  <View style={[styles.detailStatus, { backgroundColor: pt.faithBlueSoft }]}>
-                    <Text style={[styles.detailStatusText, { color: pt.faithBlueDeep }]}>
+                  <View style={[styles.detailStatus, { backgroundColor: seal.premium.bg, borderColor: seal.premium.border }]}>
+                    <Text style={[styles.detailStatusText, { color: seal.premium.text }]}>
                       Continue sua jornada para desbloquear.
                     </Text>
                   </View>
@@ -504,7 +557,7 @@ export default function TrophiesScreen({ navigation, route }) {
 
 /* ── Estilos ─────────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: pt.background },
+  container: { flex: 1, backgroundColor: color.paper50 },
   content: { paddingHorizontal: 16, paddingBottom: 24 },
   gradeProbe: { height: 0 },
 
@@ -512,35 +565,38 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center', paddingVertical: 20, paddingHorizontal: 20,
     borderRadius: radii.xl, marginBottom: 14,
-    borderWidth: 1.5, borderColor: '#F2DFA0',
+    borderWidth: 1.5, borderColor: color.gold300,
   },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 10 },
   headerIconCircle: {
     width: 60, height: 60, borderRadius: 30,
-    backgroundColor: '#FFF6DA',
+    backgroundColor: color.gold100,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2, borderColor: '#F2DFA0',
+    borderWidth: 2, borderColor: color.gold300,
   },
-  headerTitle: { fontFamily: 'FredokaOne', fontSize: 24, color: pt.text, marginBottom: 3 },
-  headerSub: { fontFamily: 'Nunito', fontSize: 13, color: '#8A6D1F', textAlign: 'center', marginBottom: 6, lineHeight: 18, paddingHorizontal: 6 },
-  headerNote: { fontFamily: 'Nunito', fontSize: 11.5, color: '#A07A2A', fontWeight: '700', textAlign: 'center', marginBottom: 8, lineHeight: 16, fontStyle: 'italic', paddingHorizontal: 6 },
-  headerCount: { fontFamily: 'Nunito', fontSize: 12, color: '#9B7B30', fontWeight: '700', marginBottom: 10 },
+  // Fraunces fica SÓ aqui: o nome do álbum é a identidade editorial desta tela. Todo o
+  // resto da interface é Nunito, como nas telas já aprovadas.
+  headerTitle: { fontFamily: font.display, fontSize: 25, color: color.ink900, marginBottom: 3 },
+  headerSub: { fontFamily: font.body, fontSize: 13, color: color.ink600, textAlign: 'center', marginBottom: 6, lineHeight: 18, paddingHorizontal: 6 },
+  headerNote: { fontFamily: font.body, fontSize: 11.5, color: color.ink400, fontWeight: '700', textAlign: 'center', marginBottom: 8, lineHeight: 16, fontStyle: 'italic', paddingHorizontal: 6 },
+  headerCount: { fontFamily: font.bodyBold, fontSize: 12.5, color: color.ink600, marginBottom: 10 },
   // Alvo medível do guia (Card 2): contagem + barra, centralizado, ocupa a largura do hero.
   heroAchievements: { alignSelf: 'stretch', alignItems: 'center' },
   headerProgressRow: { width: '70%' },
-  headerProgressBar: { height: 10, backgroundColor: 'rgba(122,88,0,0.15)', borderRadius: 5, overflow: 'hidden' },
-  headerProgressFill: { height: '100%', backgroundColor: pt.gold, borderRadius: 5 },
+  headerProgressBar: { height: 10, backgroundColor: color.paper300, borderRadius: 5, overflow: 'hidden' },
+  headerProgressFill: { height: '100%', backgroundColor: color.gold500, borderRadius: 5 },
 
   // Próxima conquista
+  // [F6.3B] Cartão leve, não painel: papel, sombra macia e UMA cor semântica — a da
+  // própria conquista, no ícone e na barra. O rótulo é terracota porque é o convite.
   nextCard: {
-    backgroundColor: '#FFFDF7', borderRadius: radii.xl,
-    borderWidth: 1.5, borderColor: '#F0E2C6',
+    backgroundColor: color.paper50, borderRadius: radii.xl,
+    borderWidth: 1.5, borderColor: color.paper200,
     padding: 14, marginBottom: 18,
-    elevation: 4, shadowColor: '#B07A2E',
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.16, shadowRadius: 10,
+    ...shadows.soft,
   },
-  nextLabelRow: { marginBottom: 10 },
-  nextLabel: { fontFamily: 'FredokaOne', fontSize: 11, color: '#9A6B12', letterSpacing: 0.5 },
+  nextLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  nextLabel: { fontFamily: font.bodyBold, fontSize: 11.5, color: color.terra600, letterSpacing: 0.5 },
   nextBody: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   nextEmojiCircle: {
     width: 54, height: 54, borderRadius: 27,
@@ -548,19 +604,21 @@ const styles = StyleSheet.create({
   },
   nextEmoji: { fontSize: 28 },
   nextInfo: { flex: 1 },
-  nextTitle: { fontFamily: 'FredokaOne', fontSize: 16, color: pt.text, marginBottom: 2 },
-  nextHow: { fontFamily: 'Nunito', fontSize: 12.5, color: pt.textSoft, fontWeight: '700', marginBottom: 8 },
-  nextBar: { height: 8, backgroundColor: pt.border, borderRadius: 4, overflow: 'hidden' },
+  nextTitle: { fontFamily: font.bodyBold, fontSize: 16, color: color.ink900, marginBottom: 2 },
+  nextHow: { fontFamily: font.body, fontSize: 12.5, color: color.ink600, fontWeight: '700', marginBottom: 8 },
+  nextBar: { height: 8, backgroundColor: color.paper200, borderRadius: 4, overflow: 'hidden' },
   nextBarFill: { height: '100%', borderRadius: 4 },
 
   nextCardSoft: {
-    backgroundColor: pt.faithBlueSoft, borderRadius: radii.lg,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: color.paper100, borderRadius: radii.lg,
     padding: 14, marginBottom: 18,
-    borderWidth: 1, borderColor: 'rgba(43,91,161,0.18)',
+    borderWidth: 1, borderColor: color.paper200,
   },
   nextSoftText: {
-    fontFamily: 'Nunito', fontSize: 13, color: pt.faithBlueDeep,
-    fontWeight: '700', textAlign: 'center', lineHeight: 19,
+    flex: 1,
+    fontFamily: font.body, fontSize: 13, color: color.ink600,
+    fontWeight: '700', lineHeight: 19,
   },
 
   // Seções
@@ -569,8 +627,8 @@ const styles = StyleSheet.create({
   sectionFooterGap: { height: 6 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, paddingHorizontal: 2 },
   sectionIcon: { fontSize: 18 },
-  sectionTitle: { fontFamily: 'FredokaOne', fontSize: 17, color: pt.text, flex: 1 },
-  sectionCount: { fontFamily: 'Nunito', fontSize: 12, color: pt.muted, fontWeight: '800' },
+  sectionTitle: { fontFamily: font.bodyBold, fontSize: 17, color: color.ink900, flex: 1 },
+  sectionCount: { fontFamily: font.body, fontSize: 12, color: color.ink400, fontWeight: '800' },
 
   // [TK-C-008] A largura da conquista deixou de ser `48%` — dois por definição. A
   // célula divide o que sobra por igual, seja a grade de duas ou de três colunas.
@@ -583,22 +641,26 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl, padding: 14, marginBottom: 10, gap: 14,
     position: 'relative', overflow: 'hidden',
   },
+  // [F6.3B] Conquistada: papel + borda viva da conquista. Antes o card inteiro tomava um
+  // banho da cor; agora a cor está onde ela informa — borda, figura, selo e barra.
   cardUnlocked: {
+    backgroundColor: color.paper50,
     borderWidth: 2,
-    elevation: 4, shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6,
+    ...shadows.soft,
   },
+  // Bloqueada: papel, não bloco de cinza. A conquista continua legível — só não acesa.
   cardLocked: {
-    backgroundColor: '#F7F2EB',
-    borderWidth: 1.5, borderColor: '#E7DECF',
-    opacity: 0.96,
+    backgroundColor: color.paper100,
+    borderWidth: 1.5, borderColor: color.paper200,
   },
+  // Dourado como DETALHE (o adesivo do álbum), nunca como banho do card.
   stickerCorner: {
     position: 'absolute', top: 8, right: 8,
     width: 22, height: 22, borderRadius: 11,
+    backgroundColor: color.gold100,
+    borderWidth: 1, borderColor: color.gold300,
     justifyContent: 'center', alignItems: 'center',
   },
-  stickerCornerText: { fontSize: 11 },
   emojiCircle: {
     width: 52, height: 52, borderRadius: 26,
     justifyContent: 'center', alignItems: 'center', flexShrink: 0,
@@ -606,16 +668,21 @@ const styles = StyleSheet.create({
   cardEmoji: { fontSize: 26 },
   cardEmojiDimmed: { opacity: 0.35 },
   cardInfo: { flex: 1 },
-  cardTitle: { fontFamily: 'FredokaOne', fontSize: 15, color: pt.text, marginBottom: 3 },
-  cardTitleLocked: { color: pt.muted },
-  cardDesc: { fontFamily: 'Nunito', fontSize: 12, color: pt.textSoft, lineHeight: 17 },
-  lockedHint: { fontFamily: 'Nunito', fontSize: 11, color: pt.muted, fontWeight: '700', marginTop: 5 },
-  unlockedBadge: { alignSelf: 'flex-start', borderRadius: radii.sm, paddingHorizontal: 8, paddingVertical: 3, marginTop: 6 },
-  unlockedBadgeText: { fontFamily: 'Nunito', fontSize: 11, fontWeight: '700' },
+  cardTitle: { fontFamily: font.bodyBold, fontSize: 15, color: color.ink900, marginBottom: 3 },
+  cardTitleLocked: { color: color.ink400 },
+  cardDesc: { fontFamily: font.body, fontSize: 12, color: color.ink600, lineHeight: 17 },
+  lockedHintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 5 },
+  lockedHint: { flex: 1, fontFamily: font.body, fontSize: 11, color: color.ink400, fontWeight: '700' },
+  unlockedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start', borderRadius: radii.sm,
+    paddingHorizontal: 8, paddingVertical: 3, marginTop: 6,
+  },
+  unlockedBadgeText: { fontFamily: font.body, fontSize: 11, fontWeight: '700' },
   cardProgressWrap: { marginTop: 7 },
-  cardProgressBar: { height: 6, backgroundColor: pt.border, borderRadius: 3, overflow: 'hidden', marginBottom: 3 },
+  cardProgressBar: { height: 6, backgroundColor: color.paper200, borderRadius: 3, overflow: 'hidden', marginBottom: 3 },
   cardProgressFill: { height: '100%', borderRadius: 3 },
-  cardProgressText: { fontFamily: 'Nunito', fontSize: 10.5, color: pt.muted, fontWeight: '700' },
+  cardProgressText: { fontFamily: font.body, fontSize: 10.5, color: color.ink400, fontWeight: '700' },
 
   // Detalhe
   detailOverlay: {
@@ -623,10 +690,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28,
   },
   detailBox: {
-    backgroundColor: '#FFFDF8', borderRadius: radii.xl, padding: 26,
+    backgroundColor: color.paper50, borderRadius: radii.xl, padding: 26,
     width: '100%', alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#F0E2C6',
-    elevation: 20, shadowColor: '#000',
+    borderWidth: 1.5, borderColor: color.paper200,
+    elevation: 20, shadowColor: color.ink900,
     shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 20,
   },
   detailEmojiCircle: {
@@ -634,36 +701,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', marginBottom: 14,
   },
   detailEmoji: { fontSize: 46 },
-  detailTitle: { fontFamily: 'FredokaOne', fontSize: 21, color: pt.text, textAlign: 'center', marginBottom: 6 },
-  detailDesc: { fontFamily: 'Nunito', fontSize: 14, color: pt.textSoft, textAlign: 'center', lineHeight: 21, marginBottom: 14 },
+  detailTitle: { fontFamily: font.display, fontSize: 21, color: color.ink900, textAlign: 'center', marginBottom: 6 },
+  detailDesc: { fontFamily: font.body, fontSize: 14, color: color.ink600, textAlign: 'center', lineHeight: 21, marginBottom: 14 },
   detailHowBox: {
-    width: '100%', backgroundColor: pt.cream, borderRadius: radii.md,
+    width: '100%', backgroundColor: color.paper100, borderRadius: radii.md,
     paddingHorizontal: 14, paddingVertical: 12, marginBottom: 12,
   },
-  detailHowLabel: { fontFamily: 'FredokaOne', fontSize: 10, color: '#9A6B12', letterSpacing: 0.5, marginBottom: 4 },
-  detailHowText: { fontFamily: 'Nunito', fontSize: 13, color: pt.text, fontWeight: '700', lineHeight: 19 },
-  detailStatus: { width: '100%', borderRadius: radii.md, paddingVertical: 10, alignItems: 'center', marginBottom: 16 },
-  detailStatusText: { fontFamily: 'FredokaOne', fontSize: 13 },
+  detailHowLabel: { fontFamily: font.bodyBold, fontSize: 10.5, color: color.terra600, letterSpacing: 0.5, marginBottom: 4 },
+  detailHowText: { fontFamily: font.body, fontSize: 13, color: color.ink900, fontWeight: '700', lineHeight: 19 },
+  detailStatus: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    width: '100%', borderRadius: radii.md, borderWidth: 1,
+    paddingVertical: 10, paddingHorizontal: 12, marginBottom: 16,
+  },
+  detailStatusText: { fontFamily: font.bodyBold, fontSize: 13 },
+  // Terracota é a AÇÃO — o mesmo botão que a criança já conhece da Home.
   detailBtn: {
-    backgroundColor: pt.gold, borderRadius: radii.pill,
+    backgroundColor: color.terra500, borderRadius: radii.pill,
     paddingVertical: 13, paddingHorizontal: 40, alignSelf: 'stretch', alignItems: 'center',
   },
-  detailBtnText: { fontFamily: 'FredokaOne', fontSize: 16, color: '#5A3E12' },
+  detailBtnText: { fontFamily: font.bodyBold, fontSize: 16, color: color.onTerra },
 
   // Botão Voltar — só visível quando aberta via modal pós cena (EstrelinhasCena)
   backRow: {
-    backgroundColor: '#FFF6D8',
+    backgroundColor: color.paper100,
     paddingHorizontal: 16,
     paddingBottom: 4,
   },
   backBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
     alignSelf: 'flex-start',
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
   backBtnText: {
-    fontFamily: 'FredokaOne',
+    fontFamily: font.bodyBold,
     fontSize: 16,
-    color: '#8A6D1F',
+    color: color.terra600,
   },
 });
