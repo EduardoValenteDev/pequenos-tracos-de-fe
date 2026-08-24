@@ -7,9 +7,15 @@
 >
 > Precedência acima deste arquivo: `docs/PROJECT_SOURCE_OF_TRUTH.md` (Roteiro Mestre) →
 > `.specify/memory/constitution.md` → `AGENTS.md`/`CLAUDE.md`. Este arquivo governa as **decisões
-> de produto/linha de lançamento** e é a base da
+> de produto/linha de lançamento**. O **roadmap operacional vigente** é
+> [`docs/roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md`](roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md)
+> (**v6.0**, instalado em 2026-08-24 pelo bloco **F6.0**): a **v6 governa sequência, fases, escopo e
+> portões**; **este arquivo governa as decisões individuais** e, em conflito entre os dois sobre uma
+> decisão, **vence este arquivo**. A
 > [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md)
-> (**vigente**; a v4 é histórica).
+> passou a ser **histórica como sequência operacional** (a v4 já era histórica); seu conteúdo de
+> produto continua válido **apenas** onde este arquivo o mantém. Ver a seção
+> [`## V6`](#v6--migração-canônica-para-o-roadmap-mestre-v60-f60--2026-08-24).
 >
 > **Mudança de decisão só existe se:** o fundador aprova explicitamente → DECISIONS.md é atualizado
 > PRIMEIRO → documentos depois → código por último. Nenhuma IA reabre item registrado sem sinalizar
@@ -19,13 +25,14 @@
 > produto** e nada abaixo o rebaixa. O que ele **não** governa é o **inventário de pendências**:
 > identidade, status, severidade, fase e rastreabilidade de riscos vivem exclusivamente em
 > [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)
-> (**matriz canônica**, códigos `P-01` a `P-149`). A `v5` governa **roadmap e sequência de fases**;
+> (**matriz canônica**, códigos `P-01` a `P-149`). A **v6.0** governa **roadmap e sequência de fases**
+> (papel que era da `v5` até 2026-08-24);
 > o `PROJECT_SOURCE_OF_TRUTH.md` governa **precedência e governança**. Listas de risco antigas
 > mantidas neste arquivo — em especial a lista `R` — valem **apenas como origem histórica e alias**
 > e **não** são matriz concorrente. Este arquivo **não replica** a matriz: cita códigos `P`, e a
 > definição fica lá.
 
-**Data desta versão:** 2026-08-05 (**Product Lock — Fase 4A**, Plano Família, compra, restauração e entitlement, seção `PL4A`; **Fase 4B**, acesso grátis, conteúdo do Plano Família, histórias e superfícies infantis, seção `PL4B`; **Fase 4C**, jornada, progressão, conclusão e desbloqueios, seção `PL4C`; **Fase 4D**, dados, persistência, migração, recuperação e integridade, seção `PL4D`) · **Atualizada em:** 2026-08-06 (**Fase 4E**, privacidade, Área dos Pais, analytics e Modo Igreja, seção `PL4E`; **Fase 5**, infância, privacidade, teologia e medição, seção `PF5`) · **Atualizada em:** 2026-08-08 (**Fase 6 · Delta v4.1** pós-validação física em iPad, decisões `D1`–`D18`, seção `PF6D`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
+**Data desta versão:** 2026-08-05 (**Product Lock — Fase 4A**, Plano Família, compra, restauração e entitlement, seção `PL4A`; **Fase 4B**, acesso grátis, conteúdo do Plano Família, histórias e superfícies infantis, seção `PL4B`; **Fase 4C**, jornada, progressão, conclusão e desbloqueios, seção `PL4C`; **Fase 4D**, dados, persistência, migração, recuperação e integridade, seção `PL4D`) · **Atualizada em:** 2026-08-06 (**Fase 4E**, privacidade, Área dos Pais, analytics e Modo Igreja, seção `PL4E`; **Fase 5**, infância, privacidade, teologia e medição, seção `PF5`) · **Atualizada em:** 2026-08-08 (**Fase 6 · Delta v4.1** pós-validação física em iPad, decisões `D1`–`D18`, seção `PF6D`) · **Atualizada em:** 2026-08-24 (**F6.0 · migração documental canônica para o Roadmap Mestre v6.0**, seção `V6`) · **Base anterior:** 2026-08-03 (Spec 019 · revogação cirúrgica da restrição de persistência no Grátis) · **Fundador:** Eduardo
 
 > **Reconciliação E1 (2026-07-15):** este arquivo passou a ser o **único árbitro** (o `DECISIONS.md`
 > da raiz foi marcado SUPERSEDED). As decisões consolidadas de lançamento estão na seção
@@ -1738,6 +1745,14 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
   abertura da Fase 6 — o delta é ortogonal a ambas.
 
 ### PF6D-D1 — Telefones em retrato; tablets e iPads em retrato **e** paisagem
+> **↪ REVERTIDA EM 2026-08-24 por [`V6-D02`](#v6-d02--portrait-v1--retrato-é-a-orientação-oficialmente-suportada-no-v1) — REVERSÃO EXPLÍCITA, não erratação.**
+> A metade *"tablets e iPads suportam **retrato e paisagem**"* **deixa de valer como objetivo do V1**:
+> o contrato do primeiro lançamento passa a ser **portrait first**, e a paisagem completa é
+> **residualizada para depois do V1**. **Continua valendo integralmente:** telefones travados em
+> retrato; a proibição de congelar *"iPad rotaciona / Android permanece retrato"* como solução final;
+> o fato apurado de que **o iPad já gira hoje** e de que, por isso, a exposição do canvas a `resize`
+> **já existe**; a precondição `F6-R3` + `PF6D-D-CANVAS`; e as estruturas responsivas já aprendidas.
+> O texto abaixo é **preservado como histórico e não foi apagado** — leia-o sempre junto com `V6-D02`.
 - **Status:** ✅ CONFIRMADA. Telefones (iOS e Android) permanecem travados em **retrato**. Tablets
   e iPads suportam **retrato e paisagem**.
 - **Alcance explicitado na emenda do Portão 1 (item 4):** `D1` cobre **quatro** casos, não dois —
@@ -1813,6 +1828,11 @@ tomada **não** corrige risco técnico e **não** autoriza escrever código.
   **não** implementa o Leitor V2.
 
 ### PF6D-D10 — Leitor: retrato = arte dominante + camada legível; tablet em paisagem = livro aberto / painel de apoio
+> **↪ PARCIALMENTE RESIDUALIZADA EM 2026-08-24 por [`V6-D02`](#v6-d02--portrait-v1--retrato-é-a-orientação-oficialmente-suportada-no-v1).**
+> A metade **"tablet em paisagem = livro aberto / painel de apoio"** sai do escopo do V1 e vira
+> **pós-V1**, junto com a paisagem completa. A metade **retrato = arte dominante + camada legível**
+> permanece **integralmente em vigor** e é o contrato consumido pela **Página Viva** (`PF6D-D9` /
+> `V6-D06`). Texto preservado, não apagado.
 - **Status:** ✅ CONFIRMADA. **Fase 9.** Risco `P-161`.
 
 ### PF6D-D11 — **Uma âncora canônica** controla pino, alvo de toque, brilho, *scroll* e holofote do mapa
@@ -4791,3 +4811,120 @@ COMPACTA inalcançável) **permanecem exatamente como estão**: nenhuma correç�
 - ✅ **Escopo das rodadas diárias, perfil local, reset, exportação, corrupção, armazenamento, packs pós-atualização e chaves de storage** — **DECIDIDOS em 2026-08-05** no **Product Lock da Fase 4D**. Ver [`## PL4D`](#pl4d--product-lock-fase-4d--dados-persistência-migração-recuperação-e-integridade). **Deixam de ser pendências de decisão**; a implementação segue pendente nas Fases 10, 11, 12A, 16, 17 e 19, e os riscos técnicos correspondentes **continuam abertos** na matriz canônica (`P-01`..`P-149`). *(Faixa atualizada em 2026-08-07, Fase 5 Bloco 7, e declarada: dizia `P-01`..`P-148`, correto quando escrito; ficou desatualizada porque a Fase 5, Bloco 0, criou `P-149`. **Nenhuma contagem foi alterada — apenas a designação da faixa.**)*
 - ✅ **Privacidade, sessão adulta, links externos, exclusão, analytics, consentimento, exportação, compartilhamento, política/termos, contato e destino do Modo Igreja** — **DECIDIDOS em 2026-08-06** no **Product Lock da Fase 4E**. Ver [`## PL4E`](#pl4e--product-lock-fase-4e--privacidade-área-dos-pais-analytics-e-modo-igreja). **Deixam de ser pendências de decisão**; a implementação segue pendente nas Fases 5, 11, 12A, 12B, 16, 18 e 19, e os riscos técnicos correspondentes **continuam abertos** na matriz canônica (`P-01`..`P-149`). **Preço e modelo comercial do Modo Igreja** e **os 24 encaminhamentos jurídicos** permanecem **explicitamente em aberto**. *(Faixa atualizada em 2026-08-07, Fase 5 Bloco 7, pelo mesmo motivo declarado no item anterior: a Fase 5 criou `P-149`. Nota adicional: a Fase 5 **cumpriu** sua parte dos encaminhamentos jurídicos ao especificar e obter aprovação documental do plano de medição, mas **nenhum dos pareceres jurídicos externos foi obtido** — ver `PF5-ENCERRAMENTO`.)*
 - ✅ **Contrato técnico do sistema global de conclusão** (Decisões B e C) — **CONGELADO em 2026-08-05** no **Product Lock da Fase 4C**. Ver [`## PL4C`](#pl4c--product-lock-fase-4c--jornada-progressão-conclusão-e-desbloqueios). **Deixa de ser pendência de decisão**; os achados de [`D-CONCLUSAO-ESTADO-ATUAL`](#d-conclusao-estado-atual--achados-que-impedem-o-congelamento-técnico-imediato-registro-de-fatos) **continuam abertos como risco técnico**, com implementação nas Fases 7, 9, 10, 11, 12A, 16 e 19 e **validação física futura**.
+
+---
+
+## V6 — Migração canônica para o Roadmap Mestre v6.0 (F6.0 · 2026-08-24)
+
+> **Bloco:** `F6.0 · Migração documental canônica para Roadmap v6.0`. **Natureza:** **documental**
+> (`docs only`) — **nenhuma linha do executável foi tocada**. **Fundador:** Eduardo.
+>
+> **O que mudou de autoridade.** O roadmap operacional vigente passa a ser
+> [`docs/roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md`](roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md).
+> **A v6 governa sequência, fases, escopo e portões. Este arquivo continua governando as decisões
+> individuais** — em conflito sobre uma decisão, **vence este arquivo**. A `v5` deixa de ser roadmap
+> operacional e passa a **histórica como sequência**.
+>
+> **Errata editorial herdada.** A parte detalhada da v6 reunia num único `F6.8` os builds e a campanha
+> física, enquanto o §16 do mesmo documento já os separava. O documento instalado foi normalizado para
+> **`F6.8 · Builds canônicos`** e **`F6.9 · Campanha física e lacre`**, registrado como
+> **ERRATA EDITORIAL 01** no cabeçalho do próprio roadmap. **Não é decisão nova do fundador**: não
+> altera produto, portões nem ordem causal.
+
+### V6-MATRIZ — Matriz de reconciliação de conflitos (todo conflito com vencedor explícito)
+
+| Tema | Autoridade anterior | Autoridade vigente | Estado | Ação documental |
+| --- | --- | --- | --- | --- |
+| **Fonte de sequência** | `v5` (`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`) | **`V6-D01`** + roadmap v6.0 | **REVERTIDO** | ID novo `V6-D01`; v5 marcada SUPERSEDED como sequência |
+| **Orientação** | `PF6D-D1` (tablets/iPads em retrato **e** paisagem) | **`V6-D02`** (portrait first no V1) | **REVERTIDO** | ID novo `V6-D02`; nota de REVERSÃO em `PF6D-D1`; metade paisagem de `PF6D-D10` residualizada |
+| **Convergência de builds** | Sem decisão registrada (`D-FUND-BUILD-*` cobrem custódia/proveniência, não paridade) | **`V6-D03`** | **NOVO** | ID novo `V6-D03` |
+| **Brincar** | `E1-BRINCAR-4JOGOS` | **`E1-BRINCAR-4JOGOS`** (inalterada) | **MANTIDO** | Nenhum ID novo — reconfirmação |
+| **Colorir narrativo no grátis** | `D-C60-PERSISTENCIA-TODOS-PLANOS` | **`D-C60-PERSISTENCIA-TODOS-PLANOS`** | **MANTIDO** | Nenhum ID novo — reconfirmação |
+| **Criar Livre no grátis** | `E1-ARTES-SALVAR` | **`E1-ARTES-SALVAR`** | **MANTIDO** | Nenhum ID novo — reconfirmação |
+| **Conclusão (regra de desbloqueio)** | `D-CONCLUSAO-TOTAL-B` | **`D-CONCLUSAO-TOTAL-B`** | **MANTIDO** | Nenhum ID novo — reconfirmação |
+| **Colorir para conclusão total** | `D-C60-INTEGRACAO-PRODUTO` | **`D-C60-INTEGRACAO-PRODUTO`** | **MANTIDO** | Nenhum ID novo — reconfirmação |
+| **Design** | `D-DESIGN-LIVRO-VIVO` (+ Direção de Arte v1.1) | **`D-DESIGN-LIVRO-VIVO`** | **MANTIDO** | Nenhum ID novo — `V6-D04` **reaproveita** a autoridade existente |
+| **Story Home V2** | `PF6D-D5` | **`PF6D-D5`** | **MANTIDO** | Nenhum ID novo — `V6-D05` **reaproveita** |
+| **Story Reader / Página Viva** | `PF6D-D9` (Delta v4.1 D9) | **`PF6D-D9`** | **MANTIDO** | Nenhum ID novo — `V6-D06` **reaproveita** |
+| **Página de conclusão (UI)** | Sem decisão registrada — `D-4C-CONCLUSAO` congela a **fórmula**, não a tela | **`V6-D07`** | **NOVO** | ID novo `V6-D07`; **não** altera `D-4C-CONCLUSAO` nem `D-CONCLUSAO-TOTAL-B` |
+| **Aprendizagem** | Sem decisão registrada | **`V6-D08`** | **NOVO** | ID novo `V6-D08` |
+| **Meu Momento** | Sem decisão de escopo (só `D-4B-FILTRO-RECOMENDACAO`, que o cita de passagem) | **`V6-D09`** | **NOVO** | ID novo `V6-D09` |
+| **Cultinho em Casa** | Sem decisão de escopo | **`V6-D10`** | **NOVO** | ID novo `V6-D10` |
+| **Presença / streak** | Sem decisão registrada | **`V6-D11`** | **NOVO** | ID novo `V6-D11` |
+| **Prova de aprendizado (Responsáveis)** | Sem decisão registrada (`COPY-RESPONSAVEIS-01` é só nomenclatura) | **`V6-D12`** | **NOVO** | ID novo `V6-D12` |
+| **Referral / compartilhamento** | Sem decisão registrada | **`V6-D13`** | **NOVO** | ID novo `V6-D13` |
+| **CNPJ** | Sem decisão registrada | **`V6-D14`** | **NOVO** | ID novo `V6-D14` |
+| **Preços** | `E1-MONETIZACAO-V1` | **`E1-MONETIZACAO-V1`** | **MANTIDO** | Nenhum ID novo; **proibido** congelar número antigo silenciosamente |
+| **F6.8 vs F6.9** | v6 §12 (bloco único) vs v6 §16 (dois blocos) | **v6 §16** — `F6.8` builds, `F6.9` campanha/lacre | **NORMALIZADO** | ERRATA EDITORIAL 01 no roadmap instalado |
+| **Inventário de pendências** | `docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md` (`P-01`..`P-167`), por `E018` | **`09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md` permanece a matriz canônica única** | **MANTIDO** | A v6 **não** a declara superada e **não** a lista como histórica; o registro `F6-UX-01`…`F20-STORE-01` da v6 §9 é **vista executiva por fase**, **não** matriz concorrente. **O mapeamento `F6-XX-01` ↔ `P-nnn` é pendência entregue ao `F6.1`** |
+
+### V6-D01 — Fonte canônica única de sequência
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §1 e §19.
+- **Decisão:** a **v6.0** é a **fonte canônica única de sequência, fases, escopo e portões**. Este `DECISIONS.md` continua **árbitro das decisões individuais**. Não existe segundo roadmap operacional no repositório.
+- **Supera:** a `v5` **no papel de roadmap de execução** (não no conteúdo de produto que este arquivo mantém).
+
+### V6-D02 — Portrait V1 — retrato é a orientação oficialmente suportada no V1
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §2 e §2.1.
+- **Decisão:** o V1 é **portrait first**. **Retrato** é a única orientação com PASS obrigatório no lançamento. **Paisagem completa é residualizada para pós-V1** e **não recebe PASS fictício**. As estruturas responsivas já aprendidas **permanecem** — não se apaga aprendizado, apenas se residualiza o objetivo.
+- **⚠️ REVERSÃO EXPLÍCITA:** reverte a metade *"tablets e iPads suportam retrato **e** paisagem"* de [`PF6D-D1`](#pf6d-d1--telefones-em-retrato-tablets-e-ipads-em-retrato-e-paisagem) e **residualiza** a metade *"tablet em paisagem = livro aberto"* de `PF6D-D10`. Ambas as decisões foram **anotadas no lugar**, não apagadas.
+- **Não altera:** telefones travados em retrato; o fato de o **iPad já girar hoje** e a exposição do canvas a `resize` daí decorrente; a precondição `F6-R3` + `PF6D-D-CANVAS`; `PF6D-D2` (layout decidido pela janela, nunca pelo nome do aparelho).
+
+### V6-D03 — Convergência Android/iOS e proveniência de build
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §2.1 e §10.
+- **Decisão:** **todo build de evidência tem proveniência rastreável** e **Android e iOS derivam da mesma baseline (mesmo HEAD)**, salvo **exceção documentada**. Build sem proveniência não vale como prova.
+- **Relação com o existente:** **precisa e amplia** as decisões de custódia/sequência de build já registradas (`D-FUND-BUILD-SEQUENCE-01`, `D-FUND-PREBUILD-01`, `D-FUND-HISTORICAL-INSTALL-BASELINE-01`), que **continuam em vigor**. Consumida em **F6.8**.
+
+### V6-D07 — Conclusão sem painel
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §2 e §8.
+- **Decisão:** a **tela informacional pesada de conclusão é removida**. No lugar: **celebração emocional curta** + **uma próxima ação principal**.
+- **Escopo estrito — o que esta decisão NÃO toca:** a **fórmula canônica de conclusão** (`D-4C-CONCLUSAO`), a **regra de desbloqueio** (`D-CONCLUSAO-TOTAL-B`, Opção B, com "Quase lá!"), o **contrato do sistema global** (`D-CONCLUSAO-GLOBAL-SISTEMA`, `PL4C`) e a regra de que **conclusão registrada nunca é revogada**. Esta decisão é sobre a **superfície**, não sobre a **contabilidade**.
+
+### V6-D08 — Aprendizagem como núcleo do produto
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §6.
+- **Decisão:** **toda história possui objetivo pedagógico explícito**, com **missão, descobertas, recuperação, aplicação e revisão**. Aprendizagem deixa de ser efeito colateral do conteúdo e passa a ser **requisito de cada história**.
+- **Primeira decisão registrada sobre o tema** — não havia autoridade anterior no corpus.
+
+### V6-D09 — Meu Momento com Beni
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §7.
+- **Decisão:** experiência de **3 a 5 minutos**, **reverente**, com aprendizado identificável. **Proibido:** recompensa por oração, recompensa por repetir passagem, recompensa por demonstração de fé. **Oração e fé não geram estrelas.**
+- **Coerente com:** `PF5` (infância, teologia e medição) e com a proibição geral de instrumentalizar a fé.
+
+### V6-D10 — Cultinho em Casa forte
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §7.
+- **Decisão:** **cada história do lançamento recebe pelo menos um Cultinho contextual**, e o sistema admite **biblioteca temática curada**. O Cultinho deixa de ser card fraco, repetitivo e centrado em *A Criação*.
+
+### V6-D11 — Jornada de Presença (sem streak punitiva)
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §2 e §6.
+- **Decisão:** a constância é mostrada como **Jornada de Presença**: **sem streak punitiva, sem reset, sem perda e sem prêmio por tempo de tela ou por minutos**.
+- **⛔ BLOQUEIO:** *streak* clássica com quebra/reset **não deve ser implementada** em nenhuma superfície.
+
+### V6-D12 — Prova de aprendizado para responsáveis
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §2.1 e §6.
+- **Decisão:** a **Área dos Responsáveis** mostra **resumo simples do que a criança aprendeu**.
+- **Limites herdados, inalterados:** tudo sob `PL4E` (privacidade, portão parental, consentimento) e `COPY-RESPONSAVEIS-01` (nomenclatura). **Nada de conteúdo criado pela criança nem de dado identificado sai do aparelho** por causa desta decisão.
+
+### V6-D13 — Presente "Davi e Golias" (compartilhamento adulto)
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §2 e §2.1.
+- **Decisão:** o programa **"Presenteie uma Família"** com *Davi e Golias* vive **exclusivamente na Área dos Responsáveis** — **nunca na superfície infantil** — com **compartilhamento simples** e **gate jurídico e de plataforma na F18**.
+- **⛔ REJEITADO:** *"indique e ganhe"* como feature dentro do app infantil.
+
+### V6-D14 — CNPJ em paralelo
+- **Data:** 2026-08-24 · **Status:** ✅ CONFIRMADA · **Origem:** Roadmap Mestre v6.0 §11.
+- **Decisão:** a **constituição do CNPJ começa agora, em paralelo**, e **não interrompe a F6**. **CNPJ ativo vira portão antes da F14.**
+- **Natureza:** decisão **administrativa**; não toca código.
+
+### V6-REAPROVEITADAS — decisões da v6 que já tinham autoridade equivalente (nenhum ID novo criado)
+
+| ID citado na v6 §2.1 | Autoridade já existente neste arquivo | Situação |
+| --- | --- | --- |
+| `V6-D04` (O Livro Vivo) | `D-DESIGN-LIVRO-VIVO` (2026-07-05) + Direção de Arte v1.1 + `D-STATUS-CARDS` + `D-SELOS-ESTADO-V2` | **Já vigente.** A v6 apenas **reforça** que a direção é **contrato transversal do V1**, não referência estética. **Nenhum ID novo.** |
+| `V6-D05` (Story Home V2) | `PF6D-D5` (Fase 9, risco `P-160`) | **Já vigente.** **Nenhum ID novo.** |
+| `V6-D06` (Página Viva) | `PF6D-D9` (Fase 9, risco `P-161`) | **Já vigente** — a própria v6 §2 cita "Delta v4.1 D9" como autoridade. **Nenhum ID novo.** |
+
+> **Regra aplicada:** decisão já registrada **não é duplicada**; ID novo só quando o tema é
+> **realmente novo** ou quando há **reversão real**. Recomendação da v6 **não** vira decisão por
+> conta própria.
+
+### V6-PENDENTE-F6.1 — o que este bloco NÃO decidiu e entrega ao F6.1
+- 🟡 **Mapeamento `F6-UX-01`…`F20-STORE-01` (v6 §9) ↔ `P-01`..`P-167` (matriz canônica).** A matriz continua **única e canônica** por `E018`; o registro da v6 §9 é **vista executiva por fase**. Falta correlacionar código a código. **Arbitragem no F6.1.**
+- 🟡 **Delta de ícone do app** presente na *worktree* principal (branch `fix/loading-performance-foundation`): `assets/icon.png`, `assets/adaptive-icon.png`, `assets/favicon.png`, `app.json` modificados e `assets/branding/beni_icon_source.png` *untracked*. **Fora do F6.0 por instrução explícita do fundador** — não *staged*, não commitado, não descartado, não copiado. **Reconciliação formal no F6.1.**

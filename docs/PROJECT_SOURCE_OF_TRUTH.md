@@ -12,7 +12,7 @@ Quando houver conflito entre documentos antigos e este arquivo, **este arquivo p
 
 Documentos antigos permanecem como histórico, mas **não devem orientar decisões futuras sem validação contra este arquivo**. Veja o mapa de documentos em [docs/DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md).
 
-**Linha de lançamento (execução, otimização, beta e lançamento):** a [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) (**v5, vigente desde 2026-07-30**) é a **fonte única de verdade da linha de lançamento**, subordinada a este arquivo e às decisões. É lá que vivem o **roadmap integral (Fase 0 à Fase 22)**, o **baseline técnico carimbado** e a **fase atual**. O árbitro único das **decisões de produto/lançamento** é [`docs/DECISIONS.md`](DECISIONS.md). Em conflito entre um documento e o `docs/DECISIONS.md`, **vence o `docs/DECISIONS.md`**. Decisão de escopo travada: **a aba Brincar completa entra no lançamento**, com **arquitetura híbrida obrigatória** (2 histórias grátis locais no binário, 18 premium por packs remotos no Cloudflare R2).
+**Linha de lançamento (execução, otimização, beta e lançamento):** o [`docs/roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md`](roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md) (**v6.0, vigente desde 2026-08-24**, instalado pelo bloco **F6.0**) é o **roadmap operacional único** — sequência, fases, escopo e portões (**F0 à F22**) —, subordinado a este arquivo e às decisões. A [`docs/DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) (v5, 2026-07-30) **deixou de ser roadmap operacional** e passou a **histórica como sequência**, com banner no topo e conteúdo preservado; seu conteúdo de produto vale **apenas** onde o `docs/DECISIONS.md` o mantém. O árbitro único das **decisões de produto/lançamento** é [`docs/DECISIONS.md`](DECISIONS.md). Em conflito entre um documento e o `docs/DECISIONS.md`, **vence o `docs/DECISIONS.md`**. Decisão de escopo travada: **a aba Brincar completa entra no lançamento**, com **arquitetura híbrida obrigatória** (2 histórias grátis locais no binário, 18 premium por packs remotos no Cloudflare R2).
 
 > **Fonte de verdade v5 (2026-07-30):** a [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md) foi **superada pela v5** — passa a ser histórica, com banner no topo e conteúdo preservado. Antes disso, a **Reconciliação E1 (2026-07-15)** já havia superado o `docs/DOCUMENTO_OFICIAL_PROJETO_FINAL.md` (v2.0); detalhes em [`docs/launch/RECONCILIACAO_E1.md`](launch/RECONCILIACAO_E1.md).
 
@@ -20,12 +20,13 @@ O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md), o `DOC
 
 **Precedência documental consolidada:**
 - **Governança técnica:** `docs/PROJECT_SOURCE_OF_TRUTH.md` → `.specify/memory/constitution.md` → `AGENTS.md` → `CLAUDE.md` → spec → plan → tasks → sessão.
-- **Decisões de produto/lançamento:** `docs/DECISIONS.md` (**árbitro único**) → `DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md` (**vigente**) → Direção de Arte v1.1 + docs narrativos/bíblicos vigentes → documentos antigos (**histórico, não normativo**: v4, v2.0, plano antigo).
+- **Decisões de produto/lançamento:** `docs/DECISIONS.md` (**árbitro único** das decisões individuais) → `docs/roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md` (**roadmap operacional vigente**: sequência, fases, escopo e portões) → Direção de Arte v1.1 + docs narrativos/bíblicos vigentes → documentos antigos (**histórico, não normativo**: v5 como sequência, v4, v2.0, plano antigo).
 - **Inventário de pendências e riscos:** [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md) (**matriz canônica única**, códigos `P-01` a `P-139`, adotada em 2026-08-05).
 
 > **Divisão de competências (E018 · 2026-08-05).** Os quatro eixos não competem entre si:
 > **este arquivo** governa precedência e governança técnica; **`docs/DECISIONS.md`** arbitra as
-> decisões de produto e lançamento; a **`v5`** governa o roadmap e a sequência de fases; a
+> decisões de produto e lançamento; a **`v6.0`** governa o roadmap e a sequência de fases (papel que
+> foi da `v5` até 2026-08-24); a
 > **matriz 09** governa o inventário, a identidade, o status, a fase e a rastreabilidade das
 > pendências. Onde um documento cita um risco, ele cita o **código `P`** e deixa a definição na
 > matriz — **nenhum outro documento replica a matriz nem mantém tabela normativa de riscos
@@ -33,7 +34,7 @@ O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md), o `DOC
 > físicos da `v5` §4.1, listas `E015-N`) permanecem legíveis **apenas como origem histórica e
 > alias**.
 
-**Anexo de direção visual:** a [`docs/DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md`](DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md) é o **anexo oficial de direção de arte** (governa visual, tokens, responsividade, componentes e critérios de aceite visuais), subordinado à v5 e ao `docs/DECISIONS.md`. As decisões visuais congeladas (D1–D4) estão registradas em `docs/DECISIONS.md` (D-DESIGN-LIVRO-VIVO).
+**Anexo de direção visual:** a [`docs/DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md`](DIRECAO_DE_ARTE_REESTRUTURACAO_VISUAL_v1.1.md) é o **anexo oficial de direção de arte** (governa visual, tokens, responsividade, componentes e critérios de aceite visuais), subordinado à **v6.0** e ao `docs/DECISIONS.md`. As decisões visuais congeladas (D1–D4) estão registradas em `docs/DECISIONS.md` (D-DESIGN-LIVRO-VIVO).
 
 ---
 
@@ -42,7 +43,15 @@ O [`PLANO_OFICIAL_BENI_LANCAMENTO.md`](PLANO_OFICIAL_BENI_LANCAMENTO.md), o `DOC
 **Fase 6 — Shell, splash e sistema visual: EM EXECUÇÃO desde 2026-08-07.** Abertura canônica
 auditada e **aprovada pelo fundador** em 2026-08-07; o ciclo SDD foi formalmente iniciado.
 **Fase 5 — infância, privacidade, teologia e medição: DOCUMENTALMENTE ENCERRADA em 2026-08-07.**
-**Sequência confirmada pelo [`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3 — único árbitro de sequência.**
+**Sequência confirmada pelo [`ROADMAP v6.0`](roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md) — único árbitro de sequência desde 2026-08-24 (antes: `v5` §3).**
+
+> **F6.0 · Migração documental canônica (2026-08-24).** O roadmap operacional do projeto passou a ser
+> a **v6.0**. A Fase 6 permanece **EM EXECUÇÃO** e recebeu a subdivisão canônica **F6.0 … F6.9**
+> (§12 e §16 do roadmap), com **F6.8 · Builds canônicos** e **F6.9 · Campanha física e lacre**
+> separados por **ERRATA EDITORIAL 01**. As decisões da v6 foram reconciliadas em
+> [`docs/DECISIONS.md` §V6](DECISIONS.md) — **11 IDs novos**, **3 reaproveitados** e **1 reversão
+> explícita** (`V6-D02` reverte a metade "paisagem" de `PF6D-D1`). **Bloco documental: nenhum
+> arquivo de runtime alterado.**
 
 > **Correção declarada, não silenciosa (2026-08-07, abertura da Fase 6).** Este campo dizia
 > *"Fase 5 … DOCUMENTALMENTE ENCERRADA"* + *"Próxima fase canônica … **Fase 6 — shell e splash**"*.
@@ -244,9 +253,11 @@ Não tratar como **P1 ativo** (confirmados resolvidos na auditoria de código at
 
 ## 7. Ordem oficial de execução
 
-**A ordem oficial vive na [`DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3** — roadmap integral da **Fase 0** à **Fase 22**, com objetivo, entregas centrais, critério de saída e riscos atribuídos por fase. **A fase atual é a 3 — reconciliação completa, somente leitura**; a **Fase 2.5 está encerrada desde 2026-08-04** (ver §1.1 e §1.1.1 acima).
+**A ordem oficial vive no [`docs/roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md`](roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md)** — roadmap integral da **F0** à **F22**, com objetivo, escopo, critério de saída e portões por fase. **A fase atual é a 6 — Shell, splash e sistema visual, EM EXECUÇÃO**, no subbloco **F6.0 concluído → F6.1**; ver §1.1 acima.
 
-> **Sequência antiga (Fases 0–8) — histórico, não ativa.** A lista de oito fases que este arquivo publicava (Fonte de Verdade → tour do mapa → peso/bundle → robustez de mídia → conteúdo → RevenueCat → loja → soft launch → escala) **não é mais a sequência de execução**. Ela foi absorvida e reordenada pelo roadmap da v5. Quando um texto antigo deste repositório citar "Fase 1", "Fase 2" etc. **sem** referenciar a v5, trate como numeração superada e reancore na v5.
+> **Correção declarada, não silenciosa (2026-08-24, F6.0).** Este parágrafo dizia *"A ordem oficial vive na `v5` §3"* e *"A fase atual é a 3 — reconciliação completa, somente leitura"*. **Ambos estavam desatualizados**: a `v5` deixou de ser roadmap operacional (superada pela **v6.0**) e a fase atual é a **6** desde 2026-08-07, como o próprio §1.1 deste arquivo já registrava. O texto anterior **não foi apagado** — está descrito aqui.
+
+> **Sequência antiga (Fases 0–8) — histórico, não ativa.** A lista de oito fases que este arquivo publicava (Fonte de Verdade → tour do mapa → peso/bundle → robustez de mídia → conteúdo → RevenueCat → loja → soft launch → escala) **não é mais a sequência de execução**. Ela foi absorvida e reordenada pelo roadmap — primeiro pela v5, e desde 2026-08-24 pela **v6.0**. Quando um texto antigo deste repositório citar "Fase 1", "Fase 2" etc. **sem** referenciar o roadmap vigente, trate como numeração superada e **reancore na v6.0**.
 
 ---
 

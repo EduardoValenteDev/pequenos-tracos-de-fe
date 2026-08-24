@@ -1,5 +1,17 @@
 # DOCUMENTO OFICIAL DO PROJETO — Pequenos Traços de Fé — **v5**
 
+> **⛔ SUPERSEDED COMO SEQUÊNCIA OPERACIONAL — DOCUMENTO HISTÓRICO (2026-08-24 · bloco `F6.0`).**
+>
+> **Preservado para rastreabilidade histórica.** **NÃO usar como sequência operacional.**
+> O roadmap vigente — sequência, fases, escopo e portões — é
+> [`docs/roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md`](roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md).
+> As **decisões individuais** continuam arbitradas por [`docs/DECISIONS.md`](DECISIONS.md) — ver a
+> seção **`## V6`**, que registra o que foi mantido, o que foi reaproveitado e a única reversão
+> explícita (`V6-D02`, orientação).
+> **O conteúdo de produto desta v5 não foi invalidado em bloco:** ele vale **apenas** onde o
+> `docs/DECISIONS.md` o mantém. **Nada foi apagado** — o texto abaixo permanece íntegro.
+
+
 **Fonte única de verdade da linha de lançamento.** · Data: 2026-07-30 · Baseline técnico: `aeda9c2`
 
 > **Precedência.** Esta v5 é a fonte única da **linha de lançamento**, **subordinada** a:

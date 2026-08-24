@@ -11,9 +11,12 @@ Este índice classifica a documentação do projeto. Em caso de conflito, vale s
   operacional e estratégica (governança técnica). **Prevalece sobre qualquer outro documento.**
 - **[DECISIONS.md](DECISIONS.md)** — **árbitro único** das decisões de produto/lançamento.
   Em conflito entre um documento e este arquivo, **vence o `docs/DECISIONS.md`**.
-- **[DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md)** —
-  **linha de lançamento VIGENTE (v5, 2026-07-30)**, subordinada às decisões. Governa o **roadmap
-  integral da Fase 0 à Fase 22** e a **sequência de fases**, com o baseline técnico carimbado.
+- **[roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md](roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md)**
+  — **ROADMAP OPERACIONAL VIGENTE (v6.0, desde 2026-08-24, instalado pelo bloco F6.0)**, subordinado
+  às decisões. Governa **sequência, fases, escopo e portões** (**F0 à F22**). **Cópia única no
+  repositório** — não existe roadmap operacional concorrente. Contém a **ERRATA EDITORIAL 01**
+  (separação de `F6.8 · Builds canônicos` e `F6.9 · Campanha física e lacre`). A reconciliação das
+  decisões da v6 está em [`DECISIONS.md` §V6](DECISIONS.md).
 - **[fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)**
   — **matriz canônica única de riscos e pendências** (`P-01` a `P-139`), adotada em **2026-08-05
   (E018)**. Governa **inventário, identidade, status, severidade, fase e rastreabilidade** das
@@ -22,6 +25,12 @@ Este índice classifica a documentação do projeto. Em caso de conflito, vale s
   (E1, 2026-07-15): precedência, decisões consolidadas, superadas e pendentes.
 
 **Superados (histórico, não normativo):**
+- **[DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md)** (v5)
+  — **histórica como sequência operacional desde 2026-08-24**, superada pela **v6.0**; conteúdo
+  preservado, com banner no topo. **Não usar como sequência de execução.** Seu conteúdo de produto
+  vale **apenas** onde o `docs/DECISIONS.md` o mantém.
+- **[/APP_ROADMAP.md](../APP_ROADMAP.md)** — plano de sprints antigo da raiz, **histórico desde
+  2026-08-24**; nunca foi reancorado no roadmap de fases e **não** descreve a sequência vigente.
 - **[DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v4.md)** (v4)
   — **histórica desde 2026-07-30**, superada pela v5; conteúdo preservado, com banner no topo.
 - **[DOCUMENTO_OFICIAL_PROJETO_FINAL.md](DOCUMENTO_OFICIAL_PROJETO_FINAL.md)** (v2.0) — histórico.
@@ -37,20 +46,23 @@ Este índice classifica a documentação do projeto. Em caso de conflito, vale s
 acima, com `docs/DECISIONS.md` como árbitro de produto.
 
 **Precedência:** governança técnica (`PROJECT_SOURCE_OF_TRUTH` → constitution → AGENTS → CLAUDE)
-acima das decisões de produto (`docs/DECISIONS.md` **árbitro** → **v5** → Direção de Arte v1.1 →
-docs narrativos/bíblicos vigentes → históricos: v4, v2.0, plano antigo). O **inventário de
+acima das decisões de produto (`docs/DECISIONS.md` **árbitro** das decisões individuais → **v6.0**
+(roadmap operacional: sequência, fases, escopo e portões) → Direção de Arte v1.1 →
+docs narrativos/bíblicos vigentes → históricos: **v5 como sequência**, v4, v2.0, plano antigo). O **inventário de
 pendências** corre num eixo próprio e não concorre com nenhum dos anteriores: ele vive na **matriz
 09**, e os demais documentos apenas citam códigos `P`.
 
-**Fase atual (atualizada em 2026-08-05 · E018):** **Fase 3 — reconciliação completa (somente
-leitura)**, com o bloco documental **Fase 3H (E009 a E018) ENCERRADO**. Linha canônica
-`integrate/colorir-canonical-runtime`; commit executável congelado **`015c438`**. O **Product Lock
-está apto a iniciar** — nenhum item da matriz o bloqueia. Ver
-[`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) §1.1, a
-[`v5`](DOCUMENTO_OFICIAL_PROJETO_FINAL_PTF_v5.md) §3 e o registro `D-C60-INTEGRACAO-PRODUTO` em
-[`DECISIONS.md`](DECISIONS.md).
-*(A indicação anterior — "Fase 2.5, branch `integrate/colorir-with-loading`, baseline `aeda9c2`" —
-estava desatualizada desde o encerramento da Fase 2.5 em 2026-08-04.)*
+**Fase atual (atualizada em 2026-08-24 · F6.0):** **Fase 6 — Shell, splash e sistema visual,
+EM EXECUÇÃO desde 2026-08-07**, no subbloco **F6.0 concluído → F6.1**. `worktree`
+`C:	mpptf_fase6_shell_splash_wt` · `branch` `feat/fase6-shell-splash`. Ver
+[`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md) §1.1 e o
+[`ROADMAP v6.0`](roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md).
+*(Correção declarada, não silenciosa: este campo dizia **"Fase 3 — reconciliação completa (somente
+leitura)"**, atualizado em 2026-08-05 · E018, e ficou desatualizado quando a Fase 6 entrou em
+execução em 2026-08-07. O texto anterior não foi apagado — está descrito aqui. Antes disso, dizia
+"Fase 2.5, branch `integrate/colorir-with-loading`, baseline `aeda9c2`". O bloco documental
+**Fase 3H (E009 a E018)** permanece **ENCERRADO** e o commit executável `015c438` permanece o
+carimbo daquele momento.)*
 
 **Guias de feature vigentes do Brincar/Criar Livre:** [BRINCAR_HUB_GUIDE.md](BRINCAR_HUB_GUIDE.md),
 [ATELIER_GUIDE.md](ATELIER_GUIDE.md) (Seção 0 = Criar Livre atual; seções antigas = histórico).

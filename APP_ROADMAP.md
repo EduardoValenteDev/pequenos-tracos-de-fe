@@ -1,5 +1,15 @@
 # APP ROADMAP — Pequenos Traços de Fé
 
+> **⛔ SUPERSEDED — DOCUMENTO HISTÓRICO (2026-08-24 · bloco `F6.0`).**
+>
+> **Preservado para rastreabilidade histórica.** **NÃO usar como sequência operacional.**
+> Este plano de sprints nunca foi reancorado no roadmap de fases do projeto e **não** descreve a
+> sequência vigente. A sequência, as fases, o escopo e os portões vigentes estão em
+> [`docs/roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md`](docs/roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md);
+> as **decisões individuais** continuam arbitradas por [`docs/DECISIONS.md`](docs/DECISIONS.md).
+> **Nada foi apagado** — o texto abaixo permanece íntegro.
+
+
 > **Plano de sprints do produto.** Cada sprint tem objetivo claro, escopo definido e critérios de conclusão. Nenhum sprint pode avançar sem os critérios do anterior sendo atendidos.
 
 ---

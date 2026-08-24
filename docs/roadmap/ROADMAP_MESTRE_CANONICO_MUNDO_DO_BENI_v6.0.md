@@ -1,0 +1,1339 @@
+# MUNDO DO BENI · ROADMAP MESTRE CANÔNICO DE CONCLUSÃO E LANÇAMENTO
+
+**Versão 6.0 · 24 de agosto de 2026**
+
+**Status: PRONTO PARA RATIFICAÇÃO DO FUNDADOR**
+
+> Documento canônico de sequência. O DOCX de mesma versão é espelho humano. Depois da ratificação, a primeira execução é F6.0, migração documental no repositório.
+
+---
+
+> **NOTA DE INSTALAÇÃO CANÔNICA — F6.0 · 2026-08-24**
+>
+> Este arquivo é a instalação canônica da v6.0 no repositório, feita pelo bloco **F6.0 · Migração documental**.
+> **Caminho canônico:** `docs/roadmap/ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md` — **cópia única**, sem versão concorrente no repositório.
+> **Origem:** arquivo entregue pelo fundador, `ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md`, SHA256 `c3135271161dc8f7dda0d5d97d59bcadc49cca7c4c2a0f860d75ec66cbc24769`.
+> **Autoridade:** esta v6 governa **sequência, fases, escopo e portões**. As **decisões individuais** continuam governadas por [`docs/DECISIONS.md`](../DECISIONS.md) (**árbitro**). A governança operacional permanece em [`docs/PROJECT_SOURCE_OF_TRUTH.md`](../PROJECT_SOURCE_OF_TRUTH.md).
+>
+> **ERRATA EDITORIAL 01 — separação de F6.8 e F6.9.** No texto original da v6.0, a parte detalhada da Fase 6 reunia num único item `F6.8 Campanha física e lacre` os testes/gates, a geração dos builds e a campanha física com o lacre — enquanto o **§16 CAMINHO PRÁTICO** do mesmo documento já os separava em **F6.8 (gerar Android e iOS canônicos do mesmo HEAD)** e **F6.9 (executar validação física portrait e lacrar F6)**. A parte detalhada foi normalizada para a estrutura do §16.
+> **Natureza:** correção **editorial** de consistência interna do próprio documento. **Não** é decisão nova do fundador, **não** altera conteúdo de produto, **não** altera portões e **não** altera a ordem causal — os mesmos itens permanecem, na mesma sequência, apenas realocados entre dois subblocos já previstos pelo §16. A **SAÍDA F6** permanece única e ao fim do bloco.
+
+
+---
+
+
+# MAPA RÁPIDO DO PROJETO
+
+Esta página é o painel de orientação. Para saber onde o projeto está, consulte primeiro esta tabela. O estado operacional atual permanece na Fase 6.
+
+| Fase | Título | Status |
+| --- | --- | --- |
+| F0 | Governança e fonte de verdade | FECHADA |
+| F1 | Piloto do Colorir com o Beni | FECHADA |
+| F2 | Loading, performance, packs e recovery | FECHADA |
+| F2.5 | Integração do Colorir com o Beni | FECHADA |
+| F3 | Reconciliação completa e matriz de pendências | INCORPORADA À V6 |
+| F4 | Product Lock final | RECONCILIADO NA V6 |
+| F5 | Infância, privacidade, teologia e medição | CONTRATO PERMANENTE |
+| F6 | Convergência portrait V1, sistema visual, tablet e builds canônicos | EM EXECUÇÃO |
+| F7 | Onboarding, Home e Área dos Responsáveis | PENDENTE |
+| F8 | Vozes e matriz do Beni | PENDENTE |
+| F8A | Orquestração sonora | PENDENTE |
+| F9 | A Criação, Story Home V2, Página Viva e aprendizagem definitiva | PENDENTE |
+| F10 | Meu Livro e Escuta Tranquila | PENDENTE |
+| F11 | Conclusão, próxima ação, Estrelinhas e Mapa | PENDENTE |
+| F12A | Núcleo infantil, Brincar e jogos | PENDENTE |
+| F12B | Meu Momento, Cultinho, recuperação, presença e Igreja | PENDENTE |
+| F13 | Noé e prova da fábrica reutilizável | PENDENTE |
+| F14 | Beta ampliado e matriz física real | PENDENTE |
+| F15 | Fábrica das outras dezoito histórias | PENDENTE |
+| F16 | Congelamento de conteúdo, mídia, acessibilidade e licenças | PENDENTE |
+| F17 | Packs premium e offline completo | PENDENTE |
+| F18 | Monetização, entitlements e presente Davi e Golias | PENDENTE |
+| F19 | Hardening, segurança e continuidade | PENDENTE |
+| F20 | Engenharia de release, contas e lojas | PENDENTE |
+| F21 | Beta do Release Candidate e Launch Readiness | PENDENTE |
+| F22 | Lançamento progressivo e operação inicial | PENDENTE |
+
+> **VOCÊ ESTÁ AQUI**
+>
+> F6. A prioridade imediata é consolidar a fonte de verdade v6 no repositório, fechar a fundação portrait do tablet, medir performance em binário próximo de produção e gerar Android e iOS canônicos a partir do mesmo HEAD.
+
+
+## Trilhas paralelas que já começam na Fase 6
+
+* Empresa, LTDA, CNPJ, acordo societário, conta empresarial e contabilidade.
+* Marca, propriedade intelectual, cessões, contratos e licenças.
+* Proteção infantil, privacidade, ECA Digital, Apple e Google.
+* Segurança, 2FA, inventário de acessos, continuidade e recuperação.
+* Revisão bíblica, pedagógica, infantil, visual e de áudio.
+
+
+# 1. AUTORIDADE, PRECEDÊNCIA E PROTOCOLO ANTIBIFURCAÇÃO
+
+Este documento é a consolidação canônica final da linha de lançamento. Ele incorpora as decisões vigentes dos documentos enviados, as decisões posteriores registradas no projeto, o delta responsivo de agosto e as decisões explícitas do fundador nesta conversa. O objetivo é eliminar a coexistência de roteiros concorrentes.
+
+
+## 1.1 Regra de autoridade a partir da aprovação desta versão
+
+1. O arquivo canônico de execução será ROADMAP_MESTRE_CANONICO_MUNDO_DO_BENI_v6.0.md. O DOCX de mesma versão é o espelho humano e deve conter o mesmo contrato.
+2. docs/DECISIONS.md continua sendo o árbitro de decisões individuais já registradas. Durante a migração para v6, qualquer decisão deste documento que represente uma nova ratificação do fundador deve ser registrada primeiro em docs/DECISIONS.md, com ID, data e indicação do item substituído.
+3. Depois da migração, PROJECT_SOURCE_OF_TRUTH, DOCUMENTATION_INDEX e demais índices devem apontar para a v6. Documentos normativos antigos ficam com banner SUPERSEDED. Evidências históricas, relatórios de auditoria, vídeos, artefatos e laudos não são apagados nem reescritos.
+4. Conflito futuro entre conversa e fonte canônica não muda o produto. Mudança só existe com ratificação explícita do fundador, atualização do DECISIONS.md, atualização deste roadmap e só então código.
+5. Nova ideia vai para PARKING_LOT, salvo P0, P1, obrigação legal, obrigação de loja, segurança ou decisão explícita do fundador.
+
+> **IMPORTANTE SOBRE EXCLUIR OS DOCUMENTOS ANTIGOS**
+>
+> É seguro apagar as cópias locais baixadas depois de salvar esta v6. Não apagar documentos históricos, decisões ou evidências dentro do repositório antes de o Claude executar a migração documental, porque eles preservam rastreabilidade e prova de decisões.
+
+
+## 1.2 Primeiro bloco executável depois da aprovação desta v6
+
+
+### F6.0 · Migração documental canônica, somente documentação
+
+1. Ler o HEAD, branch e git status reais do repositório. O último HEAD auditado no material enviado é 002872a, mas ele não deve ser tratado como constante eterna.
+2. Salvar a v6 em docs/roadmap ou caminho canônico equivalente.
+3. Atualizar docs/DECISIONS.md com as decisões novas desta v6 e as marcações SUPERSEDED necessárias.
+4. Atualizar PROJECT_SOURCE_OF_TRUTH e DOCUMENTATION_INDEX para apontar para a v6.
+5. Marcar roadmaps, adendos e planos normativos anteriores como históricos. Não apagar evidências.
+6. Gerar uma matriz curta de conflitos resolvidos, confirmando que cada conflito tem vencedor explícito.
+7. Rodar smoke e expo-doctor somente para provar que o bloco documental não alterou o executável, quando aplicável.
+8. Commit documental seletivo, sem push até autorização.
+
+
+# 2. RECONCILIAÇÃO DEFINITIVA DAS DECISÕES CONFLITANTES
+
+Os documentos enviados contêm decisões antigas que foram formalmente revertidas depois. Esta seção impede que uma IA volte a usar a versão errada.
+
+| Tema | Versão antiga | Contrato vigente | Autoridade |
+| --- | --- | --- | --- |
+| Orientação | Tablet com portrait e landscape como objetivo do V1 | V1 é portrait first. Landscape completo é pós V1. Estruturas responsivas aprendidas permanecem. | V6-D02 |
+| Brincar | Folha Livre, Soletrando, Adivinhar Animal, Quebra Cabeça ou listas antigas | Quatro jogos: Pares do Beni, Palavrinhas do Beni, Cadê a Ovelhinha?, Monte a Cena. Seção criativa: Criar Livre e Minhas Artes. | E1-BRINCAR-4JOGOS |
+| Colorir narrativo no grátis | Sem salvar | Usuário com acesso legítimo à história salva a pintura do Colorir narrativo, independentemente do plano. | D-C60-PERSISTENCIA-TODOS-PLANOS |
+| Criar Livre no grátis | Salvar arte no grátis ou limite 3 | Pode criar, mas salvar Criar Livre continua benefício do Plano Família. | E1-ARTES-SALVAR |
+| Conclusão | Narrativa completa libera próxima história | Próxima história exige conclusão total. Narrativa completa sem total vira Quase lá e recebe próxima ação orientada. | D-CONCLUSAO-TOTAL-B |
+| Colorir para conclusão total | Dez ou três páginas obrigatórias | Uma de três atividades concluída satisfaz o requisito de Colorir. Três de três representa coleção completa, não gate de progressão. | D-C60-INTEGRACAO-PRODUTO |
+| Design | Sistema antigo com cores múltiplas, emojis e cards dashboard | O Livro Vivo prevalece, Fraunces + Nunito, papel, tinta, terracota, dourado, arte protagonista, zero emoji de sistema. | D-DESIGN-LIVRO-VIVO |
+| Story Reader | Leitor atual tratado como definitivo | Substituir na F9 por Página Viva, experiência editorial de livro vivo adaptativo. | Delta v4.1 D9 |
+| Página de conclusão | Painel com muitas informações e múltiplas ações | A página informacional pesada morre. Manter celebração emocional curta e uma próxima ação principal. | V6-D07 |
+| Meu Momento | Tela curta, repetir passagem e ganhar estrela | Experiência de 3 a 5 minutos com aprendizado identificável. Oração e fé não geram estrelas. | V6-D09 |
+| Cultinho | Card fraco, repetitivo e centrado em A Criação | Cada história terá pelo menos um Cultinho contextual. Haverá biblioteca temática curada. | V6-D10 |
+| Presença | Streak punitiva | Jornada de Presença sem reset, perda ou prêmio por tempo de tela. | V6-D11 |
+| Referral | Indique e ganhe feature dentro do app | Programa adulto Presenteie uma Família com Davi e Golias, sujeito a gate jurídico e de plataforma, com compartilhamento simples. | V6-D13 |
+| Preços | R$ 14,90 e R$ 119,90 como congelados em documento antigo | Modelo mensal + anual permanece. Valores finais são decisão controlada da F18, não congelar número antigo silenciosamente. | E1-MONETIZACAO-V1 |
+
+
+## 2.1 Decisões v6 que devem receber IDs no DECISIONS.md
+
+| ID | Decisão | Contrato |
+| --- | --- | --- |
+| V6-D01 | Fonte canônica única | A v6 governa sequência e escopo; DECISIONS.md governa decisões individuais. |
+| V6-D02 | Portrait V1 | Retrato é a orientação oficialmente suportada no primeiro lançamento. Landscape completo fica residualizado. |
+| V6-D03 | Convergência Android/iOS | Todo build de evidência deve ter proveniência e Android/iOS precisam derivar da mesma baseline, salvo exceção documentada. |
+| V6-D04 | O Livro Vivo | A direção visual aprovada é contrato transversal do V1 e não apenas referência estética. |
+| V6-D05 | Story Home V2 | Entrada da história usa capa hero, título e referência, frase central, progresso resumido e uma CTA primária. |
+| V6-D06 | Página Viva | O leitor de cenas atual será substituído por uma página editorial de livro vivo, com arte dominante e texto real legível. |
+| V6-D07 | Conclusão sem painel | A tela informacional pesada é removida. Celebração curta e próxima ação única substituem o painel. |
+| V6-D08 | Aprendizagem como núcleo | Toda história possui objetivo pedagógico, missão, descobertas, recuperação, aplicação e revisão. |
+| V6-D09 | Meu Momento com Beni | Momento de 3 a 5 minutos, reverente, sem recompensa por oração, repetição de passagem ou demonstração de fé. |
+| V6-D10 | Cultinho em Casa forte | Cada história do lançamento recebe pelo menos um Cultinho contextual e o sistema admite biblioteca temática. |
+| V6-D11 | Jornada de Presença | Constância é mostrada sem streak punitiva, sem reset e sem recompensa por minutos. |
+| V6-D12 | Prova de aprendizado para responsáveis | Área dos Responsáveis mostra resumo simples do que a criança aprendeu. |
+| V6-D13 | Presente Davi e Golias | Compartilhamento fica na Área dos Responsáveis, nunca na superfície infantil, com gate jurídico e de plataforma na F18. |
+| V6-D14 | CNPJ em paralelo | A constituição começa agora sem parar F6; CNPJ ativo vira gate antes de F14. |
+
+
+# 3. CONTRATO CONGELADO DO PRODUTO V1
+
+
+## 3.1 Posicionamento
+
+> Mundo do Beni é uma jornada bíblica infantil em que a criança vive histórias, descobre verdades, brinca, cria, relembra o que aprendeu e leva pequenas experiências para a vida e para a família, acompanhada pelo Beni.
+
+A expressão Duolingo bíblico pode continuar como comparação interna de ambição. Ela não é a identidade oficial do produto nem autorização para copiar streak, ranking, pressão, culpa ou gamificação de fé.
+
+
+## 3.2 Público e autonomia
+
+* Público principal de produto: crianças de 6 a 8 anos. Faixas adjacentes devem encontrar experiência segura e compreensível.
+* A criança deve conseguir usar a jornada principal sozinha na maior parte do tempo.
+* Momentos em família são convidados com linguagem acolhedora, nunca impostos como ordem.
+* Beni é companheiro, conselheiro educacional e guia afetivo. Não é autoridade teológica autônoma e não pressiona comportamento espiritual.
+* Responsáveis controlam compra, links externos, configurações sensíveis, dados, compartilhamento e suporte.
+
+
+## 3.3 Catálogo e estrutura
+
+* 20 histórias no lançamento.
+* A Criação e Noé como histórias gratuitas locais, rápidas e offline.
+* 18 histórias premium distribuídas por packs remotos, com manifesto, integridade, versionamento e cache.
+* Cada história tem 10 cenas narrativas oficiais.
+* Cada história tem 3 atividades Colorir com o Beni. Total do catálogo: 60 atividades, não 200 páginas de Colorir.
+* Quiz oficial com 4 perguntas por história, salvo nova decisão explícita do fundador registrada antes da produção em massa.
+
+
+## 3.4 Navegação principal
+
+| Ordem | Aba | Função |
+| --- | --- | --- |
+| 1 | Início | Próxima ação, retorno e continuidade. |
+| 2 | Aventuras | Mapa, regiões, estados e entrada nas histórias. |
+| 3 | Brincar | Quatro jogos mais seção criativa. |
+| 4 | Estrelinhas | Progresso e conquistas, sem virar moeda. |
+| 5 | Perfil | Identidade local, preferências e acesso à Área dos Responsáveis. |
+
+Ateliê não é nome público. Identificadores técnicos antigos só podem ser renomeados por bloco de migração próprio.
+
+
+## 3.5 Brincar vigente
+
+* Pares do Beni.
+* Palavrinhas do Beni.
+* Cadê a Ovelhinha?.
+* Monte a Cena.
+* Seção criativa: Criar Livre e Minhas Artes.
+* GameShell compartilhado define entrada, saída, ajuda, progresso e conclusão. A área central de mecânica é específica de cada jogo.
+
+
+## 3.6 Persistência criativa
+
+* Colorir com o Beni é coleção vinculada à história. Se a história e a atividade são legitimamente acessíveis, a pintura pode ser salva em qualquer plano.
+* Cada atividade mantém uma obra real visível, revisável e editável. Downgrade não destrói criações locais existentes.
+* Criar Livre é autoria independente. A criança pode criar no Plano Grátis, porém salvar o Criar Livre continua benefício do Plano Família.
+* Minhas Artes deve distinguir claramente obras autorais e obras do Colorir quando a arquitetura visual exigir, sem misturar semânticas.
+
+
+## 3.7 Conclusão e progressão
+
+A conclusão total da história é diferente de apenas terminar a narrativa. A próxima história só é desbloqueada quando o contrato total estiver satisfeito.
+
+* Narrativa: 10 cenas principais concluídas.
+* Quiz: respondido conforme contrato oficial.
+* Colorir: pelo menos 1 das 3 atividades da história concluída.
+* Passo reflexivo da história: concluído. A F9 deve reconciliar o legado ReflectionScreen, Guardar no coração e Meu Momento para existir um único requisito público, compreensível e rastreável, nunca três gates ocultos.
+* Três de três atividades Colorir representam coleção completa, não requisito para liberar a próxima história.
+* Narrativa concluída sem total gera estado Quase lá. O app mostra uma próxima ação recomendada, não um painel com dez pendências.
+
+> **REGRA DE JORNADA**
+>
+> Nenhuma criança deve ficar presa por um requisito invisível. Todo gate necessário para avançar precisa estar representado com linguagem infantil, próximo passo único e estado persistente.
+
+
+# 4. CÂNONE VISUAL DO V1, O LIVRO VIVO
+
+O Livro Vivo é contrato aprovado, não backlog estético. O app deve parecer um livro de histórias mágico que a criança abre, e não um dashboard que contém histórias.
+
+
+## 4.1 Dez leis invioláveis
+
+1. Uma cor de ação. Botão primário usa terracota.
+2. Dourado é material de recompensa, não cor de interface genérica.
+3. Zero emoji de sistema como iconografia de UI. O app usa set ilustrado próprio.
+4. Zero títulos em caixa alta espaçada como linguagem visual dominante.
+5. Um herói por tela. A hierarquia sempre escolhe um protagonista.
+6. A arte manda, a UI serve. Cena narrativa é protagonista, nunca thumbnail cercada de metadados.
+7. Texto é tinta sobre papel. Evitar preto puro, cinza frio e branco clínico nas superfícies infantis.
+8. Roxo chapado está aposentado da UI. Momentos espirituais usam céu noite, papel, tinta e dourado conforme o contexto.
+9. Loading, vazio e erro têm alma. Beni comunica o estado com simplicidade, sem spinner genérico quando houver estado user facing.
+10. Toque de criança: um toque, um resultado. Alvos principais têm no mínimo 56 por 56 dp e não exigem menus de dois níveis.
+
+
+## 4.2 Tokens visuais aprovados
+
+| Família | Contrato |
+| --- | --- |
+| Papel | paper50 #FDF8EE · paper100 #F8F0DC · paper200 #EFE3C8 · paper300 #E4D5B4 |
+| Tinta | ink900 #3E2E1B · ink600 #7A6A50 · ink400 #A89573 |
+| Ação | terra500 #C9502A · terra600 #A73F1F · terra100 #F7DED2 · onTerra #FFF6E8 |
+| Recompensa | gold700 #8F6A1E · gold500 #C99A3B · gold300 #E8C05A · gold100 #F6E7C8 |
+| Ritual | night800 #1C2B52 · night600 #2E4370 · star100 #F2DCA0 |
+| Tipografia | Fraunces 600 para display, Nunito 400 e 700 para corpo e UI |
+
+Regra de engenharia: não criar um segundo design system. A implementação consome tokens e componentes compartilhados já aprovados. Hex, sombra, raio e medida recorrente não devem proliferar por tela.
+
+
+## 4.3 Galeria Viva
+
+As capas das histórias podem manter estilos artísticos diferentes. Isso é identidade de coleção, não defeito. A coerência vem da moldura, tipografia, estados e mundo visual que circundam as artes. A arte muda; a moldura nunca muda.
+
+
+## 4.4 Quatro famílias de superfície
+
+| Família | Exemplos | Contrato |
+| --- | --- | --- |
+| Hub | Início, Brincar, Estrelinhas, Perfil | Navegação persistente, grids fluidos, uso intencional do espaço. |
+| Editorial | Story Home, Área dos Responsáveis | Hero, hierarquia clara, coluna editorial e apoio somente quando houver espaço real. |
+| Imersiva | Mapa, Página Viva, Colorir | Conteúdo protagonista, usa viewport real, não herda maxWidth estreito genérico. |
+| Jogo | Pares, Palavrinhas, Ovelhinha, Monte a Cena | GameShell externo compartilhado; mecânica interna específica. |
+
+
+## 4.5 Responsividade oficial
+
+* COMPACTO abaixo de 600 dp.
+* MÉDIO de 600 a 899 dp.
+* EXPANDIDO a partir de 900 dp.
+* Política depende da janela e da área útil real, nunca do nome do aparelho.
+* availableWidth, availableHeight, safeInsets, sidebarWidth e contentViewport formam a geometria de consumo.
+* Font scale precisa ser validado. Texto essencial e botão não podem usar reticências como solução de clipping.
+* Landscape completo não é gate do V1. Entretanto, a arquitetura não pode depender de hardcodes frágeis que destruam o layout quando o sistema fornecer uma janela diferente.
+
+
+# 5. EXPERIÊNCIA DE HISTÓRIA, STORY HOME V2 E PÁGINA VIVA
+
+> **CORREÇÃO CENTRAL DESTA VERSÃO**
+>
+> Esta seção incorpora o contrato que faltava no roadmap v5. A mudança de layout das histórias e cenas não é genérica. Ela já havia sido aprovada e agora está explicitamente dentro da F9.
+
+
+## 5.1 Story Home V2, a entrada da aventura
+
+* A capa ou hero é o primeiro elemento visual e preserva o estado de acesso com tratamento discreto.
+* Título e referência bíblica ficam próximos da arte.
+* Lição do coração existe como frase central curta, com peso editorial, não como card concorrente.
+* Nesta aventura sai da primeira camada. Se necessário, fica em Sobre esta aventura ou Ver meu caminho.
+* Uma CTA primária somente: Começar, Continuar ou Revisitar, conforme estado.
+* Progresso é resumido. A criança não vê uma lista bancária de dez cenas como primeira camada.
+* Beni é contextual. Primeira visita, retomada e revisitação podem ter falas diferentes. Beni não precisa falar em toda abertura.
+* A Story Home destaca parte atual e próxima recomendada. Ver todas as partes abre a visão completa.
+* Na interface infantil, preferir Parte a Cena. Scene pode permanecer termo interno.
+
+
+## 5.2 Página Viva, Story Reader V2
+
+O leitor atual será substituído por uma experiência editorial de livro vivo. Em retrato, a criança deve sentir que está dentro de uma página, não em uma tela com imagem, chips e player colados ao redor.
+
+* A ilustração é protagonista e usa a maior área útil coerente com a composição.
+* O texto continua sendo componente real, acessível e selecionável pelo sistema, nunca gravado dentro do PNG.
+* A leitura usa camada de contraste validada, como scrim, degradê suave ou painel de papel translúcido. A solução é escolhida pela legibilidade da arte real.
+* Título da Parte e Beni podem aparecer de maneira editorial. Beni fala somente quando existe intenção contextual.
+* Progresso é discreto, semelhante a marcador de página, trilha dourada ou indicação de Parte X de 10. Não rouba o herói.
+* Player de narração integra o rodapé ou borda editorial da página. Não parece um componente azul de mídia desconectado do livro.
+* Texto pode iniciar recolhido quando a narração estiver ativa, mas sempre precisa de acesso claro e acessível para leitura.
+* A criança pode avançar com uma única ação clara. Nenhum duplo toque é necessário.
+* Metadados editoriais são suportados por cena quando necessários: focalPoint, safeTextZone, preferredTextPlacement e cropPolicy.
+* A experiência deve ser visualmente estável em telefone e tablet portrait. Em telas maiores, pode usar espaço de apoio sem transformar o V1 em livro aberto landscape.
+
+
+### Aspecto de livro que precisa ser percebido pela criança
+
+* Fundo e superfícies em família de papel, tinta e luz quente.
+* Arte tratada como página ou ilustração de página, não como thumbnail.
+* Tipografia Fraunces e Nunito criando leitura editorial infantil.
+* Ornamentos discretos, marcadores e bordas com vocabulário de livro.
+* Mudança de Parte percebida como continuidade de páginas. O efeito visual é suave e não vira espetáculo maior que a história.
+* No Meu Livro, o page turn pode ser mais literal. No Story Reader, confiabilidade e legibilidade vencem uma animação complexa.
+
+
+## 5.3 Scene Transition Engine
+
+* Pré carregar imagem e conteúdo da próxima Parte antes da troca.
+* Manter a Parte atual visível enquanto a próxima ainda não estiver pronta.
+* Troca atômica ou crossfade curto. Reduce Motion usa troca direta.
+* Bloquear reentrada e duplo toque durante a transição.
+* Critério físico: zero frame branco ou vazio perceptível em gravação de alta taxa de quadros.
+* Áudio nunca começa sobre arte vazia. Em falha de imagem, usar fallback e retry seguro antes da narração.
+
+
+## 5.4 Story Reader e Meu Livro compartilham engine
+
+F10 não cria um segundo leitor estrutural. Meu Livro e Escuta Tranquila reutilizam a engine da Página Viva e variam apenas conteúdo, modo, controles e composição parametrizada.
+
+
+## 5.5 O que não fazer
+
+* Não repintar o Story Reader atual como se ele fosse definitivo.
+* Não manter chip Cena ilustrada sobre a arte.
+* Não criar um player de cor órfã fora do sistema visual.
+* Não fazer a criança rolar para encontrar o botão principal em uma cena padrão quando a geometria comportar a página completa.
+* Não gravar texto narrativo dentro das imagens.
+* Não criar um segundo reader para Meu Livro.
+
+
+# 6. MOTOR DE APRENDIZAGEM E RETORNO
+
+
+## 6.1 Caminho de aprendizagem por história
+
+1. Missão da Aventura. Beni planta uma pergunta ou objetivo simples antes ou no início.
+2. História. A criança acompanha as dez Partes com narração, imagem e leitura.
+3. Momentos de Descoberta. Entre dois e quatro pontos leves que pedem atenção, percepção ou lembrança, sem quebrar a narrativa.
+4. Reconto. A criança reorganiza, reconhece ou explica uma parte relevante com suporte visual.
+5. Criação. Colorir ou outra expressão reforça a história sem virar prova.
+6. Aplicação. Pequena conexão com a vida da criança, adequada à verdade central.
+7. Reflexão. Um passo significativo, compreensível e sem gamificar fé.
+8. Recuperação futura. A história retorna de forma breve depois, para fortalecer memória.
+
+
+## 6.2 Objetivo pedagógico obrigatório
+
+Nenhuma história entra na fábrica final sem declarar referência bíblica, verdade central, objetivo infantil, missão, descobertas, recuperação, aplicação e revisão bíblica, pedagógica e infantil.
+
+
+## 6.3 Recuperação espaçada inicial
+
+* Mesmo dia: conclusão e verdade principal.
+* Aproximadamente 1 dia: pergunta curta de recuperação.
+* Aproximadamente 3 dias: aplicação ou conexão.
+* Aproximadamente 7 dias: reconto ou nova conexão.
+* Os intervalos são hipótese piloto e podem ser calibrados no beta sem mudar a filosofia.
+* Uma revisão recomendada por dia é suficiente no V1. Não criar fila opressiva de pendências.
+
+
+## 6.4 JourneyOrchestrator
+
+A Home deve responder O que eu faço agora?. O JourneyOrchestrator escolhe uma ação principal baseada em atividade iniciada, requisito de conclusão, revisão de memória, presente ou próxima história. A escolha explícita da criança continua prevalecendo sobre a recomendação.
+
+* Prioridade alta: recuperação bloqueante real e atividade iniciada.
+* Depois: requisito público necessário para concluir a aventura.
+* Depois: revisão de memória.
+* Depois: próxima história.
+* Depois: exploração livre.
+* Nunca empilhar conquista, tutorial, presente, paywall e revisão ao mesmo tempo.
+
+
+## 6.5 Guarda teológica e ética
+
+* Não dar pontos por orar.
+* Não dar pontos por repetir versículo ou passagem.
+* Não dar pontos por demonstrar fé.
+* Não transformar oração em resposta correta.
+* Não usar culpa religiosa para retenção.
+* Não comparar espiritualidade entre crianças.
+* Não inventar doutrina por necessidade de mecânica.
+* Beni pode reconhecer atenção, persistência, cuidado, honestidade, curiosidade, compaixão, memória e criatividade.
+
+
+# 7. MEU MOMENTO, CULTINHO, PRESENÇA E VALOR PARA A FAMÍLIA
+
+
+## 7.1 Meu Momento com Beni
+
+Meu Momento precisa deixar de ser uma tela que fala uma passagem, pede repetição, entrega estrela e volta à Home. O resultado da experiência precisa responder o que foi aprendido.
+
+1. Acolhimento curto.
+2. Lembrança ou contexto.
+3. Passagem ou verdade central apresentada com reverência.
+4. Explicação infantil simples.
+5. Pergunta que convida a pensar.
+6. Conexão com a vida.
+7. Oração opcional, apresentada como convite.
+8. Pequeno Passo opcional.
+9. Encerramento: Hoje guardamos isto no coração, com resumo explícito do aprendizado.
+
+Duração alvo: 3 a 5 minutos. Não há estrela espiritual. Se a superfície conceder alguma recompensa de sistema no futuro, ela só pode reconhecer conclusão de uma experiência de aprendizagem, nunca oração, fé ou repetição da Palavra.
+
+
+## 7.2 Cultinho em Casa
+
+Cultinho em Casa é requisito do lançamento somente se for realmente utilizável. A versão que menciona repetidamente A Criação e não oferece variedade é insuficiente.
+
+* Cada uma das 20 histórias terá pelo menos um Cultinho contextual correspondente até o congelamento de F15.
+* O Cultinho pode ser usado em família ou individualmente. A UI sugere a presença da família de maneira acolhedora, sem bloquear a criança.
+* Duração alvo: 8 a 15 minutos.
+* Estrutura: preparação opcional do responsável, passagem, verdade central, conversa, atividade, oração opcional, ritual de encerramento e sugestão leve para a semana.
+* Além dos Cultinhos por história, o ContentRotationEngine pode oferecer biblioteca temática curada, por exemplo gratidão, coragem, perdão, amizade, obediência, cuidado, medo, confiança e generosidade.
+* Toda abordagem temática precisa de passagem, contexto e revisão bíblica. Nada de gerar aconselhamento doutrinário automático sem conteúdo curado.
+
+
+## 7.3 Jornada de Presença
+
+* Mostrar dias, semanas ou calendário de experiências significativas.
+* Um dia sem uso fica apenas vazio. Nada zera, quebra ou é perdido.
+* Não usar ameaça de perder sequência.
+* Não recompensar minutos de tela.
+* Presença válida exige uma experiência significativa, como história, recuperação, Meu Momento, Cultinho, reconto ou atividade de aprendizagem definida.
+* A criança pode sentir orgulho da constância, sem medo de ausência.
+
+
+## 7.4 Área dos Responsáveis, prova de aprendizado
+
+A Área dos Responsáveis deve mostrar de forma simples o valor que o aplicativo entregou, sem virar dashboard corporativo.
+
+* O que a criança descobriu recentemente.
+* Histórias ou verdades relembradas.
+* Atividades e criações significativas.
+* Presença em experiências de aprendizagem, não tempo de tela como objetivo.
+* Sugestão de Cultinho ou conversa contextual.
+* Controles parentais, privacidade, Plano Família, suporte e compartilhamento adulto.
+
+
+# 8. CONCLUSÃO DE HISTÓRIA, RECOMPENSAS E PRÓXIMA AÇÃO
+
+
+## 8.1 A página atual de conclusão é removida
+
+A tela atual, que explode informações, estrelas, resumo, múltiplos cards e diversas ações, não pertence ao produto final. Ela atrapalha a sensação de término e interrompe a direção da criança.
+
+
+## 8.2 Novo ritual
+
+1. Celebração curta, aproximadamente 2 a 3 segundos. Beni celebra, estrela ou progresso reage, sem painel administrativo.
+2. Verdade central ou aprendizado pode aparecer em uma frase curta, se não repetir conteúdo desnecessariamente.
+3. Quando a história atingir conclusão total, o Livrinho e o Certificado podem entrar como memória emocional. Certificado funciona melhor como última página do Livro, não como botão perdido em uma dashboard.
+4. Guardar no coração continua sendo transição de memória para o Baú quando fizer parte do contrato reflexivo.
+5. Depois do ritual, o JourneyOrchestrator apresenta UMA ação principal. Quiz, Colorir, Meu Momento, mapa, próxima história ou retorno podem ser a ação dependendo do estado.
+6. Ações secundárias permanecem acessíveis nas superfícies naturais, sem três ou dez CTAs de mesmo peso.
+
+
+## 8.3 Estados de conclusão
+
+| Estado | Significado | UI |
+| --- | --- | --- |
+| Em andamento | Aventura começou e ainda há requisito central pendente. | Continuar como CTA principal. |
+| Narrativa completa | As dez Partes foram ouvidas/lidas, mas o total não fechou. | Quase lá, com próxima ação única. |
+| Concluída total | Narrativa, quiz, Colorir mínimo e passo reflexivo concluídos. | Selo dourado, celebração e progressão liberada. |
+| Coleção Colorir completa | Três de três atividades Colorir. | Conquista de coleção, não bloqueio da próxima história. |
+
+
+## 8.4 Estrelinhas
+
+* Estrelinhas são celebração e progresso, não dinheiro interno.
+* Não gastar estrelinhas.
+* Recompensas de jogos e histórias precisam de uma única fonte canônica de leitura para evitar saldo invisível ou duplicado.
+* F11 deve reconciliar serviços legados de bonusStars com o contador visível ou remover o conceito invisível, sem perder progresso legítimo.
+* Conquista e onboarding das Estrelinhas nunca ocupam a camada bloqueante ao mesmo tempo.
+
+
+# 9. REGISTRO OFICIAL DE DEFEITOS, DÍVIDAS E GAPS
+
+Todo item desta tabela possui owner. Fechar uma fase não apaga o item. Se o comportamento deixar de existir por redesign, a fase proprietária precisa registrar a prova de supersessão.
+
+| Código | Severidade | Owner | Problema | Saída esperada |
+| --- | --- | --- | --- | --- |
+| F6-UX-01 | P1 | F6 | Tablet portrait colide/comprime com sidebar ou menu lateral. | contentViewport único e prova física portrait. |
+| F6-PERF-01 | P1 condicional | F6 | Lentidão percebida no SM-X510 ainda não quantificada em release like. | Medir release/preview; se persistir, otimizar causas comprovadas. |
+| F6-BUILD-01 | P1 governança | F6 | iPhone instalado representa build antigo com conteúdo divergente. | Novo iOS e Android do mesmo HEAD e manifesto de proveniência. |
+| F6-MAP-01 | P1 visual | F6 | Mapa mostra placeholders de inicial mesmo quando artwork existe. | Resolver source/fallback/cache e testar as 20 histórias. |
+| F6-TYPE-01 | P1/P2 | F6 | Cabeçalhos e textos já apresentaram clipping com font scale. | Gate de tipografia e validação física. |
+| F6-VIS-01 | P2 | F6 | Bordas cinzas/shadows inconsistentes em cards/conquistas. | Investigar componente compartilhado antes de correções locais. |
+| F6-EVID-01 | GAP histórico | F6 | R1-PEND-5 raw.log não foi preservado e é irrecuperável. | Não fabricar. Registrar gap histórico. Não repetir landscape apenas para recriá-lo. |
+| F7-ONB-01 | P1 | F7 | Tour/spotlights/anchors ficam desalinhados em dispositivos reais. | Destaque do componente real e anchors sem X/Y absoluto. |
+| F7-BRI-01 | P2 | F7 | Brincar não é apresentado corretamente no onboarding. | Novo guia para Brincar, sem Ateliê legado. |
+| F7-QA-01 | P2 | F7 | Repetição do onboarding exige reinstalação. | Reset protegido apenas para QA/pesquisa, ausente em produção. |
+| F9-JRN-C60-01 | P1 | F9 | Colorir concluído pelo caminho narrativo pode não refletir estado visual imediatamente. | Reconciliar conclusão, persistência e retorno sem duplicação. |
+| F9-READER-01 | P1 produto | F9 | Story Home/Reader atual ainda tem aparência de app/dashboard e não de livro. | Story Home V2 + Página Viva. |
+| F11-STR-ONB-01 | P1 | F11 | Conquista e onboarding das Estrelinhas disputam overlay e podem travar. | Orquestrador determinístico, uma camada bloqueante por vez. |
+| F11-CONC-01 | P1 UX | F11 | Conclusão atual sobrecarrega e perde próxima ação. | Remover painel e usar ritual + JourneyOrchestrator. |
+| F12A-OV-01 | P1 | F12A | Cadê a Ovelhinha já apresentou inicialização dependente de mudança de estado/rotação. | Começar corretamente em portrait e concluir sem gatilho de rotação. |
+| F12A-CL-01 | P1/P2 | F12A | Criar Livre precisa de saída clara e geometria estável, inclusive teclado. | Salvar/descartar/cancelar por plano e documento lógico consistente. |
+| F12A-GAME-01 | P2 | F12A | Jogos possuem padrões diferentes de entrada, saída e conclusão. | GameShell compartilhado. |
+| F12B-MOM-01 | P1 produto | F12B | Meu Momento atual não comunica aprendizado e gamifica demais o término. | Reescrever experiência e remover estrela espiritual. |
+| F12B-CUL-01 | P1 produto | F12B | Cultinho atual é fraco, repetitivo e pouco variado. | Cultinho por história + biblioteca temática curada. |
+| F16-CONT-01 | P1 release | F16 | Placeholder, mídia provisória ou conteúdo sem revisão pode sobreviver. | Congelamento integral e validação automática. |
+| F17-PACK-01 | P1 release | F17 | Premium estático/linearts legados/packs podem aumentar binário ou quebrar update. | Auditar requires, manifests, integridade, atualização e rollback. |
+| F18-PAY-01 | P0/P1 | F18 | Compra/restore/expiração ainda não são prova real de loja. | Sandbox real iOS/Android e entitlement único. |
+| F19-SEC-01 | P0/P1 | F19 | Secrets, ferramentas internas ou dados infantis podem vazar no artefato. | Threat model, scan, inspeção do binário e fail closed. |
+| F20-STORE-01 | P0/P1 | F20 | Contas, DUNS, identidade legal ou formulários podem divergir. | Ownership, empresa e store forms reconciliados. |
+
+
+# 10. POLÍTICA DE BUILDS, TESTES E EVIDÊNCIA
+
+
+## 10.1 Todo build físico precisa de proveniência
+
+* Commit SHA exato e branch.
+* git status e confirmação de árvore limpa ou diff autorizado.
+* Versão, build number/versionCode, runtimeVersion e perfil.
+* ID EAS ou identificador do artefato.
+* Plataforma, aparelho, versão do sistema e data.
+* Estado inicial de dados do teste.
+* Roteiro executado e evidência visual/log correspondente.
+* Resultado e fase proprietária de cada achado.
+
+
+## 10.2 Quando gerar build
+
+* Mudança de navegação percebida.
+* Mudança visual, layout, safe area, tipografia ou animação.
+* Áudio, ciclo de vida ou foco.
+* Persistência, migração ou storage.
+* Asset embarcado.
+* Configuração nativa, dependência ou plugin.
+* Compra, entitlement ou comunicação comercial.
+* Qualquer comportamento que só pode ser provado em aparelho real.
+
+Não gerar um build para cada commit pequeno. Agrupar mudanças coerentes, automatizar primeiro e gerar candidato físico depois do bloco verde.
+
+
+## 10.3 Matriz física V1
+
+* Android de entrada, meta de 2 a 3 GB de RAM quando o aparelho estiver disponível.
+* Android intermediário.
+* Samsung SM-X510 tablet portrait como referência atual de tablet.
+* iPhone real com build canônico atualizado.
+* iPhone compacto quando disponível.
+* iPad é evidence gap aceito até que haja aparelho e contrato adaptativo. Não recebe PASS fictício.
+
+
+## 10.4 Severidade
+
+* P0 bloqueia lançamento e interrompe a fase quando transversal.
+* P1 bloqueia a saída da fase proprietária e o lançamento enquanto aberto.
+* P2 é avaliado por impacto em aprendizado, confiança, usabilidade e manutenção.
+* P3 pode ser documentado para pós lançamento quando não comprometer contrato.
+
+
+# 11. EMPRESA, CNPJ, TITULARIDADE E CRONOGRAMA JURÍDICO
+
+
+## 11.1 Decisão de timing
+
+> **CNPJ NÃO BLOQUEIA A FASE 6**
+>
+> O trabalho técnico continua. Porém, abrir a LTDA e iniciar o CNPJ agora evita chegar à monetização e às lojas com um lead time empresarial de semanas.
+
+| Momento | Obrigação |
+| --- | --- |
+| AGORA, durante F6 | Escolher contador e advogado; definir LTDA; viabilidade; contrato social; CNPJ; acordo de sócios; inventário de ativos; pesquisa de marca. |
+| Meta antes de F9 fechar | CNPJ preferencialmente ativo; cessões em elaboração; titularidade e estratégia de contas encaminhadas. |
+| PORTÃO DURO antes de F14 | CNPJ ativo; estrutura societária formalizada; responsável legal definido; titularidade essencial e documentos de piloto sob a entidade. |
+| PORTÃO DURO antes de F18 | Conta bancária empresarial, contabilidade, contratos, dados fiscais e estrutura para monetização. |
+| PORTÃO DURO antes de F20 | DUNS quando exigido, contas de organização, e mail corporativo, site funcional, seller/developer correto, documentos e IP coerentes com quem publica. |
+
+
+## 11.2 Titularidade e contratos
+
+* Acordo de sócios e poderes de decisão.
+* Cessão ou licença adequada do código, Beni, histórias, artes, áudios, domínio e demais ativos.
+* Contratos de prestadores com direitos de uso comercial e arquivos fonte quando aplicável.
+* Licenças de fontes, músicas, efeitos, imagens e ferramentas documentáveis.
+* Domínio, repositórios, lojas e serviços críticos sob controle institucional compatível.
+
+
+## 11.3 Marca e identidade técnica
+
+Produto e universo usados neste roadmap: Mundo do Beni. Identificadores técnicos históricos podem continuar até um bloco formal de migração. Não renomear bundle identifier, package, slug, scheme, conta de loja ou domínio silenciosamente.
+
+
+# 12. ROADMAP OFICIAL POR FASE
+
+F0 a F5 são história e contratos permanentes. A execução retomável começa em F6. Cada fase abaixo possui objetivo, escopo, ordem, saída e proibições.
+
+
+## F0. Governança e fonte de verdade
+
+Estado: FECHADA, disciplina permanente.
+
+Preservar um árbitro, decisões versionadas, um bloco por vez, commits seletivos, validação humana e classificação de defeitos por owner.
+
+
+## F1. Piloto do Colorir com o Beni
+
+Estado: FECHADA.
+
+Preservar o piloto aprovado, três atividades de A Criação, persistência e decisões visuais já integradas.
+
+
+## F2. Loading, performance, packs e recovery
+
+Estado: FECHADA COMO FUNDAÇÃO.
+
+Preservar ready gate, integridade, recovery determinístico e contratos de pack. Riscos residuais seguem para F16, F17 e F19.
+
+
+## F2.5. Integração do Colorir com o Beni
+
+Estado: FECHADA.
+
+Preservar a política vigente de persistência do Colorir narrativo para todo usuário com acesso legítimo. Criar Livre continua com salvamento Família.
+
+
+## F3. Reconciliação completa
+
+Estado: INCORPORADA À V6.
+
+A v6 assume a matriz consolidada e resolve a bifurcação documental. F6.0 formaliza isso no repo.
+
+
+## F4. Product Lock final
+
+Estado: RECONCILIADO NA V6.
+
+O Product Lock desta v6 substitui a leitura fragmentada anterior. Nenhuma nova feature entra sem substituir outra ou decisão explícita.
+
+
+## F5. Infância, privacidade, teologia e medição
+
+Estado: CONTRATO PERMANENTE.
+
+Mapa de dados, minimização, parental gate, compartilhamento adulto, revisão teológica, comunicação infantil e instrumentação compatível continuam ativos em todas as fases.
+
+
+## F6. Convergência portrait V1, sistema visual, tablet e builds canônicos
+
+Estado: EM EXECUÇÃO.
+
+Objetivo: fechar a fundação visual e responsiva do V1 em retrato, garantir que o tablet respeite a área realmente utilizável, provar performance em binário próximo de produção e eliminar divergência entre artefatos Android e iOS.
+
+
+### F6.0 Governança v6
+
+* Executar a migração documental canônica descrita na Seção 1.
+* Preservar auditorias antigas como evidência, não como roadmap concorrente.
+
+
+### F6.1 Baseline e builds
+
+* Congelar branch, HEAD, árvore, versão e inventário de assets.
+* Auditar o build antigo do iPhone e removê-lo da condição de evidência atual.
+* Criar Build Manifest canônico.
+* Adicionar Build Info protegido para QA/adulto se necessário, sem expor ferramenta interna à criança em produção.
+
+
+### F6.2 Geometria de shell e tablet
+
+* Uma fonte compartilhada de availableWidth, availableHeight, safeInsets, sidebarWidth e contentViewport.
+* Corrigir colisão do conteúdo com a sidebar em portrait.
+* Usar os arquétipos Hub, Editorial, Imersiva e Jogo já implementados; não criar outro sistema paralelo.
+* Não programar por SM-X510. O tablet é amostra de faixa, não condição de código.
+
+
+### F6.3 Livro Vivo como fundação visual
+
+* Garantir tokens, tipografia, botões, estados e iconografia-base que F7 e F9 consumirão.
+* Não redesenhar antecipadamente Story Home e Reader. F6 instala a fundação; F9 executa o redesign final.
+* Nenhuma tela nova depois desta fundação nasce no visual antigo.
+
+
+### F6.4 Integridade visual
+
+* Safe areas e cabeçalhos.
+* Font scale e textos essenciais.
+* Placeholders do mapa quando a arte real existe.
+* Fallbacks, skeletons e estados vazios.
+* Bordas cinzas e sombras apenas se causa compartilhada for provada.
+
+
+### F6.5 Canvas e geometria criativa
+
+* Auditar Criar Livre e Colorir em portrait para garantir documento lógico estável entre larguras suportadas.
+* Não reconstruir canvas por causa de landscape. Corrigir apenas o que afeta portrait, persistência ou consistência entre aparelhos.
+
+
+### F6.6 Performance
+
+* Medir abertura até Home utilizável, tabs, mapa, história, Colorir, Criar Livre, scroll, jogos, memória, JS thread e UI thread.
+* Medir em preview/release like, não usar sensação do Development Build como única prova.
+* Otimizar apenas causas comprovadas. Se a lentidão continuar perceptível em binário próximo de produção, ela bloqueia F6.
+
+
+### F6.7 Orientação portrait
+
+* Contrato do V1 é portrait first.
+* Validar Android 16 target API 36 em tela grande com a estratégia nativa escolhida, sem reduzir targetSdk.
+* Tratar compatibilidade futura com API 37 como dívida explícita. O layout não deve quebrar catastroficamente se o sistema expuser janela diferente.
+* iPhone em portrait é superfície obrigatória. iPad adaptativo e Split View não recebem PASS no V1 sem prova.
+
+
+### F6.8 Builds canônicos
+
+> *Normalizado pela ERRATA EDITORIAL 01 (ver cabeçalho), conforme o §16 CAMINHO PRÁTICO item 9.*
+
+1. Focused tests, mutantes aplicáveis, smoke e doctor.
+2. Gerar Android e iOS do mesmo HEAD.
+
+
+### F6.9 Campanha física e lacre
+
+> *Normalizado pela ERRATA EDITORIAL 01 (ver cabeçalho), conforme o §16 CAMINHO PRÁTICO item 10.*
+
+1. Validar tablet Android portrait, telefone Android disponível e iPhone.
+2. Registrar gaps de aparelho.
+3. Lacrar bugs residuais com owner.
+
+> **SAÍDA F6**
+>
+> Nenhum P0/P1 F6 em portrait; tablet sem colisão com sidebar/UI do sistema; performance release like aceitável; Android e iOS canônicos e equivalentes; evidência física rastreável; landscape residualizado sem PASS fictício.
+
+
+## F7. Onboarding, Home e Área dos Responsáveis
+
+Objetivo: primeira sessão compreensível, elegante e robusta, sem coordenadas frágeis.
+
+
+### Escopo
+
+* Redesenhar o tour para destacar o componente real. O ícone alvo recebe estado visual; remover moldura baseada em X/Y absoluto.
+* Mensagens do tour em regiões estáveis. Anchors apontam para componentes reais.
+* Primeira entrada no Mapa centraliza Comece Aqui e A Criação.
+* Apresentar Aventuras e Brincar. Nunca reintroduzir Ateliê.
+* Não ensinar Meu Momento obrigatoriamente antes de F12B torná-lo útil de verdade.
+* Reset interno de onboarding/tours para QA, protegido e ausente em produção.
+* Home com uma ação principal do JourneyOrchestrator e exploração secundária.
+* Área dos Pais é renomeada para Área dos Responsáveis quando este bloco tocar textos públicos.
+* Área dos Responsáveis usa seções claras, prova de aprendizado, privacidade, Plano Família, Cultinho, som, dados, suporte e compartilhamento adulto.
+
+> **SAÍDA F7**
+>
+> Criança entende onde começar; tour aponta para alvos corretos em portrait; responsável compreende proposta e controles; primeira sessão pode ser repetida em QA sem reinstalar.
+
+
+## F8. Vozes e matriz do Beni
+
+* Separar voz de narração e voz do Beni.
+* Matriz de fala por contexto: onboarding, primeira visita, retomada, missão, descoberta, conclusão, recovery, jogos, Meu Momento, Cultinho, erro e offline.
+* Eliminar fala genérica repetida sem significado.
+* Versionar arquivo, hash, duração e transcrição.
+* Script bíblico/infantil aprovado antes da gravação.
+
+> **SAÍDA F8**
+>
+> Nenhuma fala órfã, genérica ou semanticamente deslocada.
+
+
+## F8A. Orquestração sonora
+
+* Gerenciador central, prioridade, ducking, fade, pausa e retomada.
+* Background/foreground, interrupções do sistema e fone/alto falante.
+* Fila de falas e regra para tutorial, conquista e celebração.
+* Controles de música e sons de interface acessíveis; narração tem política própria.
+* Reduce Motion não altera regras de áudio indevidamente.
+
+> **SAÍDA F8A**
+>
+> Zero áudio simultâneo indevido, zero voz tocando sobre camada bloqueada sem contexto.
+
+
+## F9. A Criação como produto definitivo de aprendizagem
+
+Objetivo: transformar A Criação no padrão vendável e replicável, incluindo a mudança de layout de histórias e cenas que estava ausente do v5.
+
+
+### F9A Story Home V2
+
+* Capa hero, título, referência, Lição do coração, uma CTA, progresso resumido e Beni contextual.
+* Parte atual e próxima recomendada. Lista integral atrás de Ver todas as partes.
+
+
+### F9B Página Viva
+
+* Implementar integralmente a Seção 5 deste roadmap.
+* Arte dominante, texto real, contraste editorial, player integrado, progresso discreto, metadata visual por cena.
+* Scene Transition Engine com preload e zero frame vazio.
+
+
+### F9C Aprendizagem
+
+* Objetivo infantil explícito.
+* Missão da Aventura.
+* Dois a quatro Momentos de Descoberta.
+* Reconto e aplicação.
+* Perguntas de recuperação.
+
+
+### F9D Colorir narrativo
+
+* Resolver JRN C60 01.
+* A conclusão do Colorir volta à história imediatamente e persiste sem duplicar.
+* Arte da criança é protagonista na conclusão da atividade.
+* Uma de três atividades satisfaz o gate de conclusão total.
+
+
+### F9E Conclusão e próximo passo
+
+* Matar o painel atual.
+* Celebração curta e próxima ação única.
+* Reconciliar o passo reflexivo que participa da conclusão total, sem gate invisível.
+
+
+### F9F Meu Momento e Cultinho piloto de A Criação
+
+Criar o conteúdo piloto que F12B transformará em motor reutilizável. A experiência precisa ser semanticamente correta desde F9, ainda que a rotação completa só venha em F12B.
+
+> **SAÍDA F9**
+>
+> A Criação parece um Livro Vivo, ensina de maneira reconhecível, tem jornada coerente, nenhuma divergência de estado entre rotas e possui uma conclusão simples que conduz a próxima ação.
+
+
+## F10. Meu Livro e Escuta Tranquila
+
+* Reutilizar a Página Viva, sem segundo reader.
+* Livro como objeto emocional da jornada.
+* Arte real da criança quando houver, ilustração oficial como fallback.
+* Texto, imagem, narração, retomada e reconto.
+* Escuta contínua sem loop infinito nem áudio concorrente.
+* Page turn pode ser mais literal no Livro, com Reduce Motion equivalente.
+* Certificado pode ser última página quando conclusão total estiver satisfeita.
+
+> **SAÍDA F10**
+>
+> Livro e escuta são estáveis, reutilizam engine e transformam consumo em memória.
+
+
+## F11. Conclusão, próxima ação, Estrelinhas e Mapa
+
+* JourneyOrchestrator como fonte de próxima ação.
+* Estados de história consistentes em Home, Mapa, Story Home e Estrelinhas.
+* Quase lá e Concluída total com semântica única.
+* Resolver STR ONB 01, uma camada bloqueante por vez.
+* Reconciliar rewards/bonusStars para uma fonte visível e idempotente.
+* Baú funciona como álbum de memórias visuais reais, não cards genéricos.
+* MapAnchor canônico para pin, hit target, glow, scroll e spotlight.
+* Ver mapa usa destino semântico, não scrollTop literal.
+
+> **SAÍDA F11**
+>
+> Zero deadlock de modal, zero recompensa invisível incoerente e próxima ação compreensível em todos os estados.
+
+
+## F12A. Núcleo infantil, Brincar e jogos
+
+
+### Brincar final
+
+* Pares do Beni.
+* Palavrinhas do Beni.
+* Cadê a Ovelhinha?.
+* Monte a Cena.
+* Criar Livre e Minhas Artes em seção criativa.
+* Composição portrait usa largura real e não inventa cards para preencher espaço.
+
+
+### GameShell
+
+* Entrada previsível: nome, objetivo curto, modo/dificuldade quando aplicável e Jogar.
+* Durante: sair, título, progresso e ajuda em zonas previsíveis.
+* Saída antecipada consistente.
+* Conclusão compartilhada: repetir, mudar modo quando existir, voltar ao Brincar ou Início conforme hierarquia.
+
+
+### Cadê a Ovelhinha?
+
+* Corrigir inicialização para que a ovelha apareça sem depender de rotação.
+* Preservar Modo Infinito e contratos user facing aprovados.
+* Evitar derrota punitiva; dicas progressivas e meta clara.
+
+
+### Criar Livre
+
+* Documento lógico independente do viewport.
+* Plano Família: salvar, descartar, cancelar e persistir.
+* Plano Grátis: criar sem salvar, com convite gentil ao responsável no momento de salvar.
+* Não repetir confirmação redundante depois de um aviso comercial.
+* Teclado, safe area e controles permanecem acessíveis em portrait.
+
+> **SAÍDA F12A**
+>
+> Nenhuma criança fica presa, cada jogo começa e termina de forma previsível, Criar Livre tem saída segura e Brincar parece uma superfície única.
+
+
+## F12B. Meu Momento, Cultinho, recuperação, presença e Igreja
+
+
+### ContentRotationEngine
+
+* Entradas: última história, verdade central, tempo desde conclusão, conteúdo já exibido, histórico de repetição e disponibilidade offline.
+* Saídas para Meu Momento, Cultinho e sugestões controladas.
+
+
+### Meu Momento
+
+Executar integralmente o contrato da Seção 7.1.
+
+
+### Cultinho em Casa
+
+Executar integralmente o contrato da Seção 7.2. A Criação e Noé precisam provar variedade antes da fábrica das demais histórias.
+
+
+### Recuperação e Jornada de Presença
+
+Implementar recuperação espaçada piloto e presença não punitiva. Nenhuma notificação infantil coercitiva.
+
+
+### Modo Igreja V1
+
+* Não criar backend tradicional de igreja no V1 por precaução.
+* A experiência piloto pode usar conteúdos, presets e materiais locais/offline.
+* Uso coletivo deve funcionar dentro do contrato portrait. Projetor/landscape avançado é evolução adaptativa, não gate do V1.
+* Piloto com líder sem ajuda do desenvolvedor. Não coletar dados infantis desnecessários.
+
+> **SAÍDA F12B**
+>
+> Meu Momento tem aprendizado identificável; Cultinho é útil e variado; recuperação funciona sem pressão; presença é saudável; piloto familiar e de igreja demonstra utilidade real.
+
+
+## F13. Noé e prova da fábrica reutilizável
+
+* Aplicar Story Home V2 e Página Viva sem nova arquitetura.
+* Objetivo, missão, descobertas, recuperação, aplicação, 10 cenas, 3 Colorir, quiz, Meu Momento, Cultinho e Livro.
+* Mesmos schemas e engines de A Criação.
+* Alternância A Criação e Noé sem vazamento de estado.
+* Offline e retomada.
+
+> **SAÍDA F13**
+>
+> Noé prova que a fábrica é reutilizável. Se uma segunda história exigir nova engine, parar e corrigir a fábrica antes de escalar.
+
+
+## F14. Beta ampliado e matriz física real
+
+> **PORTÃO DE ENTRADA**
+>
+> CNPJ ativo e estrutura societária mínima formalizada. Produto principal já provado em A Criação e Noé.
+
+* Famílias reais, com crianças de 6 a 8 anos no centro e familiaridade bíblica variada.
+* Android de entrada, Android intermediário, tablet Android portrait e iPhone.
+* iPad continua evidence gap se indisponível.
+* Testar aprendizagem: recontar, ordenar, recuperar verdade depois e compreender aplicação.
+* Testar usabilidade: ação principal, ajuda, tour, Meu Momento, Cultinho, jogos e retorno.
+* Testar performance em dispositivo de entrada e tablet.
+* Piloto igreja dentro do escopo V1.
+* Feedback vira correção apenas quando viola contrato do V1.
+
+> **SAÍDA F14**
+>
+> Nenhum problema estrutural antes da escala de conteúdo. P0 e P1 corrigidos e retestados.
+
+
+## F15. Fábrica das outras dezoito histórias
+
+Princípio: nenhuma história cria nova arquitetura. Uma história por lote e aprovação.
+
+
+### Contrato obrigatório por história
+
+* storyId imutável, referência bíblica, verdade central e objetivo infantil.
+* 10 cenas com imagem, texto, narração, metadata visual e fallback.
+* Missão e dois a quatro Momentos de Descoberta.
+* Perguntas de recuperação e aplicação.
+* Quiz com contrato oficial.
+* 3 atividades Colorir com o Beni.
+* Meu Livro e entrada de reconto.
+* Meu Momento com Beni.
+* Pelo menos 1 Cultinho em Casa correspondente.
+* Presente/memória quando aplicável.
+* Pack, offline e compatibilidade.
+* Revisões bíblica, pedagógica, infantil, visual, áudio e QA técnico.
+* Aprovação do fundador.
+
+> **SAÍDA F15**
+>
+> As vinte histórias atingem o mesmo contrato de A Criação/Noé sem exceção arquitetural.
+
+
+## F16. Congelamento de conteúdo, mídia, acessibilidade e licenças
+
+* 20 histórias, 200 cenas narrativas, 60 atividades Colorir e seus conteúdos derivados.
+* Zero placeholder, áudio provisório ou texto sem revisão.
+* Revisão bíblica e teológica completa.
+* Revisão pedagógica e infantil.
+* Acessibilidade de textos, labels, touch targets, font scaling e Reduce Motion.
+* Licenças, autoria, cessões e proveniência documentáveis.
+* Auditoria de assets premium que não podem continuar embarcados no bundle base.
+
+> **SAÍDA F16**
+>
+> Zero conteúdo provisório e zero ativo sem origem ou licença adequada.
+
+
+## F17. Packs premium e offline completo
+
+* 18 packs premium versionados.
+* Manifestos, hashes, bytes, MIME, dimensões e minAppVersion.
+* Download, pause/cancel quando aplicável, retry e retomada.
+* Corrupção, falta de espaço, atualização e redownload.
+* Kill switch e conteúdo incompatível bloqueado com segurança.
+* Janela offline de entitlement conforme contrato vigente.
+* Auditoria contra base64 pesado e OOM em Android de entrada.
+* Nenhum require premium esquecido no binário base.
+
+> **SAÍDA F17**
+>
+> Conteúdo premium confiável online e offline, atualizável e recuperável.
+
+
+## F18. Monetização, entitlements e presente Davi e Golias
+
+> **PORTÃO DE ENTRADA**
+>
+> Conta bancária empresarial, contabilidade, dados fiscais, contratos e estrutura para monetização estão prontos.
+
+
+### Plano Família
+
+* RevenueCat como fonte de entitlement.
+* Mensal e anual. Sem trimestral, vitalício ou compra avulsa no V1.
+* Valores finais, desconto anual e eventual teste são decisão controlada desta fase e precisam de ratificação explícita.
+* Apple IAP e Google Play Billing.
+* Restore real, expiração, downgrade, reinstalação, outro aparelho e falha de pagamento.
+* Paywall adulto atrás da Área dos Responsáveis e gate parental. Nunca pressão infantil.
+
+
+### Presenteie uma Família com Davi e Golias
+
+* Superfície exclusivamente adulta, na Área dos Responsáveis.
+* Compartilhamento em um toque pelo share sheet nativo.
+* Card compartilhável com marca e benefício do app, sem dados pessoais da criança por padrão.
+* Nova família elegível recebe Davi e Golias como benefício promocional, dentro do mecanismo de entitlement aprovado pela Apple/Google e pela revisão jurídica.
+* Quem recebeu também pode compartilhar com outras famílias. Compartilhamento pode ser ilimitado.
+* Não acumular cópias de conteúdo nem moeda. O indicador pode receber reconhecimento de impacto, por exemplo número de famílias alcançadas.
+* Atribuição first party com token/link. Evitar SDK invasivo de atribuição em app infantil.
+* Antifraude proporcional: idempotência, nova família, sem autoindicação, sem duplicar por reinstalação, rate limits e detecção de padrões anormais.
+* Não prometer impossibilidade absoluta de fraude. O objetivo é reduzir incentivo econômico e bloquear abuso trivial.
+* Se a solução exigir backend, criar somente serviço first party mínimo, restrito ao responsável e sem dados infantis. Backend geral, login infantil e CMS continuam proibidos sem decisão própria.
+
+> **GATE DE PLATAFORMA E JURÍDICO**
+>
+> Antes de publicar o presente Davi e Golias, validar a forma de entitlement, a regra de incentivo da App Store, Google Play, privacidade e enquadramento promocional brasileiro. Se a recompensa não puder ser implementada com segurança, o compartilhamento orgânico adulto permanece e a recompensa é replanejada sem bloquear o núcleo infantil.
+
+> **SAÍDA F18**
+>
+> Compra, restore, entitlement e presente promocional aprovado funcionam em sandbox real, sem brecha infantil e sem divergência entre lojas.
+
+
+## F19. Hardening, segurança e continuidade
+
+* Error Boundary global e recuperação amigável.
+* Storage corrompido, pack ausente, arquivo de mídia ausente e migrações.
+* Threat model e testes de abuso.
+* Secrets fora do cliente. Rotação do que tiver sido exposto.
+* Logs minimizados e sem dados infantis indevidos.
+* Ferramentas internas e rotas de QA ausentes em produção.
+* 2FA, gerenciador de senhas, códigos de recuperação e inventário de acessos.
+* Backup de credenciais críticas e capacidade de continuar publicando sem um único computador.
+* Revisão de dependências, licenças e vulnerabilidades.
+* Playbook de incidente, severidade, contatos e rollback.
+
+> **SAÍDA F19**
+>
+> Nenhum defeito crítico sem recuperação segura e nenhum segredo/ferramenta interna no artefato final.
+
+
+## F20. Engenharia de release, contas e lojas
+
+> **PORTÃO DE ENTRADA**
+>
+> DUNS e contas de organização quando exigidos, site funcional, e mail corporativo, identidade legal, documentos e IP coerentes.
+
+* Versionamento, build number, versionCode, runtimeVersion e canais.
+* Staging, production, EAS Build, EAS Update, rollout e rollback.
+* Target API 36 ou superior conforme requisito vigente do Google Play.
+* Compatibilidade Android de páginas de memória de 16 KB quando aplicável.
+* Xcode/SDK e requisitos atuais da Apple na data da submissão.
+* TestFlight e faixas internas/fechadas do Google Play.
+* Metadata, screenshots e materiais coerentes com a versão real.
+* Privacy Policy, Terms, App Privacy, Data Safety, classificação etária e suporte.
+* Política de update: OTA compatível, binário nativo e bloqueio de update incompatível.
+* Release Manifest do RC com SHA, dependências, hashes e artefatos.
+
+> **SAÍDA F20**
+>
+> Builds e contas prontos, store forms refletem o binário real e rollback foi demonstrado.
+
+
+## F21. Beta do Release Candidate e Launch Readiness
+
+Objetivo: provar o exato artefato que será publicado e fechar todos os gates transversais.
+
+* Instalação limpa, atualização, rollback, migração e reinstalação.
+* Onboarding, Home, Story Home V2, Página Viva, missões, recuperação e conclusão.
+* Meu Momento, Cultinho, Meu Livro, Colorir, Brincar e jogos.
+* Packs, offline, storage baixo e rede lenta.
+* Compra, restore, expiração, downgrade e outro aparelho.
+* Presente Davi e Golias no cenário aprovado.
+* Android de entrada, Android intermediário, tablet Android portrait e iPhone.
+* Font scale ampliado, TalkBack, VoiceOver, Reduce Motion e touch targets.
+* Background/foreground e interrupções de áudio.
+* Performance e memória do RC, não do Development Build.
+* Privacy/Data Safety/App Privacy reconciliados com SDKs reais.
+* Conteúdo, licenças, empresa, contas, suporte, segurança e rollback rechecados.
+
+
+### Critério de severidade
+
+* Zero P0.
+* Zero P1.
+* Nenhum P2 que prejudique aprendizagem, pagamento, download, segurança, privacidade ou confiança.
+
+> **SAÍDA F21**
+>
+> LAUNCH_READINESS_PASS somente quando produto, empresa, conteúdo, privacidade, pagamento, segurança, beta, RC e operação estão simultaneamente verdes.
+
+
+## F22. Lançamento progressivo e operação inicial
+
+* Liberar para grupo pequeno primeiro.
+* Monitorar crash, ANR, memória, download, recovery, compra, restore, cancelamento, suporte e reviews.
+* Corrigir bloqueadores antes de ampliar.
+* Rollback e lista de hotfix prontos.
+* Primeira semana prioriza estabilidade, não nova feature.
+* Expandir gradualmente quando os sinais técnicos e de suporte estiverem saudáveis.
+
+> **SAÍDA F22**
+>
+> Produto publicado e operado de forma controlada, com capacidade real de observar, corrigir e continuar.
+
+
+# 13. GATES GLOBAIS DE LANÇAMENTO
+
+| Gate | Nome | Fechamento |
+| --- | --- | --- |
+| L1 | Produto técnico final | RC estável, instalação/update, offline/recovery, mídia, pagamento, responsividade portrait, acessibilidade, lifecycle, testes físicos e rollback. |
+| L2 | Conteúdo e revisão | Conteúdo fechado, narração, revisão bíblica, QA, licenças e proveniência. |
+| L3 | Empresa e titularidade | CNPJ, conta empresarial, acordo de sócios, poderes, titularidade e serviços essenciais. |
+| L4 | Marca, IP e contratos | Pesquisa/depósito, cessões, contratos, fontes, músicas, artes e arquivos fonte. |
+| L5 | Proteção infantil e privacidade | Mapa de dados, minimização, parental gates, documentos, App Privacy, Data Safety e consentimento quando aplicável. |
+| L6 | Assinatura e suporte | Compra, renovação, cancelamento, restore, falha, entitlement, troca de aparelho, FAQ e incidentes. |
+| L7 | Segurança e continuidade | 2FA, secrets, vulnerabilidades, backups, incident response e inspeção do artefato. |
+| L8 | Beta real | Famílias reais e pilotos, sem bloqueador de segurança, dados, compra ou perda de progresso. |
+| L9 | Observabilidade | Crash, ANR, pagamentos, restore, downloads, suporte, custos e incidentes com fonte e owner. |
+| L10 | Prontidão de distribuição | Materiais e suporte coerentes com o produto real. Não é plano de marketing. |
+| L11 | Rollout e rollback | Grupo pequeno, observação, correção e expansão progressiva. |
+| L12 | Caixa e operação | Gastos, fluxo de caixa, burn/runway e capacidade de operar o produto. |
+
+
+# 14. ITENS FORA DO CAMINHO CRÍTICO DO V1
+
+* Landscape adaptativo completo em todo o aplicativo.
+* Livro aberto/supporting pane landscape da Página Viva. A arquitetura fica preservada para evolução futura, mas o V1 fecha portrait.
+* iPad plenamente adaptativo, multitarefa e Split View.
+* Projetor/TV com composição horizontal avançada do Modo Igreja.
+* Novas histórias além das 20.
+* Backend geral, login infantil, CMS e sincronização cloud ampla.
+* Notificações infantis para streak ou presença.
+* Ranking de crianças, ligas ou competição espiritual.
+* Recompensa econômica/material para embaixadores antes de revisão própria.
+* SDK de atribuição invasivo por conveniência.
+* Recapa das 20 histórias para uniformizar estilo. Galeria Viva preserva multiestilo.
+* Repintar telas que serão substituídas pela F9/F11/F12.
+
+
+## 14.1 Ideias que não podem voltar silenciosamente
+
+* Ateliê como nome público.
+* Bichinhos/Adivinhar Animal/Soletrando como substitutos da lista vigente de jogos.
+* Três salvamentos grátis no Criar Livre.
+* Bloqueio de salvamento do Colorir narrativo por plano em história legitimamente acessível.
+* Paleta paralela de sete cores para status.
+* Roxo como cor padrão de Plano Família ou momentos espirituais.
+* Página de conclusão dashboard.
+* Reader atual como layout final.
+* Desbloqueio da próxima história só pela narrativa.
+* Preços antigos tratados como definitivos sem gate da F18.
+
+
+# 15. PROTOCOLO OPERACIONAL PARA CHATGPT, CLAUDE E CODEX
+
+
+## 15.1 Ao iniciar qualquer sessão
+
+1. Ler docs/DECISIONS.md.
+2. Ler o bloco da fase atual neste roadmap v6.
+3. Ler o Launch Readiness Lock somente como cross check de lançamento.
+4. Declarar a fase, owner do achado e arquivos permitidos antes de escrever código.
+5. Confirmar HEAD, branch e git status reais.
+
+
+## 15.2 Antes de implementar
+
+1. Separar fato, decisão, hipótese e proposta.
+2. Verificar se a tela atual vai sobreviver à fase. Se vai morrer, não maquiá-la.
+3. Mapear contratos compartilhados e riscos de regressão.
+4. Definir focused tests, mutantes quando úteis, smoke e prova física.
+5. Se houver dúvida de produto que realmente muda contrato, STOP e Founder Gate.
+
+
+## 15.3 Durante
+
+* Um bloco causal por vez.
+* Tarefas independentes de documentação/auditoria podem rodar em paralelo.
+* Não misturar correção de fase futura.
+* Sem push/merge sem autorização.
+* Sem criar nova arquitetura porque parece mais elegante.
+
+
+## 15.4 Ao encerrar um bloco
+
+1. Estado inicial e final.
+2. Arquivos alterados e motivo.
+3. Testes e resultados.
+4. Mutantes e evidência de que os testes têm dentes quando aplicável.
+5. Evidência física necessária e roteiro completo para o fundador.
+6. Achados novos com severidade e fase proprietária.
+7. Pendências transferidas, sem escondê-las.
+8. git status, HEAD e build manifest quando houver.
+9. LAUNCH READINESS CROSS CHECK: itens fechados, pendentes, não pertencentes e confirmação de zero scope creep.
+
+
+## 15.5 Regra para validação física solo
+
+Quando o fundador precisar gravar vídeo externo sozinho, o roteiro completo deve ser entregue antes de começar. Se ocorrer comportamento inesperado durante uma gravação contínua, parar de interagir, manter a câmera quando possível e reportar em texto pelo computador. Não improvisar uma sequência nova no meio da prova.
+
+
+# 16. CAMINHO PRÁTICO A PARTIR DE AGORA
+
+Esta é a ordem imediata. Ela transforma o documento em execução sem abrir uma nova discussão de roadmap.
+
+1. F6.0. Migrar a governança do repositório para v6, docs only.
+2. F6.1. Reconhecer a baseline real, HEAD, árvore, builds e divergência iOS/Android.
+3. F6.2. Corrigir contentViewport, sidebar e safe areas no tablet portrait.
+4. F6.3. Consolidar a fundação O Livro Vivo que F7/F9 consumirão, sem redesenhar telas futuras antes da hora.
+5. F6.4. Corrigir integridade visual transversal, placeholders e clipping.
+6. F6.5. Auditar geometria criativa em portrait.
+7. F6.6. Medir performance em build release like e otimizar somente gargalos comprovados.
+8. F6.7. Validar contrato portrait em Android 16 e iPhone.
+9. F6.8. Gerar Android e iOS canônicos do mesmo HEAD.
+10. F6.9. Executar validação física portrait e lacrar F6.
+11. F7. Corrigir onboarding/tour, Home e Área dos Responsáveis.
+12. F8/F8A. Fechar vozes e áudio antes de transformar A Criação em Livro Vivo na F9.
+
+> **DEPOIS DISSO**
+>
+> Seguir F9 até F22 na ordem deste documento. Nenhuma nova análise de roadmap é necessária, salvo se surgir um bloqueador real, obrigação legal/loja ou decisão explícita de reversão.
+
+
+# 17. MATRIZ DE RASTREABILIDADE DAS FONTES INCORPORADAS
+
+| Origem | O que foi incorporado |
+| --- | --- |
+| ROADMAP v5.0 | Estrutura F0 a F22, portrait V1, CNPJ, build provenance, aprendizagem, Cultinho, presença, referral. |
+| ROADMAP v4.1 Delta 08/08 | Story Home V2, Página Viva, Scene Transition Engine, quatro arquétipos, MapAnchor, GameShell. |
+| Direção de Arte UX v1.1 | O Livro Vivo, 10 leis, tokens, Fraunces/Nunito, Galeria Viva, ritual, página de cena e Livro. |
+| DECISIONS.md vigente, recuperado nas auditorias | Brincar 4 jogos, conclusão total B, Colorir persistente em histórias acessíveis, Criar Livre sem salvar no grátis, Ovelhinha, status cards. |
+| Auditoria F6 SG C Verde | Arquitetura responsiva implementada/auditada, HEAD histórico 002872a, gaps de evidência, build tecnicamente autorizável. |
+| Launch Readiness Lock | Gates de produto, empresa, IP, privacidade, pagamentos, segurança, beta, observabilidade e rollout. |
+| Decisões desta conversa | Portrait V1, tour sem moldura frágil, performance, conclusão sem dashboard, aprendizagem, Meu Momento, Cultinho, presença, prova para pais, presente Davi e Golias. |
+
+
+## 17.1 O que permanece apenas histórico
+
+* Listas antigas do Brincar que conflitam com E1-BRINCAR-4JOGOS.
+* Política antiga de não persistir Colorir narrativo no Plano Grátis.
+* Orientação antiga que fazia landscape de tablet ser requisito do V1.
+* Roadmaps anteriores como fonte de sequência.
+* Layouts atuais destinados a morrer, inclusive conclusão dashboard e Story Reader antigo.
+
+
+# 18. REFERÊNCIAS EXTERNAS OFICIAIS PARA GATES DE RELEASE
+
+| Fonte | URL | Uso no roadmap |
+| --- | --- | --- |
+| Apple Developer, Program Enrollment | https://developer.apple.com/help/account/membership/program-enrollment/ | Entidade jurídica, DUNS e requisitos de organização. |
+| Apple Developer, D-U-N-S | https://developer.apple.com/help/account/membership/D-U-N-S/ | DUNS para organização. |
+| Google Play Console, organization account information | https://support.google.com/googleplay/android-developer/answer/13628312?hl=pt-BR | DUNS e dados de organização. |
+| Redesim, Abrir CNPJ | https://www.gov.br/empresas-e-negocios/pt-br/redesim/abrir-cnpj | Fluxo oficial de registro empresarial. |
+| Android Developers, orientação e resizability | https://developer.android.com/develop/adaptive-apps/guides/app-orientation-aspect-ratio-resizability | Comportamento de telas grandes e Android 16. |
+| Google Play, target API | https://developer.android.com/google/play/requirements/target-sdk | Requisitos atuais de targetSdk. |
+| Apple App Review Guidelines | https://developer.apple.com/app-store/review/guidelines/ | Kids, compras, privacidade, links e IAP. |
+| Google Play Families Policies | https://support.google.com/googleplay/android-developer/answer/9893335 | Políticas para apps direcionados a crianças. |
+| ECA Digital, Lei 15.211/2025 | https://www.planalto.gov.br/ccivil_03/_ato2023-2026/2025/lei/l15211.htm | Proteção de crianças e adolescentes em produtos digitais. |
+| ANPD, ECA Digital | https://www.gov.br/anpd/pt-br/assuntos/eca-digital | Orientações regulatórias e proteção de dados. |
+| OWASP MASVS | https://mas.owasp.org/MASVS/ | Referência de hardening e segurança mobile. |
+
+
+# 19. DECLARAÇÃO FINAL DE CONGELAMENTO
+
+> O objetivo não é avançar rapidamente por uma lista. O objetivo é concluir cada contrato sem criar dívida invisível e sem reabrir decisões já resolvidas.
+
+* Esta v6 substitui o v5.0 como roadmap de execução.
+* O Livro Vivo, Story Home V2 e Página Viva agora estão explicitamente protegidos e não podem desaparecer do caminho de lançamento.
+* F6 é a fase atual. O primeiro passo é a migração documental F6.0, depois a conclusão portrait.
+* Depois de F6, seguir F7 a F22 sem criar fases paralelas.
+* Uma reversão futura precisa ser nomeada como REVERSÃO e aprovada pelo fundador.
+* Nenhuma IA pode declarar LAUNCH_READY sem fechar todos os gates L1 a L12 e a F21.
+
+> **STATUS FINAL DESTE DOCUMENTO**
+>
+> PRONTO PARA RATIFICAÇÃO DO FUNDADOR. Após ratificação, executar F6.0 e tornar a v6 a única fonte operacional de sequência.
