@@ -497,6 +497,22 @@ A tela atual, que explode informações, estrelas, resumo, múltiplos cards e di
 
 # 9. REGISTRO OFICIAL DE DEFEITOS, DÍVIDAS E GAPS
 
+> **NOTA FACTUAL DE AUTORIDADE — inserida no bloco `F6.1` · 2026-08-24.**
+>
+> Esta tabela é a **visão executiva por fase**. O **ledger canônico único** de riscos do projeto
+> continua sendo [`docs/fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md`](../fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md),
+> adotado em **E018** e **não superado por esta `v6`** — o §17.1 desta versão não o lista entre os
+> documentos rebaixados. **A baixa de qualquer item se registra no código `P-nnn`, nunca no código
+> executivo desta tabela.**
+>
+> A correspondência linha a linha entre os 24 códigos abaixo e os códigos `P-nnn` está em
+> [`docs/roadmap/V6_RISK_CROSSWALK_TO_E018.md`](V6_RISK_CROSSWALK_TO_E018.md). Sete códigos novos
+> — `P-170` a `P-176` — foram acrescentados ao ledger, em acréscimo puro, para os fatos aprovados
+> aqui que ainda não tinham código.
+>
+> **Esta nota é factual e não altera nenhuma decisão de produto:** nenhuma severidade, nenhum
+> *owner*, nenhuma redação e nenhuma saída esperada da tabela abaixo foi modificada.
+
 Todo item desta tabela possui owner. Fechar uma fase não apaga o item. Se o comportamento deixar de existir por redesign, a fase proprietária precisa registrar a prova de supersessão.
 
 | Código | Severidade | Owner | Problema | Saída esperada |
