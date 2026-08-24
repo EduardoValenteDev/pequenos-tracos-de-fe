@@ -4,6 +4,9 @@
 > **Baseline de entrada:** `61f065c` (fechada em `F6.1`) · **Commit de implementação:** `2b8f12d`
 > **Worktree:** `C:\tmp\ptf_fase6_shell_splash_wt` · **Data:** 2026-08-24
 > **Status:** implementação concluída e medida · **prova física PENDENTE** · `F6_2_COMPLETE = NÃO`
+> **Continuado por:** [`F6.2R`](F6_2R_FRONTEIRA_NAVEGACAO_CONTEUDO.md) — a prova física de
+> `F6.2` revelou que a região certa ainda nascia colada ao trilho. O residual **quita a falha
+> de Estrelinhas registrada na §5** e acrescenta a fronteira navegação → conteúdo.
 
 ---
 
@@ -175,6 +178,12 @@ superestima em 32 dp, e `floor((660+10)/330) = 2` enquanto `floor((628+10)/330) 
 e Brincar — medir a grade com `onLayout` e entregá-la como `availableWidth` —, que
 nunca foi estendido a Estrelinhas.
 
+> **Baixa (2026-08-24, `F6.2R`, commit `bb33017`):** corrigida. A varredura dp a dp mostrou
+> que a residual não era a faixa contínua `[900, 1140)` afirmada acima, e sim **três faixas
+> estreitas** — `[830, 862)` ∪ `[900, 922)` ∪ `[1220, 1252)` —, o que reconcilia "residual em
+> 900" com "1024 corrigida". Remédio: `G-RSP-8` estendido a Estrelinhas (grade medida por
+> `onLayout`). Detalhe em [`F6.2R` §6](F6_2R_FRONTEIRA_NAVEGACAO_CONTEUDO.md).
+
 **Por que não foi corrigido aqui:** `F6.2` é o bloco da **fundação**, e a ordem prevê
 `AINDA_FALHA` / `OWNER_DA_FALHA` como entrega, não como pendência a esconder.
 Corrigir uma tela dentro do bloco que existe para acabar com a correção tela a tela
@@ -317,4 +326,6 @@ Fora de escopo por dono declarado, **registrado e não corrigido**: tour/*spotli
 - **Nenhum risco de classe nova.** A falha residual de Estrelinhas (§5) é **defeito
   conhecido com dono nomeado**, não classe de risco inédita — a matriz canônica
   `P-nnn` não é alterada por este bloco.
+- **Continuação:** [`F6.2R`](F6_2R_FRONTEIRA_NAVEGACAO_CONTEUDO.md) (commit `bb33017`) —
+  fronteira navegação → conteúdo, residual de Estrelinhas quitada, portão `G-GAP-1`.
 - **`F6.3` não foi iniciada.**

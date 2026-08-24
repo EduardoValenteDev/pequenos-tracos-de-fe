@@ -34,6 +34,11 @@ Este índice classifica a documentação do projeto. Em caso de conflito, vale s
   registra o mapa causal da geometria, a causa raiz, o contrato de área útil publicado pelo shell,
   o raio de correção por tela, a matriz responsível em retrato e o roteiro de prova física.
   **Prova física pendente.**
+- **[roadmap/F6_2R_FRONTEIRA_NAVEGACAO_CONTEUDO.md](roadmap/F6_2R_FRONTEIRA_NAVEGACAO_CONTEUDO.md)**
+  — artefato do residual **`F6.2R`** (2026-08-24): registra a **fronteira navegação → conteúdo**
+  (`SIDEBAR → GAP → CONTENT VIEWPORT → SCREEN`), o *token* `navContentGap`, o inventário das
+  superfícies com trilho, a baixa da residual de Estrelinhas com o intervalo exato, a prova da
+  área jogável de *Cadê a Ovelhinha?* e o portão `G-GAP-1`. **Confirmação visual pendente.**
 - **[launch/RECONCILIACAO_E1.md](launch/RECONCILIACAO_E1.md)** — reconciliação da governança
   (E1, 2026-07-15): precedência, decisões consolidadas, superadas e pendentes.
 
