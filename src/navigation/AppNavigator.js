@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { NavigationContainer, useNavigationContainerRef, CommonActions } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View, TouchableOpacity } from 'react-native';
+import { Text, View, TouchableOpacity, PixelRatio } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import TabletSidebar from '../components/TabletSidebar';
@@ -292,7 +292,15 @@ function MainTabs() {
   // Geometria da moldura sobre o item Aventuras (sem tocar o layout do item).
   // Só faz sentido na barra inferior do celular — no tablet a sidebar tem o alvo
   // guiado próprio (`adventures.sidebarTab`), registrado dentro da sidebar.
-  const tabBarH = 64 + insets.bottom;
+  // [F6.4A] A barra inferior é a superfície mais compartilhada do app e a altura era
+  // FIXA (64dp), enquanto `tabBarLabelStyle` cresce com a acessibilidade de fonte do
+  // sistema: em escala alta "Estrelinhas"/"Aventuras" encostava no ícone e era cortado.
+  // A altura passa a acompanhar o MESMO fator que faz o texto crescer — sem encolher
+  // fonte, sem truncar rótulo e sem condição por aparelho. O teto de 1.6 existe para
+  // que uma configuração extrema não coma a tela: acima disso o rótulo já teve o
+  // espaço de que precisava. Em escala 1.0 o número continua sendo exatamente 64.
+  const escalaDeFonte = Math.min(Math.max(PixelRatio.getFontScale(), 1), 1.6);
+  const tabBarH = Math.round(64 + 22 * (escalaDeFonte - 1)) + insets.bottom;
   const advIndex = TAB_DEFS.findIndex((t) => t.name === 'Aventuras');
   const tabW = width / TAB_DEFS.length;
   const calloutW = Math.min(tabW - 14, 88);
@@ -358,7 +366,7 @@ function MainTabs() {
           borderTopColor: colors.border,
           borderTopWidth: 1,
           // Adiciona o inset inferior do sistema para não ficar tampado pela barra do Samsung
-          height: 64 + insets.bottom,
+          height: tabBarH,
           paddingBottom: 8 + insets.bottom,
           paddingTop: 4,
           elevation: 8,

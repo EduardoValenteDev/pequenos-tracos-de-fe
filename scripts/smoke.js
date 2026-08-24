@@ -439,9 +439,25 @@ check(
 {
   const navLayout = readSrc('src/navigation/AppNavigator.js');
   check(
-    'Layout1: tab bar NÃO-absoluta reserva 64 + insets.bottom — telas não re-somam insets.bottom no fim do scroll',
-    /height: 64 \+ insets\.bottom/.test(navLayout) &&
-    !/tabBarStyle:\s*\{[\s\S]{0,200}position:\s*'absolute'/.test(navLayout) &&
+    'Layout1: tab bar NÃO-absoluta reserva 64 + insets.bottom (base que agora cresce com a escala de fonte) — telas não re-somam insets.bottom no fim do scroll',
+    // [F6.4A] A altura deixou de ser LITERAL e passou a ser DERIVADA de `tabBarH` — a
+    // mesma constante que a moldura do tour do Beni já lia. Nada do que a trava original
+    // protegia foi solto, e três condições ENTRARAM:
+    //   (a) a base em escala 1.0 continua valendo exatamente 64 (`64 + 22 * (s - 1)`);
+    //   (b) o inset do sistema continua DENTRO da altura — é o que impede a tela de
+    //       re-somá-lo e abrir espaço morto, que é a razão de existir deste portão;
+    //   (c) a barra e a moldura não podem mais divergir, porque `tabBarStyle` é
+    //       obrigada a consumir `tabBarH` em vez de repetir a aritmética por fora.
+    // A escala é presa em [1, 1.6]: a barra nunca encolhe e nunca cresce sem teto.
+    /const tabBarH = Math\.round\(64 \+ 22 \* \(escalaDeFonte - 1\)\) \+ insets\.bottom;/.test(navLayout) &&
+    /const escalaDeFonte = Math\.min\(Math\.max\(PixelRatio\.getFontScale\(\), 1\), 1\.6\);/.test(navLayout) &&
+    /tabBarStyle:[\s\S]{0,400}height: tabBarH,/.test(navLayout) &&
+    !/height: 64 \+ insets\.bottom/.test(navLayout) &&
+    // [F6.4A] A trava da barra ABSOLUTA estava morta desde que `tabBarStyle` virou
+    // ternário (`isTablet ? undefined : { … }`): `\s*\{` não alcança `{` depois de
+    // ` isTablet ? undefined : `, e o mutante MT-6 (inserir `position: 'absolute'`)
+    // sobrevivia. A abertura do objeto passa a ser procurada, não presumida.
+    !/tabBarStyle:[\s\S]{0,60}\{[\s\S]{0,200}position:\s*'absolute'/.test(navLayout) &&
     /const SCROLL_BOTTOM_PAD = [0-8]\b/.test(readSrc('src/screens/AdventureMapScreen.js')) &&
     readSrc('src/screens/AdventureMapScreen.js').includes('paddingBottom: SCROLL_BOTTOM_PAD') &&
     !readSrc('src/screens/HomeScreen.js').includes('insets.bottom + 80') &&
@@ -450,7 +466,7 @@ check(
     !readSrc('src/screens/ProfileScreen.js').includes('insets.bottom + 72') &&
     !readSrc('src/screens/TrophiesScreen.js').includes('insets.bottom + 64') &&
     !readSrc('src/screens/ParentAreaScreen.js').includes('insets.bottom + 48'),
-    'tab bar virou absoluta, ou alguma tela voltou a somar insets.bottom (espaço morto) no paddingBottom',
+    'tab bar virou absoluta, perdeu a base 64 ou o inset do sistema na altura, voltou a repetir a aritmética em vez de consumir tabBarH, ou alguma tela voltou a somar insets.bottom (espaço morto) no paddingBottom',
   );
 }
 

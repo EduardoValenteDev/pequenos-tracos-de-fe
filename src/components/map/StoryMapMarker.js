@@ -11,6 +11,7 @@ import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import SoundButton from '../SoundButton';
 import RecoverableImage from '../ui/RecoverableImage';
+import { color, font } from '../../theme/tokens';
 import { getStoryCover } from '../../assets/storyCovers';
 import { useResolvedStoryCover } from '../../hooks/useResolvedStoryMedia';
 
@@ -187,10 +188,14 @@ export default function StoryMapMarker({
 const styles = StyleSheet.create({
   pin: { alignItems: 'center', justifyContent: 'center' },
   halo: { position: 'absolute', backgroundColor: 'rgba(244,183,62,0.30)', borderWidth: 2, borderColor: 'rgba(255,214,120,0.55)' },
-  ring: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFDF8' },
-  softShadow: { elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
+  ring: { alignItems: 'center', justifyContent: 'center', backgroundColor: color.paper50 },
+  // [F6.4A] Era a única sombra PRETA do sistema visual, a 0.25 — e ela se repete em cada
+  // pin de cada região. O contrato do papel pede tinta quente e sombra suave, como já
+  // valia em todas as primitivas de `ui/`. O relevo continua; o que sai é o halo
+  // cinza-frio que endurecia o pin contra a arte do mapa.
+  softShadow: { elevation: 3, shadowColor: color.ink900, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4 },
   currentShadow: { elevation: 8, shadowColor: '#F4B73E', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.7, shadowRadius: 10 },
-  circle: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFE7D6' },
+  circle: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: color.paper300 },
   cover: { width: '100%', height: '100%' },
   fallback: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   // Só quando existe capa: a inicial ocupa o círculo sem empurrar a imagem para fora.
@@ -220,6 +225,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   labelPillLocked: { backgroundColor: 'rgba(247,242,232,0.80)' },
-  label: { fontFamily: 'Nunito', fontSize: 9, fontWeight: '800', color: '#4A3A1E', textAlign: 'center' },
+  label: { fontFamily: font.body, fontSize: 9, fontWeight: '800', color: color.ink900, textAlign: 'center' },
   labelLocked: { color: '#8A7C66' },
 });

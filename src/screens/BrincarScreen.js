@@ -25,7 +25,7 @@
  * a partir da história, em Aventuras.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, Animated, AccessibilityInfo, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Animated, AccessibilityInfo, StyleSheet, PixelRatio } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -230,6 +230,10 @@ export default function BrincarScreen({ navigation, route }) {
         ? `Hoje: ${rounds.remaining} rodada${rounds.remaining === 1 ? '' : 's'} para brincar`
         : 'As rodadas de hoje acabaram — amanhã tem mais!';
 
+  // Teto do chip acompanhando a MESMA escala que faz o texto crescer (teto 1.6 para que
+  // uma configuração extrema não empurre o título do header para fora).
+  const chipMaxW = Math.round(132 * Math.min(Math.max(PixelRatio.getFontScale(), 1), 1.6));
+
   return (
     <ScrollView
       style={styles.container}
@@ -261,9 +265,14 @@ export default function BrincarScreen({ navigation, route }) {
             <Text style={styles.headerTitle}>Brincar com o Beni</Text>
             <Text style={styles.headerSub} numberOfLines={1}>Qual brincadeira vamos escolher hoje?</Text>
           </View>
-          <View style={[styles.planChip, premium ? styles.planChipPremium : styles.planChipFree]}>
+          {/* [F6.4A] O teto de 132dp era fixo e o texto não era: na escala de fonte do
+                 aparelho do responsável (1.15) "Brincadeiras sem limite" já saía cortado
+                 como "Brincadeiras se…", e a frase das rodadas é ainda mais longa. O teto
+                 acompanha a escala e o chip aceita 2 linhas — a frase inteira é a
+                 informação, então nem a fonte encolhe nem o texto é truncado. */}
+          <View style={[styles.planChip, { maxWidth: chipMaxW }, premium ? styles.planChipPremium : styles.planChipFree]}>
             <FaithIcon name="star" size={12} color={premium ? pt.greenDeep : pt.goldDeep} />
-            <Text style={styles.planChipText} numberOfLines={1}>{planText}</Text>
+            <Text style={styles.planChipText} numberOfLines={2}>{planText}</Text>
           </View>
         </View>
       </LinearGradient>
@@ -425,7 +434,7 @@ const styles = StyleSheet.create({
   planChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6,
-    maxWidth: 132, borderWidth: HAIR,
+    borderWidth: HAIR,
   },
   planChipPremium: { backgroundColor: 'rgba(255,255,255,0.85)', borderColor: 'rgba(94,156,62,0.35)' },
   planChipFree: { backgroundColor: 'rgba(255,255,255,0.85)', borderColor: 'rgba(224,162,26,0.35)' },
