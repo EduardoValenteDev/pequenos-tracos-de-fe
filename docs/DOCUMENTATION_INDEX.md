@@ -18,9 +18,17 @@ Este índice classifica a documentação do projeto. Em caso de conflito, vale s
   (separação de `F6.8 · Builds canônicos` e `F6.9 · Campanha física e lacre`). A reconciliação das
   decisões da v6 está em [`DECISIONS.md` §V6](DECISIONS.md).
 - **[fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md](fase3-reconciliacao/09_MATRIZ_DE_RISCOS_E_PENDENCIAS.md)**
-  — **matriz canônica única de riscos e pendências** (`P-01` a `P-139`), adotada em **2026-08-05
-  (E018)**. Governa **inventário, identidade, status, severidade, fase e rastreabilidade** das
-  pendências. Nenhum outro documento replica esta matriz nem mantém tabela normativa de riscos.
+  — **matriz canônica única de riscos e pendências** (`P-01` a **`P-176`**), adotada em
+  **2026-08-05 (E018)**. Governa **inventário, identidade, status, severidade, fase e
+  rastreabilidade** das pendências. Nenhum outro documento replica esta matriz nem mantém tabela
+  normativa de riscos. **A `v6` não a superou:** o registro `F6-UX-01`…`F20-STORE-01` da v6 §9 é
+  **vista executiva por fase**, e **a baixa de qualquer item se registra no `P-nnn`** — correlação
+  código a código em [roadmap/V6_RISK_CROSSWALK_TO_E018.md](roadmap/V6_RISK_CROSSWALK_TO_E018.md)
+  e na **§34** da própria matriz.
+- **[roadmap/F6_1_BASELINE_CANONICA_E_PROVENIENCIA.md](roadmap/F6_1_BASELINE_CANONICA_E_PROVENIENCIA.md)**
+  — artefato do bloco **`F6.1`** (2026-08-24): declara a **linha canônica** após prova de
+  convergência, registra a absorção do ícone, o crosswalk de riscos, o inventário de builds e o
+  reconhecimento da orientação iOS.
 - **[launch/RECONCILIACAO_E1.md](launch/RECONCILIACAO_E1.md)** — reconciliação da governança
   (E1, 2026-07-15): precedência, decisões consolidadas, superadas e pendentes.
 
@@ -75,6 +83,12 @@ Guias e checklists ainda úteis (referência operacional). Não definem estraté
 houver conflito estratégico, valida-se contra a Fonte de Verdade.
 
 **Build / release / loja / legal**
+- **[BUILD_PROVENANCE_CONTRACT.md](BUILD_PROVENANCE_CONTRACT.md)** — contrato que define o que
+  precisa ser verdade para um binário contar como **evidência** (criado em `F6.1`, consumido em
+  `F6.8`; risco `P-170`)
+- **[BUILD_REGISTRY.md](BUILD_REGISTRY.md)** — registro histórico de **origem** dos builds e do
+  binário instalado em cada aparelho. Não substitui [BUILD_SIZE_LOG.md](BUILD_SIZE_LOG.md), que
+  registra **peso**
 - [EAS_BUILD_GUIDE.md](EAS_BUILD_GUIDE.md)
 - [STORE_RELEASE_READINESS_CHECKLIST.md](STORE_RELEASE_READINESS_CHECKLIST.md)
 - [PRODUCTION_FLAGS_CHECKLIST.md](PRODUCTION_FLAGS_CHECKLIST.md)
