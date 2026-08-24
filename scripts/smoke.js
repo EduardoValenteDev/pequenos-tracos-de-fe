@@ -3167,9 +3167,36 @@ check(
 );
 check(
   'Imersivo: clamp permite pan inferior extra (inset nomeado) p/ alcançar área sob o overlay',
-  coloringCanvasSrc94.includes('INITIAL_VIEW_BOTTOM_SAFE_INSET=Math.round(H*INITIAL_VIEW_BOTTOM_SAFE_FRAC);') &&
+  coloringCanvasSrc94.includes('INITIAL_VIEW_BOTTOM_SAFE_INSET=bottomSafePx();') &&
   coloringCanvasSrc94.includes('ty=Math.max(H*(1-scale)-INITIAL_VIEW_BOTTOM_SAFE_INSET,Math.min(0,ty));'),
   'clamp não tem inset inferior nomeado — parte da arte fica presa sob o overlay',
+);
+// [F6.5A · GEOMETRIA PORTRAIT] A faixa inferior não-utilizável era 0.20*H — uma FRAÇÃO da altura,
+// não a área realmente encoberta. No SM-X510 em retrato isso reservava ~246dp onde o painel
+// flutuante cobre ~120dp. Agora o valor VEM MEDIDO da tela (dp) e o motor só o converte por DPR;
+// a fração sobrevive como piso pré-medição, jamais como verdade.
+check(
+  'Colorir [F6.5A]: a faixa inferior encoberta é MEDIDA (dp × DPR), com a fração só como piso pré-medição',
+  coloringCanvasSrc94.includes('function bottomSafePx(){') &&
+  coloringCanvasSrc94.includes('var dp=window.__C60_BOTTOM_SAFE__;') &&
+  coloringCanvasSrc94.includes('return Math.min(Math.round(H*0.6),Math.round(dp*DPR));') &&
+  coloringCanvasSrc94.includes('return Math.round(H*INITIAL_VIEW_BOTTOM_SAFE_FRAC);') &&
+  coloringCanvasSrc94.includes('window.setBottomSafeInset=function(dp){') &&
+  coloringCanvasSrc94.includes('bottomOverlayInset = 0') &&
+  coloringCanvasSrc94.includes('injectedJavaScriptBeforeContentLoaded={beforeContentJs}'),
+  'a área utilizável do Colorir voltou a ser estimada por fração de tela em vez de medida',
+);
+// A ponta da medição: a tela mede o topo REAL do painel com onLayout, tira a faixa da barra de
+// sistema do retângulo jogável pela margem da canvasArea, e entrega a diferença ao motor. Nenhum
+// número mágico por aparelho, nenhuma altura fixa, nenhum 'screenHeight menos constante'.
+check(
+  'Colorir [F6.5A]: a tela MEDE o painel, tira a taskbar do retângulo jogável e entrega a faixa ao motor',
+  coloringScreenCode.includes('const [c60OverlayTop, setC60OverlayTop] = useState(null);') &&
+  coloringScreenCode.includes('setC60OverlayTop((prev) => (prev != null && Math.abs(prev - y) < 0.5 ? prev : y));') &&
+  coloringScreenCode.includes('Math.max(0, Math.round(c60CanvasFrame.y + c60CanvasFrame.height - c60OverlayTop))') &&
+  coloringScreenCode.includes('style={[styles.canvasArea, { marginBottom: insets.bottom }]}') &&
+  coloringScreenCode.includes('bottomOverlayInset={c60OverlayCover}'),
+  'a geometria do Colorir voltou a presumir a faixa inferior em vez de medi-la',
 );
 // [P3J] O toast da dica saiu; o que precisa respeitar a área segura hoje é o painel flutuante de
 // ferramentas/paleta do Colorir com o Beni. O contrato "nada encosta no gesto do sistema" continua
@@ -3272,8 +3299,18 @@ check(
 );
 check(
   'Colorir Grande: "Ver tudo" continua voltando a 1.0 (imagem inteira)',
-  coloringCanvasSrc94.includes('window.resetZoom=function(){scale=1;tx=0;ty=0;show();}'),
+  coloringCanvasSrc94.includes('window.resetZoom=function(){') &&
+  coloringCanvasSrc94.includes('scale=1;tx=0;'),
   'resetZoom não volta a scale 1.0 — "Ver tudo" quebrado',
+);
+// [F6.5A] Voltar a 1.0 não bastava: com ty=0 a arte era centralizada no viewport BRUTO, que inclui
+// a faixa do painel flutuante — a base do lineart terminava atrás dos controles justamente no
+// gesto que promete a arte inteira (medido no SM-X510 em retrato: ~62dp escondidos).
+check(
+  'Colorir [F6.5A]: "Ver tudo" centraliza a arte na BANDA ÚTIL — a base do lineart não fica sob o painel',
+  coloringCanvasSrc94.includes('ty=Math.round((H-INITIAL_VIEW_BOTTOM_SAFE_INSET-imgH)/2-imgY);') &&
+  !coloringCanvasSrc94.includes('window.resetZoom=function(){scale=1;tx=0;ty=0;show();}'),
+  '"Ver tudo" voltou a centralizar no viewport bruto — parte do desenho fica atrás dos controles',
 );
 check(
   'Colorir Grande: zoom inicial é só VIEW — motor (flood fill/export/load) intacto',
@@ -39608,7 +39645,20 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       // bloqueia aqui o "Pronto": isso alcançaria progresso/conquistas, que são área protegida.
       // A leitura VISUAL deste estado é evidência FÍSICA e continua PENDENTE (§28.1 caso 15).
       // O selo é reancorado com a mudança declarada; qualquer OUTRA alteração segue acendendo o alarme.
-      // REFERÊNCIA REBASEADA DE NOVO — [Fase 6 · F6-SG-C · TK-C-011 · C-C5]. O valor anterior
+      // REFERÊNCIA REBASEADA DE NOVO — [Fase 6 · F6.5A · GEOMETRIA PORTRAIT]. O valor anterior
+      // (61.517 caracteres, sha 39f117aa8421178da33ec5451453b45d9c85016de5db2baed60a703efc2c4145)
+      // foi medido ao fim de TK-C-011. O delta desta vez é a GEOMETRIA da área criativa em retrato:
+      // (1) a 'canvasArea' ganhou 'marginBottom: insets.bottom', tirando a faixa da barra de sistema
+      // do retângulo jogável; (2) o topo do painel flutuante passou a ser MEDIDO ('c60OverlayTop',
+      // via onLayout); (3) a diferença entre o fim medido do canvas e esse topo ('c60OverlayCover')
+      // viaja ao motor pela prop 'bottomOverlayInset'. É MEDIDA e ENQUADRAMENTO, não pipeline: não
+      // grava, não exporta, não relê armazenamento, não reaplica pintura e não toca 'LW/LH',
+      // 'paintD', 'imgX..imgH' nem o ponteiro v3 — 'SD-8' e 'G-CVS-1' seguem intactos. A margem é
+      // MARGEM e não padding de propósito: onLayout devolve a caixa de CONTEÚDO, então
+      // 'c60CanvasFrame' continua sendo exatamente o retângulo do canvas que a moldura viva e a
+      // celebração usam para ancorar a arte (§Parte 9). A leitura VISUAL é evidência FÍSICA, na
+      // campanha F6.5A (retrato, SM-X510, taskbar visível).
+      // O valor anterior a esse
       // (61.195 bytes, sha 0d82600f029a9a1faa63e785c50b3ef3eeffbd56fe18ca118462883756e75de5) foi
       // medido ao fim de `TK-A-045`. O delta desta vez é a adoção da família IMERSIVA: a raiz do
       // ramo `available` deixou de ser `<View style={styles.container}>` e passou a ser
@@ -39630,8 +39680,8 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
       })(scrF);
       const c60ShaF = require('crypto').createHash('sha256').update(c60BodyF, 'utf8').digest('hex');
       check('C60-P4-FIX2 [LEGADO] → [P3J]: corpo do Coloring60ActivityScreen BYTE-IDÊNTICO a HEAD (a aposentadoria não tocou o colorir vivo)',
-        c60ShaF === '39f117aa8421178da33ec5451453b45d9c85016de5db2baed60a703efc2c4145'
-          && c60BodyF.length === 61517,
+        c60ShaF === '6ec12e709bacd9258eb42b5ca67ee65031e89e036953717b2ba0bb2ec11ecef9'
+          && c60BodyF.length === 63474,
         `o corpo do Colorir com o Beni mudou (sha=${c60ShaF}, bytes=${c60BodyF.length}) — nenhuma mudança vizinha pode tocar o ramo vivo`);
     }
   }
@@ -40795,7 +40845,7 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     check('C60-P12R [prova 18 · Parte 5] a RAIZ da camada de festa é box-none (não captura toque por si) e a área de pintura fica inerte durante a celebração (pointerEvents c60Celebrating?none:auto)',
       /\[C60-P12R-BOXNONE\]/.test(ovRaw)
         && /<View pointerEvents="box-none" style=\{StyleSheet\.absoluteFill\} onLayout=\{onRootLayout\} accessibilityViewIsModal>/.test(ovRaw)
-        && /style=\{styles\.canvasArea\}\s+pointerEvents=\{c60Celebrating \? 'none' : 'auto'\}/.test(scrRaw),
+        && /style=\{\[styles\.canvasArea, \{ marginBottom: insets\.bottom \}\]\}\s+pointerEvents=\{c60Celebrating \? 'none' : 'auto'\}/.test(scrRaw),
       'só os controles reais recebem toque; o fundo não intercepta, e a pintura congelada atrás não reage a toques durante a festa');
     check('C60-P12R [prova 19 · Parte 5] toque duplo no "Pronto!" não dispara duas conclusões: o botão fica disabled={c60Saving} durante o salvamento e o controlador de tentativa serializa a conclusão',
       /disabled=\{c60Saving\}/.test(scrRaw)

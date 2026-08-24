@@ -585,6 +585,10 @@ function Coloring60ActivityScreen({ route, navigation }) {
   // onLayout da canvasArea. É a mesma geometria da moldura viva (artRectFromSnapshot): passada ao
   // overlay, faz as partículas e o Beni nascerem ancorados aos LIMITES REAIS do desenho (§Parte 9).
   const [c60CanvasFrame, setC60CanvasFrame] = useState(null);
+  // [F6.5A] Topo REAL do painel flutuante (ferramentas + paleta), medido no layout. É o
+  // único jeito honesto de saber quanto da base da área criativa está encoberto: a altura
+  // do painel depende do conteúdo (linha de ferramentas + paleta), não de constante.
+  const [c60OverlayTop, setC60OverlayTop] = useState(null);
   // [C60-P10-HYDRATION] Estado da HIDRATAÇÃO VISUAL ATÔMICA (Parte 2). `c60RevealMode` decide o que
   // será o PRIMEIRO quadro visível: 'probing' (ainda lendo o storage — capa opaca), 'paint' (há arte
   // salva; capa fica até a pintura estar DESENHADA no canvas) ou 'lineart' (sem arte salva; capa fica
@@ -1237,6 +1241,15 @@ function Coloring60ActivityScreen({ route, navigation }) {
     ]);
   }
 
+  // [F6.5A · GEOMETRIA PORTRAIT] Quanto da base do canvas o painel flutuante realmente
+  // cobre — diferença entre o fim MEDIDO do canvas e o topo MEDIDO do painel. A faixa da
+  // barra de sistema (taskbar) já saiu antes, pela margem inferior da 'canvasArea': ela
+  // não pertence ao retângulo jogável. Nada aqui deriva de altura de aparelho nem de
+  // fração arbitrária da tela.
+  const c60OverlayCover = (c60CanvasFrame && c60OverlayTop != null)
+    ? Math.max(0, Math.round(c60CanvasFrame.y + c60CanvasFrame.height - c60OverlayTop))
+    : 0;
+
   const eraserActive = c60Color === ERASER_COLOR;
 
   if (available) {
@@ -1316,7 +1329,11 @@ function Coloring60ActivityScreen({ route, navigation }) {
             módulo do resolvedor; sinais D1 (onReadyChange) e D5 (onPainted) são consumidos por
             composição. Sem sceneNumber numérico (identidade Colorir 60 é semântica). */}
         <View
-          style={styles.canvasArea}
+          // [F6.5A] A margem inferior tira a faixa da barra de sistema do retângulo jogável.
+          // É MARGEM, não padding, de propósito: 'onLayout' devolve a caixa de conteúdo, então
+          // 'c60CanvasFrame' continua descrevendo exatamente o retângulo do canvas — a mesma
+          // base que a moldura viva e a celebração usam para ancorar a arte (§Parte 9).
+          style={[styles.canvasArea, { marginBottom: insets.bottom }]}
           pointerEvents={c60Celebrating ? 'none' : 'auto'}
           // [C60-P12-FRAME] Mede a área do canvas continuamente (só grava em mudança real). Assim,
           // quando a celebração começa, a geometria da arte já está disponível ao overlay para ancorar
@@ -1335,6 +1352,9 @@ function Coloring60ActivityScreen({ route, navigation }) {
             selectedColor={c60Color}
             imageSource={resolution.source}
             storyId={storyId}
+            // [F6.5A] Faixa inferior encoberta, em dp, MEDIDA. O motor a usa para enquadrar a
+            // arte (câmera inicial e "Ver tudo") e para o limite de pan — nunca para pintar.
+            bottomOverlayInset={c60OverlayCover}
             onReadyChange={setC60Ready}
             // [C60-PARTE-3] A MEDIDA substitui a promessa: `onPaintState` chega a cada operação que
             // muda a tinta (inclusive apagar, desfazer e limpar) e é de mão dupla. `onPainted`
@@ -1397,6 +1417,13 @@ function Coloring60ActivityScreen({ route, navigation }) {
         </View>
 
         <Animated.View
+          // [F6.5A] Mede o topo do painel (só grava em mudança real). Vira a faixa inferior
+          // não-utilizável do canvas — o que o motor de pintura precisa saber para enquadrar a
+          // arte na banda que a criança realmente enxerga.
+          onLayout={(e) => {
+            const { y } = e.nativeEvent.layout;
+            setC60OverlayTop((prev) => (prev != null && Math.abs(prev - y) < 0.5 ? prev : y));
+          }}
           style={[styles.overlayPanel, { bottom: insets.bottom + 8, opacity: controlsAnim }]}
           pointerEvents={c60Celebrating ? 'none' : 'auto'}
         >

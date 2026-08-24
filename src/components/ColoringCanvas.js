@@ -262,12 +262,27 @@ var tx=0,ty=0;
 /* Modo Colorir Grande: scale inicial do desenho de história (1.0 = imagem inteira). */
 var INITIAL_COLORING_SCALE=${INITIAL_COLORING_SCALE};
 /* Colorir Imersivo — área coberta pelo overlay flutuante (ferramentas+paleta) na
-   base do viewport, como fração da altura. A câmera inicial e o pan tratam essa
-   faixa como "não-segura": o foco da arte abre CENTRALIZADO na área ACIMA dela e o
-   pan permite subir a arte para revelar o que fica sob o overlay.
-   INITIAL_VIEW_BOTTOM_SAFE_INSET (px) é derivado de H em resize(). */
+   base do viewport. A câmera inicial e o pan tratam essa faixa como "não-segura": o
+   foco da arte abre CENTRALIZADO na área ACIMA dela e o pan permite subir a arte
+   para revelar o que fica sob o overlay.
+
+   [F6.5A · GEOMETRIA PORTRAIT] O valor CHEGA MEDIDO da tela, em dp, por
+   'window.__C60_BOTTOM_SAFE__' (a tela mede o topo real do painel flutuante com
+   'onLayout'). A fração de altura sobrevive apenas como palpite PRÉ-MEDIÇÃO — nunca
+   como verdade. Ela mentia: 0.20*H reservava ~246dp onde o painel cobre ~120dp, e
+   ainda assim "Ver tudo" (que ignorava a faixa) deixava a base da arte atrás do
+   painel. Área utilizável se MEDE; não se estima por fração de tela nem por altura
+   de aparelho. INITIAL_VIEW_BOTTOM_SAFE_INSET (px físicos) é recalculado em resize(). */
 var INITIAL_VIEW_BOTTOM_SAFE_FRAC=0.20;
 var INITIAL_VIEW_BOTTOM_SAFE_INSET=0;
+/* dp medido → px físicos. O teto de 60% de H é lacre contra medida absurda: mesmo
+   com um valor corrompido sobra banda útil, em vez de um viewport colapsado. */
+function bottomSafePx(){
+  var dp=window.__C60_BOTTOM_SAFE__;
+  if(typeof dp==='number'&&isFinite(dp)&&dp>0)
+    return Math.min(Math.round(H*0.6),Math.round(dp*DPR));
+  return Math.round(H*INITIAL_VIEW_BOTTOM_SAFE_FRAC);
+}
 var lastFillRejectedAt=0;
 
 /* ─── Touch state ─── */
@@ -290,7 +305,7 @@ function resize(){
   C.style.width=cssW+'px'; C.style.height=cssH+'px';
   C.width=W; C.height=H;
   off.width=W; off.height=H;
-  INITIAL_VIEW_BOTTOM_SAFE_INSET=Math.round(H*INITIAL_VIEW_BOTTOM_SAFE_FRAC);
+  INITIAL_VIEW_BOTTOM_SAFE_INSET=bottomSafePx();
   /* ⚠️ [Fase 6 · TK-A-085 · G-CVS-1] Daqui não sai realocação de 'paintD', 'qBuf'
      nem 'visBuf', e 'tmp' (o buffer da camada de tinta) não é redimensionado: eles
      pertencem ao espaço LÓGICO, que a janela não decide. Redimensionar qualquer um
@@ -662,7 +677,41 @@ window.undo=function(){
   postPaintState();
 };
 
-window.resetZoom=function(){scale=1;tx=0;ty=0;show();};
+/* [F6.5A] Enquadramento inicial — zoom de presença centralizado na BANDA ÚTIL (o
+   viewport menos a faixa realmente encoberta na base). Só view: scale/tx/ty. */
+function enquadrarInicial(){
+  var focusX=imgX+imgW/2, focusY=imgY+imgH/2;
+  var safeCenterX=W/2;                                    // largura inteira visível
+  var safeCenterY=(H-INITIAL_VIEW_BOTTOM_SAFE_INSET)/2;   // centro acima do overlay
+  scale=INITIAL_COLORING_SCALE;
+  tx=safeCenterX-focusX*scale;
+  ty=safeCenterY-focusY*scale;
+  clamp();
+}
+
+/* "Ver tudo" precisa mesmo mostrar TUDO. Voltar a scale 1 com ty=0 centralizava a
+   arte no viewport BRUTO — e o viewport bruto inclui a faixa do painel flutuante,
+   então a base do lineart terminava atrás dos controles justamente no gesto que
+   promete a arte inteira. Agora a arte é centralizada na banda útil; clamp() cuida
+   do caso em que ela não caiba lá (paisagem), mostrando o máximo possível. */
+window.resetZoom=function(){
+  scale=1;tx=0;
+  ty=Math.round((H-INITIAL_VIEW_BOTTOM_SAFE_INSET-imgH)/2-imgY);
+  clamp();show();
+};
+
+/* Medida da faixa encoberta chegando da tela. Reenquadra só enquanto a folha está
+   INTOCADA: depois da primeira tinta a câmera é da criança, e ninguém a puxa pelo
+   braço. Não toca baseD/paintD/imgX..imgH — é view e limite de pan, nada mais. */
+window.setBottomSafeInset=function(dp){
+  window.__C60_BOTTOM_SAFE__=dp;
+  if(!(W>0&&H>0))return;
+  var antes=INITIAL_VIEW_BOTTOM_SAFE_INSET;
+  INITIAL_VIEW_BOTTOM_SAFE_INSET=bottomSafePx();
+  if(INITIAL_VIEW_BOTTOM_SAFE_INSET===antes)return;
+  if(hasPainted)clamp();else enquadrarInicial();
+  show();
+};
 
 /* Reconferência sob demanda da medida real, SEM alterar tinta nem revisão. */
 window.postPaintState=function(){postPaintState();};
@@ -1108,15 +1157,9 @@ function initCanvas(uri){
          bruto do canvas. Assim o foco da arte não nasce atrás do overlay e o
          enquadramento fica natural/intencional. É só view (scale/tx/ty) — baseD/
          paintD/imgX..imgW e o flood fill ficam intactos; clamp() mantém as bordas
-         alcançáveis por pan. "Ver tudo" (resetZoom) volta a scale 1, tx 0, ty 0. */
-      var focusX=imgX+imgW/2;                       // centro da imagem (X)
-      var focusY=imgY+imgH/2;                       // centro da imagem (Y)
-      var safeCenterX=W/2;                          // largura inteira visível
-      var safeCenterY=(H-INITIAL_VIEW_BOTTOM_SAFE_INSET)/2; // centro acima do overlay
-      scale=INITIAL_COLORING_SCALE;
-      tx=safeCenterX-focusX*scale;
-      ty=safeCenterY-focusY*scale;
-      clamp();
+         alcançáveis por pan. "Ver tudo" (resetZoom) volta a scale 1 e recentra a arte na
+         MESMA banda útil, para a promessa de mostrar tudo valer de verdade. */
+      enquadrarInicial();
       renderAll();
       window.ReactNativeWebView.postMessage('READY');
       /* Medida INICIAL (folha em branco = 0 pintados): quem depende de cor real já nasce
@@ -1324,7 +1367,7 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
   // { rev, paintedPx, paintablePx }. Diferente de `onPainted` (mão única, legado), ele é de mão
   // DUPLA — apagar tudo devolve paintedPx=0 no mesmo toque. O fluxo legado simplesmente não passa
   // a prop e nada muda para ele.
-  { selectedColor = '#FF0000', imageSource = null, storyId = null, sceneNumber = null, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange, onPaintValid, onPaintInvalid, onPaintApplied, onPaintState },
+  { selectedColor = '#FF0000', imageSource = null, storyId = null, sceneNumber = null, bottomOverlayInset = 0, onPainted, onGoBack, onLoadCorrupted, onLoadIncompatible, onFillRejected, onReadyChange, onPaintValid, onPaintInvalid, onPaintApplied, onPaintState },
   ref,
 ) {
   const webViewRef = useRef(null);
@@ -1410,6 +1453,20 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, retryKey]);
 
+  // [F6.5A] Faixa inferior encoberta (dp), saneada uma vez só. Vai por dois caminhos
+  // porque os dois momentos importam: 'injectedJavaScriptBeforeContentLoaded' entrega o
+  // valor ANTES de o script do canvas rodar (a câmera inicial já nasce certa) e
+  // 'setBottomSafeInset' cobre medida que chegue ou mude depois.
+  const bottomSafeDp = Number.isFinite(bottomOverlayInset) ? Math.max(0, Math.round(bottomOverlayInset)) : 0;
+  const beforeContentJs = useMemo(
+    () => `window.__C60_BOTTOM_SAFE__=${bottomSafeDp}; true;`,
+    [bottomSafeDp],
+  );
+  useEffect(() => {
+    if (!isReadyRef.current || !webViewRef.current) return;
+    webViewRef.current.injectJavaScript(`window.setBottomSafeInset(${bottomSafeDp}); true;`);
+  }, [bottomSafeDp]);
+
   // retryKey is included so a new HTML object is produced on retry, causing
   // the WebView (keyed on retryKey) to fully remount with clean JS state.
   const htmlSource = useMemo(
@@ -1490,6 +1547,8 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
         ? 'window.setEraser(); true;'
         : `window.setColor(${JSON.stringify(selectedColor)}); true;`;
       webViewRef.current?.injectJavaScript(colorJs);
+      // [F6.5A] A medida pode ter chegado entre a montagem e o READY: reafirma sempre.
+      webViewRef.current?.injectJavaScript(`window.setBottomSafeInset(${bottomSafeDp}); true;`);
       if (pendingValidateRef.current) {
         const pendingVJs = `window.validatePaint(${JSON.stringify(pendingValidateRef.current)}); true;`;
         webViewRef.current?.injectJavaScript(pendingVJs);
@@ -1561,6 +1620,7 @@ const ColoringCanvas = forwardRef(function ColoringCanvas(
           key={retryKey}
           ref={webViewRef}
           source={htmlSource}
+          injectedJavaScriptBeforeContentLoaded={beforeContentJs}
           originWhitelist={['*']}
           scrollEnabled={false}
           bounces={false}
