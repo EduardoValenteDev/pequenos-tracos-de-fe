@@ -744,6 +744,8 @@ Objetivo: fechar a fundação visual e responsiva do V1 em retrato, garantir que
 * Tratar compatibilidade futura com API 37 como dívida explícita. O layout não deve quebrar catastroficamente se o sistema expuser janela diferente.
 * iPhone em portrait é superfície obrigatória. iPad adaptativo e Split View não recebem PASS no V1 sem prova.
 
+> **VEREDITO F6.7 — `PASS` (config); prova binária iOS pendente de F6.8.** Contrato V1 fechado como **portrait-first, não portrait-only**. **Android:** PASS — o telefone (`sw < 600dp`) é travado em retrato pela MainActivity e a tela grande (`sw >= 600dp`) fica `UNSPECIFIED`, com `targetSdk 36` intacto; a campanha de sobrevivência em landscape no SM-X510 deu Início, Aventuras, Brincar, Estrelinhas e Perfil **SAFE** e Colorir **DEGRADED** (utilizável: pinta, desfaz e conclui; a barra flutuante morde a faixa inferior da arte), sem crash, sem perda de estado e sem remontagem na ida e volta portrait→landscape→portrait. **iOS:** PASS de configuração — decisão do Portão Humano (OPÇÃO B): iPhone segue retrato por `expo.orientation`, o iPad declara as **quatro** orientações em `UISupportedInterfaceOrientations~ipad` e **mantém multitarefa** (`UIRequiresFullScreen` permanece `false`); nada de `lockAsync`, hack de orientação ou workaround por aparelho. O contrato é declarativo e está lacrado pelo portão `G-ORI-1` do smoke. **Landscape completo não é redesenhado na Fase 6** — é trabalho pós-V1. A prova em **binário iOS** do mesmo HEAD é de **F6.8**.
+
 
 ### F6.8 Builds canônicos
 
