@@ -21,7 +21,13 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "UIRequiresFullScreen": false
+        "UIRequiresFullScreen": false,
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       },
       "privacyManifests": {
         "NSPrivacyAccessedAPITypes": [

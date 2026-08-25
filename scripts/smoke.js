@@ -56387,6 +56387,102 @@ console.log('\n── P3H.3 · Contrato LF dos gates do Colorir 60 ──');
     `${d1Harness.stdout || ''}${d1Harness.stderr || ''}`.trim(),
   );
 
+  // ── Fase 6 · F6.7B: portão G-ORI-1 (contrato de orientação iOS) ─────────────
+  // DECISÃO do Portão Humano da F6.7A — OPÇÃO B: PORTRAIT-FIRST, não portrait-only.
+  // O iPhone continua retrato; o iPad declara as QUATRO orientações e MANTÉM a
+  // multitarefa (`UIRequiresFullScreen` NUNCA vira `true`). O contrato é
+  // DECLARATIVO e tem dois donos distintos: `expo.orientation` é o dono do iPhone
+  // (o plugin do Expo o converte em `UISupportedInterfaceOrientations`) e a chave
+  // `UISupportedInterfaceOrientations~ipad` — que o plugin não toca — é a dona do
+  // iPad. Nada de `lockAsync`, hack de orientação ou workaround por aparelho.
+  {
+    const gori = [];
+    const PORTRAIT_IOS = ['UIInterfaceOrientationPortrait', 'UIInterfaceOrientationPortraitUpsideDown'];
+    const LANDSCAPE_IOS = ['UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight'];
+    const IPAD_ESPERADO = [...PORTRAIT_IOS, ...LANDSCAPE_IOS];
+    // A FUNÇÃO REAL do plugin do Expo, não uma reimplementação: se o Expo mudar a
+    // conversão `orientation → UISupportedInterfaceOrientations`, este gate acusa.
+    const { setOrientation } = require('@expo/config-plugins/build/ios/Orientation');
+    // Mesmo GUARD do `createInfoPlistPluginWithPropertyGuard`: se alguém declarar
+    // `UISupportedInterfaceOrientations` à mão em `ios.infoPlist`, o plugin CALA e
+    // o contrato do iPhone deixa de vir de `expo.orientation`.
+    const compilarPlist = (exp) => {
+      const base = { ...(((exp || {}).ios || {}).infoPlist || {}) };
+      return base.UISupportedInterfaceOrientations === undefined ? setOrientation(exp, base) : base;
+    };
+    const mesmaLista = (a, esperado) => Array.isArray(a)
+      && a.length === esperado.length
+      && esperado.every((v, i) => a[i] === v);
+    const expOri = (() => {
+      try { return JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8')).expo; } catch (_) { return null; }
+    })();
+    const clonar = () => JSON.parse(JSON.stringify(expOri));
+
+    if (!expOri) {
+      gori.push('app.json não pôde ser lido/parseado');
+    } else {
+      const plistOri = compilarPlist(expOri);
+      if (expOri.orientation !== 'portrait') gori.push('`expo.orientation` deixou de ser "portrait" — o contrato do iPhone é retrato');
+      if (!mesmaLista(plistOri.UISupportedInterfaceOrientations, PORTRAIT_IOS)) gori.push('iPhone não é retrato-único no Info.plist compilado');
+      if (!mesmaLista(plistOri['UISupportedInterfaceOrientations~ipad'], IPAD_ESPERADO)) gori.push('iPad não declara as QUATRO orientações em `UISupportedInterfaceOrientations~ipad`');
+      if (expOri.ios.supportsTablet !== true) gori.push('`ios.supportsTablet` deixou de ser true');
+      if (plistOri.UIRequiresFullScreen === true) gori.push('`UIRequiresFullScreen: true` mataria a multitarefa do iPad — proibido pela decisão OPÇÃO B');
+      if (((expOri.ios || {}).infoPlist || {}).UISupportedInterfaceOrientations !== undefined) gori.push('`UISupportedInterfaceOrientations` declarado à mão silencia o plugin do Expo — o iPhone deixaria de seguir `expo.orientation`');
+
+      // CONTROLES NEGATIVOS — cada mutante precisa MORRER.
+      const mutantes = [
+        {
+          id: 'M1', nome: 'a chave base é declarada à mão e o plugin do Expo cala',
+          mutar: (e) => { e.ios.infoPlist.UISupportedInterfaceOrientations = IPAD_ESPERADO; return e; },
+          morre: (e) => mesmaLista(compilarPlist(e).UISupportedInterfaceOrientations, PORTRAIT_IOS) === false,
+        },
+        {
+          id: 'M2', nome: 'a chave ~ipad some e o iPad volta a herdar retrato-único',
+          mutar: (e) => { delete e.ios.infoPlist['UISupportedInterfaceOrientations~ipad']; return e; },
+          morre: (e) => mesmaLista(compilarPlist(e)['UISupportedInterfaceOrientations~ipad'], IPAD_ESPERADO) === false,
+        },
+        {
+          id: 'M3', nome: '`UIRequiresFullScreen: true` mata a multitarefa do iPad',
+          mutar: (e) => { e.ios.infoPlist.UIRequiresFullScreen = true; return e; },
+          morre: (e) => compilarPlist(e).UIRequiresFullScreen === true,
+        },
+        {
+          id: 'M4', nome: '`orientation` vira "default" e o iPhone ganha landscape',
+          mutar: (e) => { e.orientation = 'default'; return e; },
+          morre: (e) => mesmaLista(compilarPlist(e).UISupportedInterfaceOrientations, PORTRAIT_IOS) === false,
+        },
+        {
+          id: 'M5', nome: '`supportsTablet` cai e o iPad deixa de ser alvo nativo',
+          mutar: (e) => { e.ios.supportsTablet = false; return e; },
+          morre: (e) => e.ios.supportsTablet !== true,
+        },
+      ];
+      mutantes.forEach((mt) => {
+        let morreu = false;
+        try { morreu = Boolean(mt.morre(mt.mutar(clonar()))); } catch (_) { morreu = true; }
+        if (!morreu) gori.push(`(MUT) ${mt.id} sobreviveu — ${mt.nome}`);
+      });
+    }
+
+    // O contrato é DECLARATIVO: nenhuma trava de orientação em runtime.
+    const pkgOri = (() => {
+      try { return fs.readFileSync(path.join(root, 'package.json'), 'utf8'); } catch (_) { return ''; }
+    })();
+    if (/"expo-screen-orientation"/.test(pkgOri)) gori.push('`expo-screen-orientation` entrou nas dependências — o contrato V1 é declarativo, sem trava em runtime');
+    const fontesOri = [path.join(root, 'App.js'), path.join(root, 'index.js')]
+      .concat(walkSrc(path.join(root, 'src')));
+    const comLock = fontesOri.filter((f) => {
+      try { return /lockAsync|unlockAsync|ScreenOrientation\./.test(fs.readFileSync(f, 'utf8')); } catch (_) { return false; }
+    });
+    if (comLock.length > 0) gori.push(`trava de orientação em runtime encontrada em ${comLock.length} arquivo(s): ${comLock[0]}`);
+
+    check(
+      '`G-ORI-1` (`F6.7B`, **novo**): o contrato de orientação iOS é PORTRAIT-FIRST e declarativo — iPhone retrato vindo de `expo.orientation` (plugin do Expo não silenciado), iPad com as quatro orientações em `UISupportedInterfaceOrientations~ipad`, `supportsTablet` de pé, multitarefa preservada (`UIRequiresFullScreen` nunca `true`) e nenhuma trava de orientação em runtime — com M1–M5 mortos',
+      gori.length === 0,
+      gori.join(' · '),
+    );
+  }
+
   // F6-R7 · Attempt 03: o drawable Android standalone precisa virar `file://` antes de
   // o expo-file-system convertê-lo em data URL. O harness executa as funções reais do
   // ColoringCanvas e mata as regressões que voltariam a tratar o resource id como URL.
