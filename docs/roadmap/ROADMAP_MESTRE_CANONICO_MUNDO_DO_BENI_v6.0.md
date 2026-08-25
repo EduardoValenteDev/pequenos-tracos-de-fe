@@ -35,7 +35,7 @@ Esta página é o painel de orientação. Para saber onde o projeto está, consu
 | F3 | Reconciliação completa e matriz de pendências | INCORPORADA À V6 |
 | F4 | Product Lock final | RECONCILIADO NA V6 |
 | F5 | Infância, privacidade, teologia e medição | CONTRATO PERMANENTE |
-| F6 | Convergência portrait V1, sistema visual, tablet e builds canônicos | EM EXECUÇÃO |
+| F6 | Convergência portrait V1, sistema visual, tablet e builds canônicos | **FECHADA** (lacrada em 2026-08-25) |
 | F7 | Onboarding, Home e Área dos Responsáveis | PENDENTE |
 | F8 | Vozes e matriz do Beni | PENDENTE |
 | F8A | Orquestração sonora | PENDENTE |
@@ -522,7 +522,7 @@ Todo item desta tabela possui owner. Fechar uma fase não apaga o item. Se o com
 | F6-EVID-01 | **`ACCEPTED_EVIDENCE_GAP`** (P2 evidência) | F6 | **Lacuna de evidência assumida e adjudicada como aceita pelo fundador.** O experimento A/B controlado no SM-S928B (economia de bateria ON/OFF x dexopt `verify`/`speed`, medindo `am start -W` e `dumpsys gfxinfo` sob estímulo fixo) **não foi executado**: o aparelho entrou em bloqueio de tela seguro e o acesso físico se encerrou. O peso relativo dos amplificadores ambientais (economia de bateria ativa em 100% da campanha; instalação sideload sem AOT, `[status=verify]`) **não está quantificado**. | Quando houver telefone Android disponível de novo, rodar o A/B antes de dar `F6-PERF-01` por resolvido, para não creditar à correção de assets um ganho que seja ambiental. |
 | F6-BUILD-01 | P1 governança | F6 | iPhone instalado representa build antigo com conteúdo divergente. | Novo iOS e Android do mesmo HEAD e manifesto de proveniência. |
 | F6-MAP-01 | P1 visual | F6 | Mapa mostra placeholders de inicial mesmo quando artwork existe. | Resolver source/fallback/cache e testar as 20 histórias. |
-| F6-TYPE-01 | **P1/P2 — `PARTIALLY_DISCHARGED` (residual físico ABERTO)** | F6 | Cabeçalhos e textos já apresentaram clipping com font scale. **Quitado em parte:** `6ab390d` corrigiu a integridade visual e a barra inferior, com validação física no SM-X510 a **font scale 1,15**. **Não quitado:** o próprio `6ab390d` declarou `PENDING_F6_PHYSICAL_CAMPAIGN` para a barra inferior do **celular**, e esse marcador nunca foi descarregado em lugar nenhum do repositório. | Gate de tipografia e validação física. **Falta apenas** ver a barra inferior sob font scale ampliado em um aparelho `COMPACT` real (ver bloco `RECONCILIAÇÃO FINAL DA F6`). |
+| F6-TYPE-01 | **`PASS` — quitado em 2026-08-25 (`PENDING_F6_PHYSICAL_CAMPAIGN = QUITADO`)** | F6 | Cabeçalhos e textos já apresentaram clipping com font scale. **Quitado em parte:** `6ab390d` corrigiu a integridade visual e a barra inferior, com validação física no SM-X510 a **font scale 1,15**. **Não quitado:** o próprio `6ab390d` declarou `PENDING_F6_PHYSICAL_CAMPAIGN` para a barra inferior do **celular**, e esse marcador nunca foi descarregado em lugar nenhum do repositório. | Gate de tipografia e validação física **cumprido**: o residual foi exercitado fisicamente no **iPhone 14 / iOS 26.6** com o tamanho de texto do sistema **2 níveis acima do padrão** (`fontScale > 1,0`, faixa `XXL`), com o app **fechado por completo antes de reabrir** — condição necessária, porque `PixelRatio.getFontScale()` é lido na renderização e não assina mudança de Dynamic Type em tempo real. Resultado atestado pelo fundador: **5/5 abas visíveis**, `LABEL_CLIPPING = NÃO`, `HIDDEN_LABEL = NÃO`, `ICON_TEXT_OVERLAP = NÃO`, `TAB_COLLISION = NÃO`, `HOME_INDICATOR_COLLISION = NÃO`, `TAB_INTERACTION = PASS`, `OTHER_ANOMALIES = NÃO`. `SCREENSHOT_EVIDENCE = AUSENTE` e `SYSTEM_TEXT_SIZE_RESTORED = SIM`. |
 | F6-VIS-01 | P2 | F6 | Bordas cinzas/shadows inconsistentes em cards/conquistas. | Investigar componente compartilhado antes de correções locais. |
 | F6-EVID-01 | GAP histórico | F6 | R1-PEND-5 raw.log não foi preservado e é irrecuperável. | Não fabricar. Registrar gap histórico. Não repetir landscape apenas para recriá-lo. |
 | F7-ONB-01 | P1 | F7 | Tour/spotlights/anchors ficam desalinhados em dispositivos reais. | Destaque do componente real e anchors sem X/Y absoluto. |
@@ -682,7 +682,7 @@ Mapa de dados, minimização, parental gate, compartilhamento adulto, revisão t
 
 ## F6. Convergência portrait V1, sistema visual, tablet e builds canônicos
 
-Estado: EM EXECUÇÃO.
+Estado: **FECHADA** — lacrada em **2026-08-25** (ver o bloco `LACRE DA F6` ao final desta fase).
 
 Objetivo: fechar a fundação visual e responsiva do V1 em retrato, garantir que o tablet respeite a área realmente utilizável, provar performance em binário próximo de produção e eliminar divergência entre artefatos Android e iOS.
 
@@ -954,7 +954,7 @@ Objetivo: fechar a fundação visual e responsiva do V1 em retrato, garantir que
 > | Evidência física rastreável | **`ACCEPTED_GAP`** | Cadeia de proveniência SHA256 provada nas pernas Android; `F6-EVID-01` (A/B ambiental) e `F6-EVID-01` (GAP histórico do `raw.log` da R1-PEND-5) adjudicados como `ACCEPTED_EVIDENCE_GAP`; `IOS_NATIVE_LOG_EVIDENCE = EVIDENCE_GAP` e `VIDEO_EVIDENCE = AUSENTE` registrados sem substituto fabricado |
 > | Landscape residualizado sem `PASS` fictício | **`PASS`** | Tablet: nenhum relayout em landscape na campanha. iPhone: `LANDSCAPE_RELAYOUT = NÃO` **com o bloqueio de orientação do iOS desligado**, com a ressalva registrada de que o `Info.plist` já declara portrait. O `raw.log` histórico não foi recriado |
 >
-> **VIOLAÇÃO EXATA QUE IMPEDE O LACRE — `F6-TYPE-01`, residual físico não quitado.** O commit que corrigiu a integridade visual e o font scale da F6.4, **`6ab390d`**, declarou ele mesmo um residual: *“A correcao da barra inferior e do CELULAR e nao aparece no tablet — fica marcada como `PENDING_F6_PHYSICAL_CAMPAIGN`”*. Uma busca no repositório inteiro mostra que esse marcador **aparece somente nessa mensagem de commit e nunca foi quitado** em nenhum documento, spec ou veredito.
+> **VIOLAÇÃO QUE IMPEDIA O LACRE — `F6-TYPE-01`, residual físico ⚠️ QUITADO em 2026-08-25 (ver `LACRE DA F6`); texto preservado como registro do defeito e da forma como foi provado.** O commit que corrigiu a integridade visual e o font scale da F6.4, **`6ab390d`**, declarou ele mesmo um residual: *“A correcao da barra inferior e do CELULAR e nao aparece no tablet — fica marcada como `PENDING_F6_PHYSICAL_CAMPAIGN`”*. Uma busca no repositório inteiro mostra que esse marcador **aparece somente nessa mensagem de commit e nunca foi quitado** em nenhum documento, spec ou veredito.
 >
 > **As campanhas físicas realizadas não exercitaram o mecanismo.** A fórmula corrigida vive em `src/navigation/AppNavigator.js`: `Math.round(64 + 22 * (escalaDeFonte - 1)) + insets.bottom`, com `escalaDeFonte = Math.min(Math.max(PixelRatio.getFontScale(), 1), 1.6)`. Ela é **matematicamente inerte em `escala = 1`** (`64 + 0`). Ora: o único **telefone** testado (SM-S928B) rodou a **font scale 1,0**; o **tablet** rodou a 1,15, mas no tablet **essa barra não existe** — `tabBarStyle: isTablet ? undefined : {…}` e `tabBarPosition: isTablet ? 'left' : 'bottom'`, a apresentação é a sidebar; e o **iPhone** rodou com Dynamic Type padrão. Portanto **a correção da barra inferior sob font scale ampliado nunca foi vista funcionando em aparelho real**, e a saída esperada de `F6-TYPE-01` — *“Gate de tipografia e validação física”* — não está cumprida.
 >
@@ -962,11 +962,44 @@ Objetivo: fechar a fundação visual e responsiva do V1 em retrato, garantir que
 >
 > **Quitação barata e proporcional (ação física — não executada, aguarda o fundador).** No **iPhone 14 já instalado**: aumentar o tamanho do texto do iOS (*Ajustes → Tela e Brilho → Tamanho do Texto*, ou *Acessibilidade → Tamanho do Texto*), abrir o app e conferir a barra inferior nas cinco abas (`Início`, `Aventuras`, `Brincar`, `Estrelinhas`, `Perfil`): rótulo sem corte, ícone sem sobreposição, altura crescendo sem invadir o conteúdo. **Isso funciona e não é suposição:** no iOS o `fontScale` do RN vem de `RCTAccessibilityManager.multiplier`, alimentado por `UIContentSizeCategoryDidChangeNotification`, cuja tabela padrão mapeia `Large = 1,0`, `ExtraLarge = 1,118`, `XXL = 1,235`, `XXXL = 1,353` e as categorias de acessibilidade até 3,571 — valores que a fórmula acima lê e limita a **1,6** (`tabBarH` máximo = `77 + insets.bottom`). **Alternativa equivalente:** qualquer telefone Android com *Tamanho da fonte* aumentado. **Basta uma das duas.** Se o fundador preferir, pode em vez disso **adjudicar** o residual como `ACCEPTED_GAP` — mas essa decisão é dele, e não foi tomada.
 >
-> **GATE DE LACRE.** `F6_OPEN_P0 = 0` · `F6_OPEN_P1 = 1` (`F6-TYPE-01`) · critérios `PASS = 3`, `ACCEPTED_GAP = 2`, `BLOCKED = 1`. Logo: **`F6_FINAL_SEAL_ELIGIBLE = NÃO`** · **`F6_STATUS = OPEN`** · **`READY_FOR_F7 = NÃO`**. **A F6 não foi lacrada.** Este bloco registra a atestação da perna iPhone e a classificação dos achados — **não é um bloco de fechamento**. `BUILD_SOURCE_HEAD 645e6275c94b2061aa424e49cdc5edfec8ba8c7c` permanece imutável; nenhum código foi alterado; nenhum build novo foi gerado.
+> **GATE DE LACRE — ⚠️ SUPERADO em 2026-08-25 pelo bloco `LACRE DA F6`; preservado como registro histórico do que bloqueava.** `F6_OPEN_P0 = 0` · `F6_OPEN_P1 = 1` (`F6-TYPE-01`) · critérios `PASS = 3`, `ACCEPTED_GAP = 2`, `BLOCKED = 1`. Logo: **`F6_FINAL_SEAL_ELIGIBLE = NÃO`** · **`F6_STATUS = OPEN`** · **`READY_FOR_F7 = NÃO`**. **A F6 não foi lacrada NESTA RODADA.** Este bloco registra a atestação da perna iPhone e a classificação dos achados — **não é o bloco de fechamento**. O bloqueador `F6-TYPE-01` foi **quitado em 2026-08-25** por atestação física no iPhone 14 com `fontScale > 1,0`; o fechamento está no bloco `LACRE DA F6`. `BUILD_SOURCE_HEAD 645e6275c94b2061aa424e49cdc5edfec8ba8c7c` permanece imutável; nenhum código foi alterado; nenhum build novo foi gerado.
 
 > **SAÍDA F6**
 >
 > Nenhum P0/P1 F6 em portrait; tablet sem colisão com sidebar/UI do sistema; performance release like aceitável; Android e iOS canônicos e equivalentes; evidência física rastreável; landscape residualizado sem PASS fictício.
+
+> **🔒 LACRE DA F6 — `F6_STATUS = CLOSED`, lacrada em 2026-08-25.**
+>
+> **Último bloqueador quitado.** `F6-TYPE-01` foi exercitado fisicamente em **telefone real com `fontScale > 1,0`**, condição que nenhuma campanha anterior havia produzido (S24 a 1,0 — fórmula inerte; SM-X510 a 1,15 — mas usa sidebar, não tem barra inferior; iPhone com Dynamic Type padrão). Aparelho: **iPhone 14 / iOS 26.6**, tamanho de texto do sistema **2 níveis acima do padrão** (`HUMAN_SETTING`, faixa `XXL`), app fechado por completo antes de reabrir. Atestação humana do fundador: **`BOTTOM_TABS_VISIBLE = SIM` (5/5: Início, Aventuras, Brincar, Estrelinhas, Perfil)** · `LABEL_CLIPPING = NÃO` · `HIDDEN_LABEL = NÃO` · `ICON_TEXT_OVERLAP = NÃO` · `TAB_COLLISION = NÃO` · `HOME_INDICATOR_COLLISION = NÃO` · `TAB_INTERACTION = PASS` · `OTHER_ANOMALIES = NÃO`. `SCREENSHOT_EVIDENCE = AUSENTE` — a evidência é atestação humana direta, sem substituto fabricado. `SYSTEM_TEXT_SIZE_RESTORED = SIM`. Logo: **`F6_TYPE_01_PHYSICAL = PASS`** e **`PENDING_F6_PHYSICAL_CAMPAIGN = QUITADO`** — o marcador aberto por `6ab390d` deixa de existir.
+>
+> **Identidade do que foi lacrado.** `BUILD_SOURCE_HEAD = 645e6275c94b2061aa424e49cdc5edfec8ba8c7c` (imutável) · `ANDROID_FINAL_EAS = b86b2cea-3c23-4183-b34b-3e3a31d8273d` · `IOS_FINAL_EAS = da48afb6-11c7-4955-81cc-d9eef4c42b6f` · `SAME_SOURCE_HEAD = PROVADO` (`gitCommitHash` idêntico nas duas plataformas; *fingerprints* diferem por construção). Nenhum build novo foi gerado para lacrar e nenhuma linha de código foi alterada.
+>
+> **Matriz física final da F6.**
+>
+> | Perna | Aparelho | Banda | Binário | Resultado |
+> | --- | --- | --- | --- | --- |
+> | Android tablet pós-fix | SM-X510, Android 16, 823 dp, font scale 1,15 | `MEDIUM`/`EXPANDED` (sidebar) | APK `645e627` (`b86b2cea`), SHA256 conferido no aparelho | **`PASS` sem regressão**; logcat sem `FATAL`/`ANR`/tombstone |
+> | Android telefone pré-fix | SM-S928B, Android 15, 360 dp, font scale 1,0 | `COMPACT` | APK `2dcf717` | funcional **`PASS`**; achado de performance **remediado** (`F6-PERF-01`) |
+> | Android telefone pós-fix | — | `COMPACT` | — | **`NOT_TESTED`** — `ACCEPTED_EVIDENCE_GAP` adjudicado |
+> | iPhone | iPhone 14, iOS 26.6 | `COMPACT` | IPA `645e627` (`da48afb6`) | **`PASS` físico por atestação humana**, incluindo `fontScale > 1,0` |
+> | iPad | — | `EXPANDED` | — | **`ACCEPTED_EVIDENCE_GAP` já adjudicado** — não recebe `PASS` fictício |
+>
+> **Critérios formais de saída — todos satisfeitos.**
+>
+> | Critério (`SAÍDA F6`) | Veredito |
+> | --- | --- |
+> | Nenhum P0/P1 F6 em portrait | **`PASS`** — `F6_OPEN_P0 = 0`, `F6_OPEN_P1 = 0` |
+> | Tablet sem colisão com sidebar/UI do sistema | **`PASS`** — `F6-UX-01` fechado (`F6.2 = PASS`, commit `28aba98`), reconfirmado na campanha tablet |
+> | Performance release like aceitável | **`ACCEPTED_GAP`** formalmente adjudicado — `F6-PERF-01 = REMEDIATED_WITH_ACCEPTED_EVIDENCE_GAP` |
+> | Android e iOS canônicos e equivalentes | **`PASS`** — `F6-BUILD-01` fechado, par do mesmo `645e627`, ambos executados em aparelho físico |
+> | Evidência física rastreável | **`PASS`** quanto à proveniência (SHA256 byte a byte nas pernas Android; provisionamento iOS provado no próprio IPA), **mais os `ACCEPTED_EVIDENCE_GAP` já adjudicados** |
+> | Landscape residualizado sem `PASS` fictício | **`PASS`** — nenhum relayout em landscape; iPhone com bloqueio de orientação **desligado**; `raw.log` histórico não recriado |
+>
+> **`ACCEPTED_GAPS` preservados como gaps — nenhum vira `PASS` físico.** `F6-PERF-01` = `REMEDIATED_WITH_ACCEPTED_EVIDENCE_GAP`, com `COMPACT_POST_FIX_PHYSICAL = NOT_TESTED` · `F6-EVID-01` (A/B ambiental do SM-S928B) = `ACCEPTED_EVIDENCE_GAP` · `F6-EVID-01` (GAP histórico do `raw.log` da R1-PEND-5) = `ACCEPTED_EVIDENCE_GAP`, não fabricado e não recriado · **iPad** = `ACCEPTED_EVIDENCE_GAP` até haver aparelho e contrato adaptativo · `IOS_NATIVE_LOG_EVIDENCE` = `EVIDENCE_GAP` (sem USB, sem equivalência fabricada com o logcat) · `VIDEO_EVIDENCE` e `SCREENSHOT_EVIDENCE` = `AUSENTE` nas pernas atestadas.
+>
+> **Residuais futuros preservados com seus owners — fechar a F6 não os apaga.** `F7-ONB-01`, `F7-BRI-01`, `F7-QA-01` (**F7**) · `F9-JRN-C60-01`, `F9-C60-REENTRY-01`, `F9-READER-01`, `F9-PERF-SD-01` (**F9**) · `F11-STR-ONB-01`, `F11-CONC-01` (**F11**) · `F12A-OV-01`, `F12A-CL-01`, `F12A-GAME-01`, `F12A-PERF-PARES-01` (**F12A**) · `F12B-MOM-01` (**F12B**). Os dois achados de produto da perna iPhone continuam **fora da F6** e com owner registrado: `F9-C60-REENTRY-01` (F9) e a instância concreta de `F12A-CL-01` (F12A).
+>
+> **`F6_FINAL_SEAL_ELIGIBLE = SIM` · `F6_STATUS = CLOSED` · `READY_FOR_F7 = SIM`.** Sem código, sem build novo, sem push, sem merge.
 
 
 ## F7. Onboarding, Home e Área dos Responsáveis
