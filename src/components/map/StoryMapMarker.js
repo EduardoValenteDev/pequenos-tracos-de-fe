@@ -35,6 +35,22 @@ const RING = {
 const NEXTLOCKED_COLOR = '#4FC3FF';
 const NEXTLOCKED_GLOW = '#EAFBFF';
 
+// [F6-PERF-01] DECODIFICAÇÃO NO TAMANHO DO PIN.
+// A capa da história é um asset de 1456×816 ou 1672×941; aqui ela pinta um círculo de
+// 44–77 dp (≈132–231 px a 3x). Com o `resizeMethod` padrão (`auto`) o Fresco só reamostra
+// URIs `content://`/`file://` — asset empacotado decodifica em tamanho NATIVO, e as 20 capas
+// do mapa somam ~107 MB de bitmap ARGB_8888 montadas de uma vez dentro do ScrollView de
+// regiões. Foi esse volume que a campanha física mediu como upload lento de bitmap (fase
+// SYNC dominando frames de 712–1111 ms), não trabalho da thread JS.
+// `resize` manda o Fresco decodificar já reduzido. O MULTIPLICADOR existe porque o
+// downsample do Fresco é por potência de dois COM TOLERÂNCIA: pedir exatamente a caixa pode
+// devolver um bitmap MENOR que ela — foi assim que a F6.6 degradou a arte da capa na
+// StoryDetail e teve a correção revertida. Pedindo 2× a caixa, o passo escolhido devolve
+// sempre um bitmap MAIOR que o círculo: memória cai ~15x e a nitidez sobra.
+// Só o pin do mapa usa isto — arte de região e capa da StoryDetail aparecem perto do
+// tamanho nativo e não têm o que reduzir.
+const COVER_RESIZE_MULTIPLIER = 2;
+
 const LABEL_W = 84; // legenda ainda menor (B3.2) — ocupa menos do mapa
 
 // Caixa do label posicionada por lado, mantendo-se SEMPRE dentro da tela (o pin
@@ -143,6 +159,7 @@ export default function StoryMapMarker({
               de carregamento morando aqui. */}
           {cover ? (
             <RecoverableImage source={cover} style={[styles.cover, coverDim < 1 && { opacity: coverDim }]} resizeMode="cover"
+              resizeMethod="resize" resizeMultiplier={COVER_RESIZE_MULTIPLIER}
               renderFallback={() => (
                 <View style={[styles.fallback, styles.fallbackBehind, { backgroundColor: story.corCapa || story.themeColor || '#BCA77E' }]}>
                   <Text style={styles.fallbackText}>{(story.titulo || '?').trim().charAt(0).toUpperCase()}</Text>
