@@ -529,6 +529,7 @@ Todo item desta tabela possui owner. Fechar uma fase não apaga o item. Se o com
 | F7-QA-01 | P2 | F7 | Repetição do onboarding exige reinstalação. | Reset protegido apenas para QA/pesquisa, ausente em produção. |
 | F9-JRN-C60-01 | P1 | F9 | Colorir concluído pelo caminho narrativo pode não refletir estado visual imediatamente. | Reconciliar conclusão, persistência e retorno sem duplicação. |
 | F9-READER-01 | P1 produto | F9 | Story Home/Reader atual ainda tem aparência de app/dashboard e não de livro. | Story Home V2 + Página Viva. |
+| F9-PERF-SD-01 | P2 performance | F9 | Abertura da StoryDetail legada tem jank de montagem medido em release like no SM-X510: p90 121-150 ms, ~4 frames >120 ms e 9-11 slow bitmap uploads. Causa dominante é o custo de montagem da tela, não o bitmap; a correção simples (decodificação no tamanho da view) foi testada na F6.6, não reduziu o p90 e degradou a arte da capa, sendo revertida. | A superfície nova (Story Home V2 + Página Viva) é medida contra essa baseline e não regride. Se a decodificação for reaberta, ela vem junto de política de variantes de asset no tamanho de exibição, com prova visual. |
 | F11-STR-ONB-01 | P1 | F11 | Conquista e onboarding das Estrelinhas disputam overlay e podem travar. | Orquestrador determinístico, uma camada bloqueante por vez. |
 | F11-CONC-01 | P1 UX | F11 | Conclusão atual sobrecarrega e perde próxima ação. | Remover painel e usar ritual + JourneyOrchestrator. |
 | F12A-OV-01 | P1 | F12A | Cadê a Ovelhinha já apresentou inicialização dependente de mudança de estado/rotação. | Começar corretamente em portrait e concluir sem gatilho de rotação. |
@@ -732,6 +733,8 @@ Objetivo: fechar a fundação visual e responsiva do V1 em retrato, garantir que
 * Medir abertura até Home utilizável, tabs, mapa, história, Colorir, Criar Livre, scroll, jogos, memória, JS thread e UI thread.
 * Medir em preview/release like, não usar sensação do Development Build como única prova.
 * Otimizar apenas causas comprovadas. Se a lentidão continuar perceptível em binário próximo de produção, ela bloqueia F6.
+
+> **VEREDITO F6.6 — `PASS_WITH_KNOWN_RESIDUAL`.** Medição release like no SM-X510 (perfil `preview`, sem Metro) deu performance global satisfatória: boot, navegação, Colorir e mapa passam. Restou **um** residual, `LEGACY_STORYDETAIL_MOUNT_JANK`, com baseline **p90 121-150 ms, ~4 frames >120 ms, 9-11 slow bitmap uploads** na abertura de A Criação. A correção simples foi executada, medida e **rejeitada** (não reduziu o p90 materialmente, manteve os frames >120 ms e degradou visivelmente a arte da capa); foi revertida, e a árvore não carrega código dessa tentativa. A causa remanescente exige mudança maior na montagem da tela ou política de variantes de asset, e **não** é executada na F6.6 porque a superfície será reconstruída na F9. Owner do residual: **F9**, item `F9-PERF-SD-01` da tabela de riscos; a nova superfície precisa ser medida contra essa baseline e não regredir. O mapa em repouso a 63 fps **não** é blocker: fica como observação de eficiência futura.
 
 
 ### F6.7 Orientação portrait
