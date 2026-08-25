@@ -51,7 +51,7 @@ Legenda de `ESTADO`: **`MAPEADO`** = coberto por código(s) existente(s) ·
 | # | Código `v6` | Sev. `v6` | Owner | Código(s) canônico(s) `P-nnn` | Estado |
 |---|---|---|---|---|---|
 | 1 | `F6-UX-01` | P1 | F6 | `P-151`, `P-153`, `P-169`, `P-168`, `P-30`, `P-47`, `P-31`, `P-29`, `P-20`, `P-167`, `P-152` | `MAPEADO` |
-| 2 | `F6-PERF-01` | P1 condicional | F6 | `P-139`, `P-135`, `P-136`, `P-85` | `MAPEADO` |
+| 2 | `F6-PERF-01` | **P1 ATIVO (bloqueador)** | F6 | `P-139`, `P-135`, `P-136`, `P-85` | `MAPEADO` |
 | 3 | `F6-BUILD-01` | P1 governança | F6 | `P-94`, `P-137` **+ `P-170`** | `MAPEADO PARCIAL + NOVO` |
 | 4 | `F6-MAP-01` | P1 visual | F6 | `P-105`, `P-111`, `P-26`, `P-154` **+ `P-171`** | `MAPEADO PARCIAL + NOVO` |
 | 5 | `F6-TYPE-01` | P1/P2 | F6 | `P-27`, `P-59`, `P-60` | `MAPEADO` |
